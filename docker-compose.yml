@@ -62,6 +62,50 @@ services:
           cpus: '1.0'
     stop_grace_period: 30s
 
+  app:
+    build: .
+    container_name: equismile-app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-equismile}:${POSTGRES_PASSWORD:-equismile}@postgres:5432/${POSTGRES_DB:-equismile}?schema=public
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_DEFAULT_LOCALE: ${NEXT_PUBLIC_DEFAULT_LOCALE:-en}
+      N8N_API_KEY: ${N8N_API_KEY:-}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678}
+      N8N_HOST: n8n
+      N8N_PORT: '5678'
+      N8N_PROTOCOL: http
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      HOME_BASE_ADDRESS: ${HOME_BASE_ADDRESS:-}
+      HOME_BASE_LAT: ${HOME_BASE_LAT:-}
+      HOME_BASE_LNG: ${HOME_BASE_LNG:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+    stop_grace_period: 30s
+
 volumes:
   postgres_data:
   n8n_data:

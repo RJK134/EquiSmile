@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:studio": "prisma studio",
-    "preflight": "tsx scripts/preflight-check.ts"
+    "preflight": "tsx scripts/preflight-check.ts",
+    "validate-env": "npx tsx scripts/validate-environment.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
