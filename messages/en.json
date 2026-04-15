@@ -266,7 +266,10 @@
     "phone": "Phone",
     "open": "Open",
     "inProgress": "In Progress",
-    "done": "Done"
+    "done": "Done",
+    "confirmed": "Confirmed",
+    "noShow": "No-Show",
+    "skipped": "Skipped"
   },
   "requestTypes": {
     "routineDental": "Routine Dental",
@@ -312,7 +315,8 @@
     "required": "Required",
     "optional": "Optional",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "view": "View"
   },
   "language": {
     "label": "Language",
@@ -350,6 +354,7 @@
     "approved": "Approved",
     "approve": "Approve",
     "reject": "Reject",
+    "bookRoute": "Book Appointments",
     "viewDetail": "View Details",
     "detail": {
       "title": "Route Detail",
@@ -397,5 +402,73 @@
     "sentVia": "via {channel}",
     "today": "Today",
     "yesterday": "Yesterday"
+  },
+  "appointments": {
+    "title": "Appointments",
+    "subtitle": "Manage appointments and visit outcomes",
+    "empty": "No appointments yet. Appointments are created when route proposals are approved.",
+    "filters": "Filters",
+    "status": "Status",
+    "dateRange": "Date Range",
+    "allStatuses": "All Statuses",
+    "from": "From",
+    "to": "To",
+    "customer": "Customer",
+    "yard": "Yard",
+    "date": "Date",
+    "time": "Time",
+    "horses": "Horses",
+    "route": "Route",
+    "confirmationStatus": "Confirmation",
+    "confirmed": "Confirmed",
+    "notConfirmed": "Not Confirmed",
+    "reminderStatus": "Reminders",
+    "reminder24h": "24h reminder sent",
+    "reminder2h": "2h reminder sent",
+    "noReminders": "No reminders sent",
+    "actions": "Actions",
+    "sendConfirmation": "Send Confirmation",
+    "resendConfirmation": "Resend Confirmation",
+    "cancel": "Cancel",
+    "reschedule": "Reschedule",
+    "markComplete": "Mark Complete",
+    "markNoShow": "Mark No-Show",
+    "cancelReason": "Cancellation Reason",
+    "cancelConfirm": "Are you sure you want to cancel this appointment?",
+    "noShowConfirm": "Mark this appointment as a no-show?",
+    "bookRoute": "Book Route",
+    "bookRouteConfirm": "Convert this approved route into appointments?",
+    "detail": {
+      "title": "Appointment Detail",
+      "appointmentInfo": "Appointment Information",
+      "routeContext": "Route Context",
+      "confirmationHistory": "Confirmation History",
+      "reminderHistory": "Reminder History",
+      "visitOutcome": "Visit Outcome",
+      "completionForm": "Complete Visit",
+      "clinicalNotes": "Clinical Notes",
+      "followUpRequired": "Follow-up Required",
+      "followUpDueDate": "Follow-up Due Date",
+      "nextDentalDueDate": "Next Dental Due Date",
+      "submitCompletion": "Complete Visit",
+      "horseNotes": "Horse Notes",
+      "sentAt": "Sent at",
+      "notSent": "Not sent"
+    },
+    "dayView": {
+      "title": "Today's Route",
+      "noAppointments": "No appointments today.",
+      "travelTime": "Travel time",
+      "quickComplete": "Complete",
+      "stop": "Stop"
+    },
+    "dashboard": {
+      "todayCount": "Today's Appointments",
+      "upcoming": "Upcoming (7 days)",
+      "pendingConfirmations": "Pending Confirmations",
+      "completedThisWeek": "Completed This Week",
+      "followUpsDue": "Follow-ups Due",
+      "noUpcoming": "No upcoming appointments."
+    }
   }
 }

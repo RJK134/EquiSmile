@@ -218,6 +218,26 @@ export default function RouteRunDetailPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
+          {routeRun.status === 'APPROVED' && (
+            <div className="mb-6">
+              <Button
+                onClick={async () => {
+                  setUpdating(true);
+                  try {
+                    await fetch(`/api/appointments/from-route/${id}`, { method: 'POST' });
+                    const data = await fetch(`/api/route-planning/proposals/${id}`).then((r) => r.json());
+                    setRouteRun(data);
+                  } finally {
+                    setUpdating(false);
+                  }
+                }}
+                disabled={updating}
+              >
+                {tr('bookRoute')}
+              </Button>
+            </div>
+          )}
+
           {/* Stops List */}
           <Card className="mb-6">
             <h2 className="mb-4 text-lg font-semibold">{t('stopList')}</h2>

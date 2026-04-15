@@ -48,8 +48,17 @@ const taskStatusMap: Record<string, { variant: BadgeVariant; key: string }> = {
   DONE: { variant: 'success', key: 'done' },
 };
 
+// Appointment status badge
+const appointmentStatusMap: Record<string, { variant: BadgeVariant; key: string }> = {
+  PROPOSED: { variant: 'warning', key: 'proposed' },
+  CONFIRMED: { variant: 'info', key: 'confirmed' },
+  COMPLETED: { variant: 'success', key: 'completed' },
+  CANCELLED: { variant: 'danger', key: 'cancelled' },
+  NO_SHOW: { variant: 'danger', key: 'noShow' },
+};
+
 interface StatusBadgeProps {
-  type: 'triage' | 'planning' | 'urgency' | 'channel' | 'taskStatus';
+  type: 'triage' | 'planning' | 'urgency' | 'channel' | 'taskStatus' | 'appointment';
   value: string;
 }
 
@@ -59,6 +68,7 @@ const maps: Record<StatusBadgeProps['type'], Record<string, { variant: BadgeVari
   urgency: urgencyMap,
   channel: channelMap,
   taskStatus: taskStatusMap,
+  appointment: appointmentStatusMap,
 };
 
 export function StatusBadge({ type, value }: StatusBadgeProps) {

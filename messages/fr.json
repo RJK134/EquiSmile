@@ -266,7 +266,10 @@
     "phone": "Téléphone",
     "open": "Ouvert",
     "inProgress": "En cours",
-    "done": "Terminé"
+    "done": "Terminé",
+    "confirmed": "Confirmé",
+    "noShow": "Absent",
+    "skipped": "Ignoré"
   },
   "requestTypes": {
     "routineDental": "Soins dentaires de routine",
@@ -312,7 +315,8 @@
     "required": "Obligatoire",
     "optional": "Facultatif",
     "yes": "Oui",
-    "no": "Non"
+    "no": "Non",
+    "view": "Voir"
   },
   "language": {
     "label": "Langue",
@@ -350,6 +354,7 @@
     "approved": "Approuvé",
     "approve": "Approuver",
     "reject": "Rejeter",
+    "bookRoute": "Réserver les rendez-vous",
     "viewDetail": "Voir les détails",
     "detail": {
       "title": "Détail de l'itinéraire",
@@ -397,5 +402,73 @@
     "sentVia": "via {channel}",
     "today": "Aujourd'hui",
     "yesterday": "Hier"
+  },
+  "appointments": {
+    "title": "Rendez-vous",
+    "subtitle": "Gérer les rendez-vous et les résultats des visites",
+    "empty": "Aucun rendez-vous pour le moment. Les rendez-vous sont créés lorsque les propositions d'itinéraires sont approuvées.",
+    "filters": "Filtres",
+    "status": "Statut",
+    "dateRange": "Période",
+    "allStatuses": "Tous les statuts",
+    "from": "Du",
+    "to": "Au",
+    "customer": "Client",
+    "yard": "Écurie",
+    "date": "Date",
+    "time": "Heure",
+    "horses": "Chevaux",
+    "route": "Itinéraire",
+    "confirmationStatus": "Confirmation",
+    "confirmed": "Confirmé",
+    "notConfirmed": "Non confirmé",
+    "reminderStatus": "Rappels",
+    "reminder24h": "Rappel 24h envoyé",
+    "reminder2h": "Rappel 2h envoyé",
+    "noReminders": "Aucun rappel envoyé",
+    "actions": "Actions",
+    "sendConfirmation": "Envoyer la confirmation",
+    "resendConfirmation": "Renvoyer la confirmation",
+    "cancel": "Annuler",
+    "reschedule": "Reporter",
+    "markComplete": "Marquer terminé",
+    "markNoShow": "Marquer absent",
+    "cancelReason": "Motif d'annulation",
+    "cancelConfirm": "Êtes-vous sûr de vouloir annuler ce rendez-vous ?",
+    "noShowConfirm": "Marquer ce rendez-vous comme absent ?",
+    "bookRoute": "Réserver l'itinéraire",
+    "bookRouteConfirm": "Convertir cet itinéraire approuvé en rendez-vous ?",
+    "detail": {
+      "title": "Détail du rendez-vous",
+      "appointmentInfo": "Informations du rendez-vous",
+      "routeContext": "Contexte de l'itinéraire",
+      "confirmationHistory": "Historique de confirmation",
+      "reminderHistory": "Historique des rappels",
+      "visitOutcome": "Résultat de la visite",
+      "completionForm": "Terminer la visite",
+      "clinicalNotes": "Notes cliniques",
+      "followUpRequired": "Suivi nécessaire",
+      "followUpDueDate": "Date de suivi prévue",
+      "nextDentalDueDate": "Prochaine date de soins dentaires",
+      "submitCompletion": "Terminer la visite",
+      "horseNotes": "Notes sur les chevaux",
+      "sentAt": "Envoyé à",
+      "notSent": "Non envoyé"
+    },
+    "dayView": {
+      "title": "Itinéraire du jour",
+      "noAppointments": "Aucun rendez-vous aujourd'hui.",
+      "travelTime": "Temps de trajet",
+      "quickComplete": "Terminer",
+      "stop": "Arrêt"
+    },
+    "dashboard": {
+      "todayCount": "Rendez-vous du jour",
+      "upcoming": "À venir (7 jours)",
+      "pendingConfirmations": "Confirmations en attente",
+      "completedThisWeek": "Terminés cette semaine",
+      "followUpsDue": "Suivis à effectuer",
+      "noUpcoming": "Aucun rendez-vous à venir."
+    }
   }
 }
