@@ -39,6 +39,7 @@ const URGENT_KEYWORDS_EN = [
   'pain', "can't eat", 'unable to eat', 'not eating', 'swelling', 'swollen',
   'bleeding', 'blood', 'distress', 'emergency', 'acute', 'severe',
   'weight loss', "won't eat", 'quidding badly', 'lame jaw', 'abscess',
+  'urgent',
 ];
 
 const URGENT_KEYWORDS_FR = [

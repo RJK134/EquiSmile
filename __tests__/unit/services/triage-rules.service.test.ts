@@ -239,7 +239,7 @@ describe('triage-rules.service', () => {
       expect(result.clinicalFlags).toContain('pain');
       expect(result.clinicalFlags).toContain('bleeding');
       expect(result.needsMoreInfo).toBe(false);
-      expect(result.estimatedDuration).toBe(110); // 30 + 25 + 25 + 15(urgent) + 15(assessment)  Wait, 30+25+25+15 = 95
+      expect(result.estimatedDuration).toBe(95); // 30 + 25 + 25 + 15(urgent)
     });
 
     it('triages a routine FR message with missing info', () => {

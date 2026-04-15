@@ -1,4 +1,40 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock all external dependencies before importing the service
+vi.mock('@/lib/prisma', () => ({
+  prisma: {},
+}));
+
+vi.mock('@/lib/env', () => ({
+  env: {
+    DATABASE_URL: 'postgresql://localhost:5432/test',
+    WHATSAPP_PHONE_NUMBER_ID: '',
+    WHATSAPP_ACCESS_TOKEN: '',
+    WHATSAPP_API_TOKEN: '',
+    WHATSAPP_VERIFY_TOKEN: '',
+    WHATSAPP_APP_SECRET: '',
+    N8N_API_KEY: '',
+    N8N_WEBHOOK_URL: '',
+    SMTP_HOST: '',
+    SMTP_PORT: '587',
+    SMTP_USER: '',
+    SMTP_PASSWORD: '',
+    SMTP_FROM: '',
+  },
+}));
+
+vi.mock('@/lib/services/whatsapp.service', () => ({
+  whatsappService: { sendTextMessage: vi.fn() },
+}));
+
+vi.mock('@/lib/services/email.service', () => ({
+  emailService: { sendBrandedEmail: vi.fn() },
+}));
+
+vi.mock('@/lib/services/message-log.service', () => ({
+  messageLogService: { logMessage: vi.fn() },
+}));
+
 import {
   checkCompleteness,
   generateFollowUpMessage,

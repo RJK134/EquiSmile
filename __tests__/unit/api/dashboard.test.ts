@@ -14,6 +14,7 @@ const mockVisitRequestRepo = {
 
 const mockTriageTaskRepo = {
   findOpenTasks: vi.fn(),
+  countOpen: vi.fn(),
 };
 
 vi.mock('@/lib/services/planning.service', () => ({
@@ -33,7 +34,14 @@ vi.mock('@/lib/repositories/triage-task.repository', () => ({
 }));
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: {},
+  prisma: {
+    visitRequest: {
+      count: vi.fn().mockResolvedValue(0),
+    },
+    enquiry: {
+      count: vi.fn().mockResolvedValue(0),
+    },
+  },
 }));
 
 describe('GET /api/dashboard', () => {
@@ -60,6 +68,7 @@ describe('GET /api/dashboard', () => {
       totalPages: 1,
     });
     mockTriageTaskRepo.findOpenTasks.mockResolvedValue([{ id: 't1' }]);
+    mockTriageTaskRepo.countOpen.mockResolvedValue(1);
 
     const { GET } = await import('@/app/api/dashboard/route');
     const response = await GET();
@@ -70,5 +79,7 @@ describe('GET /api/dashboard', () => {
     expect(body.recentEnquiries).toHaveLength(1);
     expect(body.urgentRequests).toBeDefined();
     expect(body.openTriageTasks).toHaveLength(1);
+    expect(body.sla).toBeDefined();
+    expect(body.sla.openTaskCount).toBe(1);
   });
 });
