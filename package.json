@@ -13,7 +13,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "npx prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "preflight": "tsx scripts/preflight-check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
