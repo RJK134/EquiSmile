@@ -14,49 +14,94 @@
       "position": [250, 300]
     },
     {
-      "parameters": {},
-      "id": "fetch-pool",
-      "name": "Fetch Planning Pool",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/route-planning/generate",
+        "method": "POST",
+        "body": {
+          "targetDate": "={{$json.targetDate || ''}}"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "options": {}
+      },
+      "id": "generate-proposals",
+      "name": "Generate Route Proposals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
       "position": [450, 300]
     },
     {
-      "parameters": {},
-      "id": "cluster-visits",
-      "name": "Cluster by Geography",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.proposalCount}}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-proposals",
+      "name": "Has Proposals?",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [650, 300]
     },
     {
-      "parameters": {},
-      "id": "optimise-route",
-      "name": "Google Route Optimisation",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "functionCode": "const proposals = items[0].json.proposals;\nconst results = proposals.map(p => ({\n  json: {\n    routeRunId: p.routeRunId,\n    runDate: p.runDate,\n    totalStops: p.totalJobs,\n    totalHorses: p.totalHorses,\n    score: p.optimizationScore\n  }\n}));\nreturn results;"
+      },
+      "id": "format-results",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [850, 300]
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/n8n/route-proposal",
+        "method": "POST",
+        "body": {
+          "routeRunId": "={{$json.routeRunId}}",
+          "runDate": "={{$json.runDate}}",
+          "stops": []
+        },
+        "headers": {
+          "Authorization": "Bearer {{$env.N8N_API_KEY}}"
+        },
+        "options": {}
+      },
+      "id": "store-route",
+      "name": "Store Route Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200]
     },
     {
       "parameters": {},
-      "id": "store-route",
-      "name": "Store Route Run",
+      "id": "no-routes",
+      "name": "No Routes Generated",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1050, 300]
+      "position": [850, 400]
     }
   ],
   "connections": {
     "Route Planning Trigger": {
-      "main": [[{ "node": "Fetch Planning Pool", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Generate Route Proposals", "type": "main", "index": 0 }]]
     },
-    "Fetch Planning Pool": {
-      "main": [[{ "node": "Cluster by Geography", "type": "main", "index": 0 }]]
+    "Generate Route Proposals": {
+      "main": [[{ "node": "Has Proposals?", "type": "main", "index": 0 }]]
     },
-    "Cluster by Geography": {
-      "main": [[{ "node": "Google Route Optimisation", "type": "main", "index": 0 }]]
+    "Has Proposals?": {
+      "main": [
+        [{ "node": "Format Results", "type": "main", "index": 0 }],
+        [{ "node": "No Routes Generated", "type": "main", "index": 0 }]
+      ]
     },
-    "Google Route Optimisation": {
+    "Format Results": {
       "main": [[{ "node": "Store Route Run", "type": "main", "index": 0 }]]
     }
   },
