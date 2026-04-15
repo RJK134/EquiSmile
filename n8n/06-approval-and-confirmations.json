@@ -1,0 +1,55 @@
+{
+  "name": "06 - Approval & Confirmations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "route-approved",
+        "responseMode": "onReceived"
+      },
+      "id": "approval-webhook",
+      "name": "Route Approval Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {},
+      "id": "create-appointments",
+      "name": "Create Appointments",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "send-confirmations",
+      "name": "Send Confirmation Messages",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "schedule-reminders",
+      "name": "Schedule Reminders",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Route Approval Trigger": {
+      "main": [[{ "node": "Create Appointments", "type": "main", "index": 0 }]]
+    },
+    "Create Appointments": {
+      "main": [[{ "node": "Send Confirmation Messages", "type": "main", "index": 0 }]]
+    },
+    "Send Confirmation Messages": {
+      "main": [[{ "node": "Schedule Reminders", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": [{ "name": "phase6" }]
+}

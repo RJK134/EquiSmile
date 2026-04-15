@@ -1,0 +1,55 @@
+{
+  "name": "03 - Triage & Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triage-trigger",
+        "responseMode": "onReceived"
+      },
+      "id": "triage-webhook",
+      "name": "Triage Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {},
+      "id": "classify-urgency",
+      "name": "Classify Urgency",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "check-missing-info",
+      "name": "Check Missing Information",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "create-visit-request",
+      "name": "Create Visit Request",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Triage Trigger": {
+      "main": [[{ "node": "Classify Urgency", "type": "main", "index": 0 }]]
+    },
+    "Classify Urgency": {
+      "main": [[{ "node": "Check Missing Information", "type": "main", "index": 0 }]]
+    },
+    "Check Missing Information": {
+      "main": [[{ "node": "Create Visit Request", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": [{ "name": "phase4" }]
+}

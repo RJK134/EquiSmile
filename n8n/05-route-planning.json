@@ -1,0 +1,66 @@
+{
+  "name": "05 - Route Planning",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "plan-routes",
+        "responseMode": "onReceived"
+      },
+      "id": "route-webhook",
+      "name": "Route Planning Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {},
+      "id": "fetch-pool",
+      "name": "Fetch Planning Pool",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "cluster-visits",
+      "name": "Cluster by Geography",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "optimise-route",
+      "name": "Google Route Optimisation",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {},
+      "id": "store-route",
+      "name": "Store Route Run",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Route Planning Trigger": {
+      "main": [[{ "node": "Fetch Planning Pool", "type": "main", "index": 0 }]]
+    },
+    "Fetch Planning Pool": {
+      "main": [[{ "node": "Cluster by Geography", "type": "main", "index": 0 }]]
+    },
+    "Cluster by Geography": {
+      "main": [[{ "node": "Google Route Optimisation", "type": "main", "index": 0 }]]
+    },
+    "Google Route Optimisation": {
+      "main": [[{ "node": "Store Route Run", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": [{ "name": "phase5" }]
+}
