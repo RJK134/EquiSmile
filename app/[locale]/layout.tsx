@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'EquiSmile — Equine Dental Operations',
   description:
     'Mobile-first field-service operations platform for equine dental veterinary practice.',
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
 };
 
 export const viewport: Viewport = {
