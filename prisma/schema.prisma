@@ -1,0 +1,351 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Channel {
+  WHATSAPP
+  EMAIL
+}
+
+enum PreferredChannel {
+  WHATSAPP
+  EMAIL
+  PHONE
+}
+
+enum TriageStatus {
+  NEW
+  PARSED
+  NEEDS_INFO
+  TRIAGED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum RequestType {
+  ROUTINE_DENTAL
+  FOLLOW_UP
+  URGENT_ISSUE
+  FIRST_VISIT
+  ADMIN
+}
+
+enum UrgencyLevel {
+  URGENT
+  SOON
+  ROUTINE
+}
+
+enum PreferredTimeBand {
+  AM
+  PM
+  ANY
+}
+
+enum PlanningStatus {
+  UNTRIAGED
+  READY_FOR_REVIEW
+  PLANNING_POOL
+  CLUSTERED
+  PROPOSED
+  BOOKED
+  COMPLETED
+  CANCELLED
+}
+
+enum TriageTaskType {
+  URGENT_REVIEW
+  ASK_FOR_POSTCODE
+  ASK_HORSE_COUNT
+  CLARIFY_SYMPTOMS
+  MANUAL_CLASSIFICATION
+}
+
+enum TriageTaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum RouteRunStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  BOOKED
+  COMPLETED
+}
+
+enum StopStatus {
+  PLANNED
+  CONFIRMED
+  COMPLETED
+  SKIPPED
+}
+
+enum AppointmentStatus {
+  PROPOSED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ConfirmationChannel {
+  WHATSAPP
+  EMAIL
+  PHONE
+}
+
+enum InvoiceStatus {
+  NOT_NEEDED
+  PENDING
+  SENT
+  PAID
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id                String           @id @default(uuid())
+  fullName          String
+  mobilePhone       String?          @unique
+  email             String?          @unique
+  preferredChannel  PreferredChannel @default(WHATSAPP)
+  preferredLanguage String           @default("en")
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  yards         Yard[]
+  horses        Horse[]
+  enquiries     Enquiry[]
+  visitRequests VisitRequest[]
+
+  @@index([fullName])
+}
+
+model Yard {
+  id            String   @id @default(uuid())
+  customerId    String
+  yardName      String
+  addressLine1  String
+  addressLine2  String?
+  town          String
+  county        String?
+  postcode      String
+  latitude      Float?
+  longitude     Float?
+  accessNotes   String?
+  areaLabel     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  horses        Horse[]
+  enquiries     Enquiry[]
+  visitRequests VisitRequest[]
+  routeRunStops RouteRunStop[]
+
+  @@index([customerId])
+  @@index([postcode])
+  @@index([areaLabel])
+}
+
+model Horse {
+  id            String    @id @default(uuid())
+  customerId    String
+  primaryYardId String?
+  horseName     String
+  age           Int?
+  notes         String?
+  dentalDueDate DateTime?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  primaryYard Yard?    @relation(fields: [primaryYardId], references: [id])
+
+  @@index([customerId])
+  @@index([primaryYardId])
+}
+
+model Enquiry {
+  id                 String       @id @default(uuid())
+  channel            Channel
+  externalMessageId  String?      @unique
+  customerId         String?
+  yardId             String?
+  sourceFrom         String
+  subject            String?
+  rawText            String
+  receivedAt         DateTime
+  threadKey          String?
+  triageStatus       TriageStatus @default(NEW)
+  createdAt          DateTime     @default(now())
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+  yard     Yard?     @relation(fields: [yardId], references: [id])
+
+  messages      EnquiryMessage[]
+  visitRequests VisitRequest[]
+
+  @@index([customerId])
+  @@index([triageStatus])
+  @@index([receivedAt])
+}
+
+model EnquiryMessage {
+  id                 String           @id @default(uuid())
+  enquiryId          String
+  direction          MessageDirection
+  channel            Channel
+  messageText        String
+  sentOrReceivedAt   DateTime
+  externalMessageId  String?
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id])
+
+  @@index([enquiryId])
+}
+
+model VisitRequest {
+  id                       String           @id @default(uuid())
+  enquiryId                String?
+  customerId               String
+  yardId                   String?
+  requestType              RequestType
+  urgencyLevel             UrgencyLevel     @default(ROUTINE)
+  clinicalFlags            String[]
+  horseCount               Int?
+  specificHorses           String[]
+  preferredDays            String[]
+  preferredTimeBand        PreferredTimeBand @default(ANY)
+  earliestBookDate         DateTime?
+  latestBookDate           DateTime?
+  needsMoreInfo            Boolean          @default(false)
+  planningStatus           PlanningStatus   @default(UNTRIAGED)
+  estimatedDurationMinutes Int?
+  revenueEstimate          Float?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  enquiry      Enquiry?      @relation(fields: [enquiryId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  yard         Yard?         @relation(fields: [yardId], references: [id])
+
+  triageTasks   TriageTask[]
+  routeRunStops RouteRunStop[]
+  appointments  Appointment[]
+
+  @@index([customerId])
+  @@index([planningStatus])
+  @@index([urgencyLevel])
+}
+
+model TriageTask {
+  id             String           @id @default(uuid())
+  visitRequestId String
+  taskType       TriageTaskType
+  assignedTo     String?
+  dueAt          DateTime?
+  status         TriageTaskStatus @default(OPEN)
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  visitRequest VisitRequest @relation(fields: [visitRequestId], references: [id])
+
+  @@index([visitRequestId])
+  @@index([status])
+}
+
+model RouteRun {
+  id                  String         @id @default(uuid())
+  runDate             DateTime
+  homeBaseAddress     String
+  startTime           DateTime?
+  endTime             DateTime?
+  status              RouteRunStatus @default(DRAFT)
+  totalDistanceMeters Int?
+  totalTravelMinutes  Int?
+  totalVisitMinutes   Int?
+  totalJobs           Int?
+  notes               String?
+  createdAt           DateTime       @default(now())
+
+  stops        RouteRunStop[]
+  appointments Appointment[]
+
+  @@index([runDate])
+  @@index([status])
+}
+
+model RouteRunStop {
+  id                      String     @id @default(uuid())
+  routeRunId              String
+  sequenceNo              Int
+  visitRequestId          String?
+  yardId                  String
+  plannedArrival          DateTime?
+  plannedDeparture        DateTime?
+  serviceMinutes          Int?
+  travelFromPrevMinutes   Int?
+  travelFromPrevMeters    Int?
+  stopStatus              StopStatus @default(PLANNED)
+  optimizationScore       Float?
+
+  routeRun     RouteRun      @relation(fields: [routeRunId], references: [id])
+  visitRequest VisitRequest? @relation(fields: [visitRequestId], references: [id])
+  yard         Yard          @relation(fields: [yardId], references: [id])
+
+  @@index([routeRunId])
+}
+
+model Appointment {
+  id                  String              @id @default(uuid())
+  visitRequestId      String
+  routeRunId          String?
+  appointmentStart    DateTime
+  appointmentEnd      DateTime
+  status              AppointmentStatus   @default(PROPOSED)
+  confirmationChannel ConfirmationChannel?
+  confirmationSentAt  DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  visitRequest VisitRequest  @relation(fields: [visitRequestId], references: [id])
+  routeRun     RouteRun?     @relation(fields: [routeRunId], references: [id])
+  visitOutcome VisitOutcome?
+
+  @@index([visitRequestId])
+  @@index([status])
+  @@index([appointmentStart])
+}
+
+model VisitOutcome {
+  id                String        @id @default(uuid())
+  appointmentId     String        @unique
+  completedAt       DateTime
+  notes             String?
+  followUpRequired  Boolean       @default(false)
+  followUpDueDate   DateTime?
+  nextDentalDueDate DateTime?
+  invoiceStatus     InvoiceStatus @default(NOT_NEEDED)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+}
