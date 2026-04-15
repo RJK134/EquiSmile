@@ -470,5 +470,20 @@
       "followUpsDue": "Suivis à effectuer",
       "noUpcoming": "Aucun rendez-vous à venir."
     }
+  },
+  "errors": {
+    "title": "Une erreur est survenue",
+    "description": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+    "retry": "Réessayer",
+    "offline": "Vous êtes hors ligne. Certaines fonctionnalités peuvent être indisponibles.",
+    "staleData": "Affichage de données en cache. Certaines informations peuvent être obsolètes.",
+    "timeout": "Le chargement prend plus de temps que prévu. Veuillez patienter.",
+    "formRecovered": "Vos données de formulaire non enregistrées ont été restaurées.",
+    "networkError": "Erreur réseau. Veuillez vérifier votre connexion.",
+    "saveSuccess": "Modifications enregistrées avec succès.",
+    "saveFailed": "Échec de l'enregistrement. Veuillez réessayer.",
+    "deleteSuccess": "Supprimé avec succès.",
+    "deleteFailed": "Échec de la suppression. Veuillez réessayer.",
+    "loadFailed": "Échec du chargement des données. Veuillez réessayer."
   }
 }

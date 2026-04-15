@@ -3,6 +3,9 @@ import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { ToastProvider } from '@/components/ui/Toast';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import '@/app/globals.css';
 
 export const metadata: Metadata = {
@@ -38,7 +41,12 @@ export default async function LocaleLayout({
     <html lang={locale} className="h-full">
       <body className="h-full bg-surface text-foreground antialiased">
         <NextIntlClientProvider messages={messages}>
-          {children}
+          <ErrorBoundary>
+            <ToastProvider>
+              <OfflineBanner />
+              {children}
+            </ToastProvider>
+          </ErrorBoundary>
         </NextIntlClientProvider>
       </body>
     </html>

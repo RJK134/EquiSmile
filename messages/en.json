@@ -470,5 +470,20 @@
       "followUpsDue": "Follow-ups Due",
       "noUpcoming": "No upcoming appointments."
     }
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. Please try again.",
+    "retry": "Try again",
+    "offline": "You are offline. Some features may be unavailable.",
+    "staleData": "Showing cached data. Some information may be outdated.",
+    "timeout": "This is taking longer than expected. Please wait.",
+    "formRecovered": "Your previously unsaved form data has been restored.",
+    "networkError": "Network error. Please check your connection.",
+    "saveSuccess": "Changes saved successfully.",
+    "saveFailed": "Failed to save changes. Please try again.",
+    "deleteSuccess": "Successfully deleted.",
+    "deleteFailed": "Failed to delete. Please try again.",
+    "loadFailed": "Failed to load data. Please try again."
   }
 }
