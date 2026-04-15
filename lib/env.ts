@@ -8,6 +8,9 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
+  // Demo mode
+  DEMO_MODE: z.string().optional().default('false'),
+
   // n8n
   N8N_BASIC_AUTH_ACTIVE: z.string().optional().default('true'),
   N8N_BASIC_AUTH_USER: z.string().optional().default('admin'),
@@ -22,6 +25,9 @@ const envSchema = z.object({
   GOOGLE_MAPS_API_KEY: z.string().optional().default(''),
   GCP_PROJECT_ID: z.string().optional().default(''),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional().default(''),
+
+  // Google Maps (browser key for frontend map rendering)
+  NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: z.string().optional().default(''),
 
   // WhatsApp (Meta Cloud API)
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
