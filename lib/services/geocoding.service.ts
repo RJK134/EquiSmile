@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { env } from '@/lib/env';
+import { withRetry, circuitBreakers } from '@/lib/utils/retry';
 
 const GEOCODING_API_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 
@@ -61,8 +62,20 @@ export const geocodingService = {
     url.searchParams.set('key', env.GOOGLE_MAPS_API_KEY);
     url.searchParams.set('region', 'gb');
 
-    const response = await fetch(url.toString());
-    const data = (await response.json()) as GeocodeApiResponse;
+    const { data } = await withRetry(
+      async (signal) => {
+        const response = await fetch(url.toString(), { signal });
+        const json = (await response.json()) as GeocodeApiResponse;
+
+        if (json.status === 'OVER_QUERY_LIMIT' || json.status === 'UNKNOWN_ERROR') {
+          throw new Error(`Geocoding API error: ${json.status} - ${json.error_message || 'Retryable error'}`);
+        }
+
+        return json;
+      },
+      { maxRetries: 2, operationName: 'geocoding', timeoutMs: 10_000 },
+      circuitBreakers.geocoding,
+    );
 
     if (data.status === 'ZERO_RESULTS') {
       return null;

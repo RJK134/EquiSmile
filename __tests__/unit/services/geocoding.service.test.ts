@@ -106,6 +106,7 @@ describe('geocodingService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('maps.googleapis.com/maps/api/geocode/json'),
+        expect.any(Object),
       );
       const url = new URL(mockFetch.mock.calls[0][0]);
       expect(url.searchParams.get('address')).toBe('Test Address, UK');

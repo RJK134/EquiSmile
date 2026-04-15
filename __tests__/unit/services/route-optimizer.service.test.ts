@@ -199,7 +199,7 @@ describe('routeOptimizerService', () => {
 
       await expect(
         routeOptimizerService.optimizeRoute(sampleStops, sampleVehicle),
-      ).rejects.toThrow('Route Optimization API error (403)');
+      ).rejects.toThrow('route-optimization failed after');
     });
   });
 });

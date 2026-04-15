@@ -13,6 +13,9 @@ export interface HealthCheckResponse {
     database: { status: 'up' | 'down'; latency_ms: number };
     environment: { status: 'ok' | 'missing'; missing: string[] };
     n8n: { status: 'up' | 'unreachable'; url: string };
+    whatsapp: { status: 'configured' | 'unconfigured' };
+    smtp: { status: 'configured' | 'unconfigured' };
+    googleMaps: { status: 'configured' | 'unconfigured' };
   };
 }
 

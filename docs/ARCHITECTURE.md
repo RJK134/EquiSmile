@@ -85,6 +85,51 @@ docs/                   # Documentation
 .github/                # CI/CD workflows
 ```
 
+## Phase 7 — Hardening & Polish
+
+### Reliability Layer
+- **Retry wrapper** (`lib/utils/retry.ts`) — Exponential backoff with jitter for all external API calls
+- **Circuit breaker** — Per-service circuit breakers prevent cascading failures
+- **Idempotency** — Outbound messages use idempotency keys to prevent duplicates on retry
+
+### Observability
+- **Structured logging** (`lib/utils/logger.ts`) — JSON-formatted logs with context fields and sensitive data masking
+- **Health check** (`/api/health`) — Database, n8n, WhatsApp, SMTP, and Google Maps status
+- **Environment validation** (`lib/utils/env-check.ts`) — Startup pre-flight checks
+
+### Error Recovery UX
+- **Error boundaries** — React ErrorBoundary wraps all pages with friendly retry UI
+- **Toast notifications** — Success/error feedback on mutations
+- **Offline banner** — Network-down detection with stale data indicator
+- **Form auto-save** — localStorage persistence for long forms
+
+### Accessibility
+- WCAG 2.1 AA compliant focus indicators
+- Skip-to-content link for keyboard navigation
+- Proper ARIA roles, labels, and landmarks
+- Focus trap in modals
+- 44px minimum touch targets on mobile
+
+### Performance
+- Loading skeletons for all data states
+- Pagination component for list views
+- Responsive table/card transitions
+
+### Mobile Polish
+- Bottom sheet action component (mobile) / modal (desktop)
+- Safe-area insets for notched devices
+- Responsive table-to-card breakpoint transitions
+
+### PWA Offline
+- IndexedDB-backed offline request queue
+- Automatic retry of queued mutations when back online
+- Offline banner with service worker message passing
+
+### Deployment Safety
+- Docker health checks and resource limits on all services
+- Pre-flight check script (`npm run preflight`)
+- Migration rollback documentation
+
 ## Key Architectural Decisions
 
 | Decision | Choice | Rationale |
