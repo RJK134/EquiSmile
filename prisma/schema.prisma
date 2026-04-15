@@ -241,6 +241,9 @@ model VisitRequest {
   planningStatus           PlanningStatus   @default(UNTRIAGED)
   estimatedDurationMinutes Int?
   revenueEstimate          Float?
+  followUpAttempts         Int              @default(0)
+  lastFollowUpAt           DateTime?
+  autoTriageConfidence     Float?
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
 
@@ -248,9 +251,10 @@ model VisitRequest {
   customer     Customer      @relation(fields: [customerId], references: [id])
   yard         Yard?         @relation(fields: [yardId], references: [id])
 
-  triageTasks   TriageTask[]
-  routeRunStops RouteRunStop[]
-  appointments  Appointment[]
+  triageTasks    TriageTask[]
+  auditLogs      TriageAuditLog[]
+  routeRunStops  RouteRunStop[]
+  appointments   Appointment[]
 
   @@index([customerId])
   @@index([planningStatus])
@@ -265,6 +269,7 @@ model TriageTask {
   dueAt          DateTime?
   status         TriageTaskStatus @default(OPEN)
   notes          String?
+  escalatedAt    DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
@@ -272,6 +277,23 @@ model TriageTask {
 
   @@index([visitRequestId])
   @@index([status])
+}
+
+model TriageAuditLog {
+  id             String   @id @default(uuid())
+  visitRequestId String
+  action         String
+  field          String
+  previousValue  String?
+  newValue       String
+  reason         String
+  performedBy    String   @default("admin")
+  createdAt      DateTime @default(now())
+
+  visitRequest VisitRequest @relation(fields: [visitRequestId], references: [id])
+
+  @@index([visitRequestId])
+  @@index([createdAt])
 }
 
 model RouteRun {
