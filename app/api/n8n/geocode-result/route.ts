@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { geocodingService } from '@/lib/services/geocoding.service';
 
 const geocodeResultSchema = z.object({
   yardId: z.string().uuid(),
@@ -21,16 +22,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = geocodeResultSchema.parse(body);
 
-    console.log('[n8n] Geocode result received', {
-      yardId: payload.yardId,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-    });
+    const result = await geocodingService.updateYardCoordinates(
+      payload.yardId,
+      payload.latitude,
+      payload.longitude,
+    );
 
-    // Placeholder: will be fully implemented in Phase 5 (route planning)
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 404 });
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Geocode result acknowledged',
+      message: 'Geocode result stored',
       data: payload,
     });
   } catch (error) {

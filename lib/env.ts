@@ -21,6 +21,7 @@ const envSchema = z.object({
   // Google Maps
   GOOGLE_MAPS_API_KEY: z.string().optional().default(''),
   GCP_PROJECT_ID: z.string().optional().default(''),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional().default(''),
 
   // WhatsApp (Meta Cloud API)
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
