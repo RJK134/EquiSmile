@@ -273,5 +273,16 @@
     "invalidEmail": "Invalid email address",
     "minLength": "Must be at least {min} characters",
     "maxLength": "Must be at most {max} characters"
+  },
+  "messages": {
+    "title": "Message Thread",
+    "empty": "No messages yet.",
+    "inbound": "Customer",
+    "outbound": "EquiSmile",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "sentVia": "via {channel}",
+    "today": "Today",
+    "yesterday": "Yesterday"
   }
 }

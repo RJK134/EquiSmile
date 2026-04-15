@@ -273,5 +273,16 @@
     "invalidEmail": "Adresse e-mail invalide",
     "minLength": "Doit contenir au moins {min} caractères",
     "maxLength": "Doit contenir au maximum {max} caractères"
+  },
+  "messages": {
+    "title": "Fil de messages",
+    "empty": "Aucun message pour le moment.",
+    "inbound": "Client",
+    "outbound": "EquiSmile",
+    "whatsapp": "WhatsApp",
+    "email": "E-mail",
+    "sentVia": "via {channel}",
+    "today": "Aujourd'hui",
+    "yesterday": "Hier"
   }
 }

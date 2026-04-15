@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Link } from '@/i18n/navigation';
+import { MessageThread } from '@/components/ui/MessageThread';
 
 interface EnquiryDetail {
   id: string;
@@ -34,7 +35,7 @@ interface EnquiryDetail {
     triageTasks: Array<{ id: string; taskType: string; status: string }>;
     yard: { id: string; yardName: string; postcode: string } | null;
   }>;
-  messages: Array<{ id: string; direction: string; messageText: string; sentOrReceivedAt: string }>;
+  messages: Array<{ id: string; direction: string; channel: string; messageText: string; sentOrReceivedAt: string }>;
 }
 
 export default function EnquiryDetailPage() {
@@ -42,6 +43,7 @@ export default function EnquiryDetailPage() {
   const tc = useTranslations('common');
   const tStatus = useTranslations('status');
   const tReq = useTranslations('requestTypes');
+  const tMsg = useTranslations('messages');
   const params = useParams();
   const id = params.id as string;
   const [enquiry, setEnquiry] = useState<EnquiryDetail | null>(null);
@@ -175,6 +177,14 @@ export default function EnquiryDetailPage() {
                   )}
                 </div>
               ))}
+            </Card>
+          )}
+
+          {/* Message Thread */}
+          {enquiry.messages && enquiry.messages.length > 0 && (
+            <Card className="mt-4">
+              <h3 className="mb-3 text-sm font-medium text-muted">{tMsg('title')}</h3>
+              <MessageThread messages={enquiry.messages} />
             </Card>
           )}
 
