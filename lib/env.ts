@@ -15,6 +15,8 @@ const envSchema = z.object({
   N8N_PORT: z.string().optional().default('5678'),
   N8N_PROTOCOL: z.string().optional().default('http'),
   N8N_HOST: z.string().optional().default('localhost'),
+  N8N_API_KEY: z.string().optional().default(''),
+  N8N_WEBHOOK_URL: z.string().optional().default(''),
 
   // Google Maps
   GOOGLE_MAPS_API_KEY: z.string().optional().default(''),
@@ -23,8 +25,10 @@ const envSchema = z.object({
   // WhatsApp (Meta Cloud API)
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
   WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional().default(''),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional().default(''),
   WHATSAPP_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_VERIFY_TOKEN: z.string().optional().default(''),
+  WHATSAPP_APP_SECRET: z.string().optional().default(''),
 
   // Email (IMAP/SMTP)
   IMAP_HOST: z.string().optional().default(''),
@@ -35,6 +39,7 @@ const envSchema = z.object({
   SMTP_PORT: z.string().optional().default('587'),
   SMTP_USER: z.string().optional().default(''),
   SMTP_PASSWORD: z.string().optional().default(''),
+  SMTP_FROM: z.string().optional().default(''),
 
   // Home Base (route planning)
   HOME_BASE_ADDRESS: z.string().optional().default(''),
@@ -75,6 +80,37 @@ function validateEnv(): Env {
 // ---------------------------------------------------------------------------
 
 export const env = validateEnv();
+
+// ---------------------------------------------------------------------------
+// Startup warnings for optional messaging variables
+// ---------------------------------------------------------------------------
+
+const MESSAGING_WARNINGS: Array<{ keys: string[]; label: string }> = [
+  {
+    keys: ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN'],
+    label: 'WhatsApp',
+  },
+  {
+    keys: ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'],
+    label: 'Email/SMTP',
+  },
+  {
+    keys: ['N8N_API_KEY'],
+    label: 'n8n integration',
+  },
+];
+
+if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {
+  for (const group of MESSAGING_WARNINGS) {
+    const missing = group.keys.filter((k) => !process.env[k]);
+    if (missing.length > 0) {
+      console.warn(
+        `[EquiSmile] ${group.label} not configured (missing: ${missing.join(', ')}). ` +
+          `${group.label} features will be unavailable until these are set.`
+      );
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Utility: list required variables that are missing (for health check)
