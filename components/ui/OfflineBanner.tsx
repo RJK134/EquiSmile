@@ -6,7 +6,13 @@ export function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline = () => {
+      setIsOffline(false);
+      // Trigger replay of queued requests
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'REPLAY_QUEUE' });
+      }
+    };
     const handleOffline = () => setIsOffline(true);
 
     // Check initial state
