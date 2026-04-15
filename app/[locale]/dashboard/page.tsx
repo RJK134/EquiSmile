@@ -12,6 +12,18 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Link } from '@/i18n/navigation';
 
+interface DashboardAppointment {
+  id: string;
+  appointmentStart: string;
+  appointmentEnd: string;
+  status: string;
+  visitRequest: {
+    customer: { id: string; fullName: string };
+    yard: { yardName: string } | null;
+    horseCount: number | null;
+  };
+}
+
 interface DashboardData {
   stats: {
     urgentCount: number;
@@ -51,11 +63,21 @@ interface DashboardData {
     autoTriageRate: number;
     openTaskCount: number;
   };
+  appointments?: {
+    todayCount: number;
+    todayAppointments: DashboardAppointment[];
+    upcomingCount: number;
+    upcomingAppointments: DashboardAppointment[];
+    pendingConfirmations: number;
+    completedThisWeek: number;
+    followUpsDue: number;
+  };
 }
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const ta = useTranslations('appointments.dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -243,6 +265,73 @@ export default function DashboardPage() {
                   </div>
                 )}
               </Card>
+
+              {/* Appointments Section */}
+              {data.appointments && (
+                <>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Link href="/appointments">
+                      <Card className="hover:border-primary/30">
+                        <p className="text-sm font-medium text-muted">{ta('todayCount')}</p>
+                        <p className="mt-1 text-3xl font-bold">{data.appointments.todayCount}</p>
+                      </Card>
+                    </Link>
+                    <Link href="/appointments">
+                      <Card className="hover:border-primary/30">
+                        <p className="text-sm font-medium text-muted">{ta('upcoming')}</p>
+                        <p className="mt-1 text-3xl font-bold">{data.appointments.upcomingCount}</p>
+                      </Card>
+                    </Link>
+                    <Card className={data.appointments.pendingConfirmations > 0 ? 'border-warning/30 bg-amber-50/50' : ''}>
+                      <p className="text-sm font-medium text-muted">{ta('pendingConfirmations')}</p>
+                      <p className={`mt-1 text-3xl font-bold ${data.appointments.pendingConfirmations > 0 ? 'text-warning' : ''}`}>
+                        {data.appointments.pendingConfirmations}
+                      </p>
+                    </Card>
+                    <Card>
+                      <p className="text-sm font-medium text-muted">{ta('completedThisWeek')}</p>
+                      <p className="mt-1 text-3xl font-bold">{data.appointments.completedThisWeek}</p>
+                    </Card>
+                  </div>
+
+                  {data.appointments.followUpsDue > 0 && (
+                    <Card className="mt-4 border-warning/30 bg-amber-50/50">
+                      <p className="text-sm font-medium text-warning">
+                        {ta('followUpsDue')}: {data.appointments.followUpsDue}
+                      </p>
+                    </Card>
+                  )}
+
+                  {data.appointments.todayAppointments.length > 0 && (
+                    <Card className="mt-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="text-sm font-semibold">{ta('todayCount')}</h3>
+                        <Link href="/appointments" className="text-xs text-primary hover:underline">{t('viewAll')}</Link>
+                      </div>
+                      <div className="space-y-2">
+                        {data.appointments.todayAppointments.map((appt) => (
+                          <div key={appt.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                            <div>
+                              <Link href={`/appointments/${appt.id}`} className="font-medium text-primary hover:underline">
+                                {appt.visitRequest.customer.fullName}
+                              </Link>
+                              <span className="ml-2 text-xs text-muted">
+                                @ {appt.visitRequest.yard?.yardName ?? '—'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted">
+                                {new Date(appt.appointmentStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <StatusBadge type="appointment" value={appt.status} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
             </>
           )}
         </main>
