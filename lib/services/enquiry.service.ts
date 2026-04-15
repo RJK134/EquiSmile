@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { enquiryRepository } from '@/lib/repositories/enquiry.repository';
+import { autoTriageService } from './auto-triage.service';
 import type { ManualEnquiryInput } from '@/lib/validations/manual-enquiry.schema';
 
 export const enquiryService = {
   async createManualEnquiry(input: ManualEnquiryInput) {
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Create customer if needed
       let customerId = input.customerId;
       if (!customerId && input.newCustomerName) {
@@ -37,10 +38,7 @@ export const enquiryService = {
         },
       });
 
-      // Determine if needs more info
-      const needsMoreInfo = !input.yardId || !input.horseCount || input.preferredDays.length === 0;
-
-      // Create visit request
+      // Create visit request (auto-triage will refine these values)
       const visitRequest = await tx.visitRequest.create({
         data: {
           enquiryId: enquiry.id,
@@ -51,32 +49,26 @@ export const enquiryService = {
           horseCount: input.horseCount || null,
           preferredDays: input.preferredDays,
           preferredTimeBand: input.preferredTimeBand,
-          needsMoreInfo,
-          planningStatus: input.urgencyLevel === 'URGENT' ? 'UNTRIAGED' : 'UNTRIAGED',
+          needsMoreInfo: false,
+          planningStatus: 'UNTRIAGED',
         },
       });
 
-      // If urgent, create triage task
-      if (input.urgencyLevel === 'URGENT') {
-        await tx.triageTask.create({
-          data: {
-            visitRequestId: visitRequest.id,
-            taskType: 'URGENT_REVIEW',
-            status: 'OPEN',
-          },
-        });
-      }
-
-      // If needs more info, update triage status
-      if (needsMoreInfo) {
-        await tx.enquiry.update({
-          where: { id: enquiry.id },
-          data: { triageStatus: 'NEEDS_INFO' },
-        });
-      }
-
       return { enquiry, visitRequest };
     });
+
+    // Run auto-triage after transaction completes
+    try {
+      await autoTriageService.triageEnquiry(
+        result.enquiry.id,
+        result.visitRequest.id,
+        input.rawText,
+      );
+    } catch (err) {
+      console.error('[ManualEnquiry] Auto-triage failed', err);
+    }
+
+    return result;
   },
 
   async getStats() {

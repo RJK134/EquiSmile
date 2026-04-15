@@ -6,6 +6,7 @@ import { verifyN8nApiKey } from '@/lib/utils/signature';
 import { normaliseEmail } from '@/lib/utils/email';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
+import { autoTriageService } from '@/lib/services/auto-triage.service';
 
 // ---------------------------------------------------------------------------
 // Validation schema for email intake payload
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
   });
 
   // Create visit request
-  await prisma.visitRequest.create({
+  const visitRequest = await prisma.visitRequest.create({
     data: {
       enquiryId: enquiry.id,
       customerId: customer.id,
@@ -132,6 +133,23 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  // Run auto-triage rules
+  let triageResult;
+  try {
+    triageResult = await autoTriageService.triageEnquiry(
+      enquiry.id,
+      visitRequest.id,
+      payload.textBody,
+    );
+    console.log('[Email] Auto-triage completed', {
+      enquiryId: enquiry.id,
+      urgency: triageResult.urgency,
+      confidence: triageResult.confidence,
+    });
+  } catch (triageErr) {
+    console.error('[Email] Auto-triage failed, enquiry still created', triageErr);
+  }
+
   console.log('[Email] Enquiry created', {
     enquiryId: enquiry.id,
     customerId: customer.id,
@@ -143,6 +161,12 @@ export async function POST(request: NextRequest) {
     success: true,
     enquiryId: enquiry.id,
     customerId: customer.id,
+    visitRequestId: visitRequest.id,
     isNew: isNewCustomer,
+    triage: triageResult ? {
+      urgency: triageResult.urgency,
+      requestType: triageResult.requestType,
+      confidence: triageResult.confidence,
+    } : null,
   });
 }

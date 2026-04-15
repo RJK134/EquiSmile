@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Badge } from '@/components/ui/Badge';
 import { Link } from '@/i18n/navigation';
 
 interface DashboardData {
@@ -42,6 +43,14 @@ interface DashboardData {
       customer: { id: string; fullName: string } | null;
     };
   }>;
+  sla: {
+    urgentOverdueCount: number;
+    missingInfoAgingCount: number;
+    triagedTodayCount: number;
+    triagedWeekCount: number;
+    autoTriageRate: number;
+    openTaskCount: number;
+  };
 }
 
 export default function DashboardPage() {
@@ -73,7 +82,12 @@ export default function DashboardPage() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Link href="/triage">
                   <Card className="hover:border-primary/30">
-                    <p className="text-sm font-medium text-muted">{t('urgentToday')}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-muted">{t('urgentToday')}</p>
+                      {data.sla?.openTaskCount > 0 && (
+                        <Badge variant="danger">{t('openTasks', { count: data.sla.openTaskCount })}</Badge>
+                      )}
+                    </div>
                     <p className={`mt-1 text-3xl font-bold ${data.stats.urgentCount > 0 ? 'text-danger' : ''}`}>
                       {data.stats.urgentCount}
                     </p>
@@ -100,6 +114,57 @@ export default function DashboardPage() {
                   </Card>
                 </Link>
               </div>
+
+              {/* SLA Overview */}
+              {data.sla && (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Urgent SLA */}
+                  <Card className={data.sla.urgentOverdueCount > 0 ? 'border-danger/30 bg-red-50/50' : ''}>
+                    <p className="text-xs font-semibold text-muted">{t('urgentSla')}</p>
+                    {data.sla.urgentOverdueCount > 0 ? (
+                      <p className="mt-1 text-sm font-bold text-danger">
+                        {t('urgentOverdue', { count: data.sla.urgentOverdueCount })}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-green-600">{t('allUrgentReviewed')}</p>
+                    )}
+                  </Card>
+
+                  {/* Missing Info Aging */}
+                  <Card className={data.sla.missingInfoAgingCount > 0 ? 'border-warning/30 bg-amber-50/50' : ''}>
+                    <p className="text-xs font-semibold text-muted">{t('missingInfoAging')}</p>
+                    {data.sla.missingInfoAgingCount > 0 ? (
+                      <p className="mt-1 text-sm font-bold text-warning">
+                        {t('waitingOver48h', { count: data.sla.missingInfoAgingCount })}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-green-600">{t('allInfoRecent')}</p>
+                    )}
+                  </Card>
+
+                  {/* Triage Throughput */}
+                  <Card>
+                    <p className="text-xs font-semibold text-muted">{t('triageThroughput')}</p>
+                    <div className="mt-1 flex items-baseline gap-3">
+                      <div>
+                        <span className="text-2xl font-bold">{data.sla.triagedTodayCount}</span>
+                        <span className="ml-1 text-xs text-muted">{t('triagedToday')}</span>
+                      </div>
+                      <div className="text-sm text-muted">
+                        {data.sla.triagedWeekCount} {t('triagedThisWeek')}
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Auto-Triage Rate */}
+                  <Card>
+                    <p className="text-xs font-semibold text-muted">{t('autoTriageRate')}</p>
+                    <p className="mt-1 text-2xl font-bold">
+                      {t('autoTriageSuccess', { rate: data.sla.autoTriageRate })}
+                    </p>
+                  </Card>
+                </div>
+              )}
 
               <div className="mt-6 grid gap-6 lg:grid-cols-2">
                 {/* Urgent Items */}
@@ -128,7 +193,12 @@ export default function DashboardPage() {
                 {/* Triage Tasks */}
                 <Card>
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">{t('needsInfoItems')}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold">{t('needsInfoItems')}</h3>
+                      {data.sla?.openTaskCount > 0 && (
+                        <Badge variant="warning">{data.sla.openTaskCount}</Badge>
+                      )}
+                    </div>
                     <Link href="/triage" className="text-xs text-primary hover:underline">{t('viewAll')}</Link>
                   </div>
                   {data.openTriageTasks.length === 0 ? (
@@ -137,7 +207,7 @@ export default function DashboardPage() {
                     <div className="space-y-2">
                       {data.openTriageTasks.slice(0, 5).map((task) => (
                         <div key={task.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-                          <span>{task.visitRequest.customer?.fullName || '—'}</span>
+                          <span>{task.visitRequest.customer?.fullName || '\u2014'}</span>
                           <span className="text-xs text-muted">{task.taskType}</span>
                         </div>
                       ))}
@@ -162,7 +232,7 @@ export default function DashboardPage() {
                           <Link href={`/enquiries/${e.id}`} className="truncate font-medium text-primary hover:underline">
                             {e.rawText.slice(0, 50)}
                           </Link>
-                          <p className="text-xs text-muted">{e.customer?.fullName || '—'} &middot; {new Date(e.receivedAt).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted">{e.customer?.fullName || '\u2014'} &middot; {new Date(e.receivedAt).toLocaleDateString()}</p>
                         </div>
                         <div className="flex shrink-0 gap-1">
                           <StatusBadge type="channel" value={e.channel} />

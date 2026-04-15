@@ -8,6 +8,7 @@ const { mockVisitRequestRepo, mockTriageTaskRepo, mockEnquiryRepo } = vi.hoisted
   mockTriageTaskRepo: {
     create: vi.fn(),
     update: vi.fn(),
+    findById: vi.fn(),
     findOpenTasks: vi.fn(),
   },
   mockEnquiryRepo: {
@@ -25,6 +26,11 @@ vi.mock('@/lib/repositories/triage-task.repository', () => ({
 
 vi.mock('@/lib/repositories/enquiry.repository', () => ({
   enquiryRepository: mockEnquiryRepo,
+}));
+
+vi.mock('@/lib/services/status-machine.service', () => ({
+  validatePlanningTransition: vi.fn().mockReturnValue({ valid: true }),
+  validateTriageTaskTransition: vi.fn().mockReturnValue({ valid: true }),
 }));
 
 import { triageService } from '@/lib/services/triage.service';
@@ -159,6 +165,7 @@ describe('triageService', () => {
 
   describe('moveToPlanning', () => {
     it('updates visit request to PLANNING_POOL', async () => {
+      mockVisitRequestRepo.findById.mockResolvedValue({ id: 'vr1', planningStatus: 'UNTRIAGED' });
       mockVisitRequestRepo.update.mockResolvedValue({ id: 'vr1', planningStatus: 'PLANNING_POOL' });
 
       await triageService.moveToPlanning('vr1');
@@ -167,6 +174,12 @@ describe('triageService', () => {
         planningStatus: 'PLANNING_POOL',
         needsMoreInfo: false,
       });
+    });
+
+    it('throws if visit request not found', async () => {
+      mockVisitRequestRepo.findById.mockResolvedValue(null);
+
+      await expect(triageService.moveToPlanning('nonexistent')).rejects.toThrow('Visit request not found');
     });
   });
 
@@ -182,11 +195,18 @@ describe('triageService', () => {
 
   describe('completeTask', () => {
     it('marks task as DONE', async () => {
+      mockTriageTaskRepo.findById.mockResolvedValue({ id: 't1', status: 'OPEN' });
       mockTriageTaskRepo.update.mockResolvedValue({ id: 't1', status: 'DONE' });
 
       await triageService.completeTask('t1');
 
       expect(mockTriageTaskRepo.update).toHaveBeenCalledWith('t1', { status: 'DONE' });
+    });
+
+    it('throws if task not found', async () => {
+      mockTriageTaskRepo.findById.mockResolvedValue(null);
+
+      await expect(triageService.completeTask('nonexistent')).rejects.toThrow('Triage task not found');
     });
   });
 });

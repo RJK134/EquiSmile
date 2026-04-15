@@ -1,6 +1,7 @@
 import { visitRequestRepository } from '@/lib/repositories/visit-request.repository';
 import { triageTaskRepository } from '@/lib/repositories/triage-task.repository';
 import { enquiryRepository } from '@/lib/repositories/enquiry.repository';
+import { validatePlanningTransition, validateTriageTaskTransition } from './status-machine.service';
 import type { UrgencyLevel, RequestType, PlanningStatus } from '@prisma/client';
 
 export const triageService = {
@@ -52,6 +53,14 @@ export const triageService = {
   },
 
   async moveToPlanning(visitRequestId: string) {
+    const vr = await visitRequestRepository.findById(visitRequestId);
+    if (!vr) throw new Error('Visit request not found');
+
+    const validation = validatePlanningTransition(vr.planningStatus, 'PLANNING_POOL');
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
     return visitRequestRepository.update(visitRequestId, {
       planningStatus: 'PLANNING_POOL',
       needsMoreInfo: false,
@@ -63,6 +72,14 @@ export const triageService = {
   },
 
   async completeTask(taskId: string) {
+    const task = await triageTaskRepository.findById(taskId);
+    if (!task) throw new Error('Triage task not found');
+
+    const validation = validateTriageTaskTransition(task.status, 'DONE');
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
     return triageTaskRepository.update(taskId, { status: 'DONE' });
   },
 };

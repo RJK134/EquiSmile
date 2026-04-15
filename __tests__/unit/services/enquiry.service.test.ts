@@ -28,6 +28,20 @@ vi.mock('@/lib/repositories/enquiry.repository', () => ({
   enquiryRepository: mockEnquiryRepo,
 }));
 
+vi.mock('@/lib/services/auto-triage.service', () => ({
+  autoTriageService: {
+    triageEnquiry: vi.fn().mockResolvedValue({
+      visitRequestId: 'vr-1',
+      urgency: 'ROUTINE',
+      requestType: 'ROUTINE_DENTAL',
+      planningStatus: 'PLANNING_POOL',
+      needsMoreInfo: false,
+      confidence: 0.8,
+      tasksCreated: [],
+    }),
+  },
+}));
+
 import { enquiryService } from '@/lib/services/enquiry.service';
 
 describe('enquiryService', () => {
@@ -116,7 +130,30 @@ describe('enquiryService', () => {
       ).rejects.toThrow('Customer is required');
     });
 
-    it('creates triage task for urgent requests', async () => {
+    it('creates visit request with needsMoreInfo false (auto-triage handles it)', async () => {
+      await enquiryService.createManualEnquiry({
+        customerId: 'cust-1',
+        channel: 'WHATSAPP',
+        rawText: 'Horse needs dental',
+        requestType: 'ROUTINE_DENTAL',
+        urgencyLevel: 'ROUTINE',
+        preferredDays: ['Mon'],
+        preferredTimeBand: 'ANY',
+        yardId: 'yard-1',
+        horseCount: 1,
+      });
+
+      expect(mockTx.visitRequest.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          needsMoreInfo: false,
+          planningStatus: 'UNTRIAGED',
+        }),
+      });
+    });
+
+    it('runs auto-triage after transaction', async () => {
+      const { autoTriageService } = await import('@/lib/services/auto-triage.service');
+
       await enquiryService.createManualEnquiry({
         customerId: 'cust-1',
         channel: 'WHATSAPP',
@@ -129,85 +166,11 @@ describe('enquiryService', () => {
         horseCount: 1,
       });
 
-      expect(mockTx.triageTask.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          visitRequestId: 'vr-1',
-          taskType: 'URGENT_REVIEW',
-          status: 'OPEN',
-        }),
-      });
-    });
-
-    it('does not create triage task for routine requests', async () => {
-      await enquiryService.createManualEnquiry({
-        customerId: 'cust-1',
-        channel: 'WHATSAPP',
-        rawText: 'Routine dental checkup',
-        requestType: 'ROUTINE_DENTAL',
-        urgencyLevel: 'ROUTINE',
-        preferredDays: ['Mon'],
-        preferredTimeBand: 'ANY',
-        yardId: 'yard-1',
-        horseCount: 1,
-      });
-
-      expect(mockTx.triageTask.create).not.toHaveBeenCalled();
-    });
-
-    it('sets needsMoreInfo when missing yardId', async () => {
-      await enquiryService.createManualEnquiry({
-        customerId: 'cust-1',
-        channel: 'WHATSAPP',
-        rawText: 'Test',
-        requestType: 'ROUTINE_DENTAL',
-        urgencyLevel: 'ROUTINE',
-        preferredDays: ['Mon'],
-        preferredTimeBand: 'ANY',
-        horseCount: 1,
-      });
-
-      expect(mockTx.visitRequest.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ needsMoreInfo: true }),
-      });
-      expect(mockTx.enquiry.update).toHaveBeenCalledWith({
-        where: { id: 'enq-1' },
-        data: { triageStatus: 'NEEDS_INFO' },
-      });
-    });
-
-    it('sets needsMoreInfo when missing horseCount', async () => {
-      await enquiryService.createManualEnquiry({
-        customerId: 'cust-1',
-        channel: 'WHATSAPP',
-        rawText: 'Test',
-        requestType: 'ROUTINE_DENTAL',
-        urgencyLevel: 'ROUTINE',
-        preferredDays: ['Mon'],
-        preferredTimeBand: 'ANY',
-        yardId: 'yard-1',
-      });
-
-      expect(mockTx.visitRequest.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ needsMoreInfo: true }),
-      });
-    });
-
-    it('sets needsMoreInfo when preferredDays is empty', async () => {
-      await enquiryService.createManualEnquiry({
-        customerId: 'cust-1',
-        channel: 'WHATSAPP',
-        rawText: 'Test',
-        requestType: 'ROUTINE_DENTAL',
-        urgencyLevel: 'ROUTINE',
-        preferredDays: [],
-        preferredTimeBand: 'ANY',
-        yardId: 'yard-1',
-        horseCount: 2,
-      });
-
-      expect(mockTx.visitRequest.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ needsMoreInfo: true }),
-      });
+      expect(autoTriageService.triageEnquiry).toHaveBeenCalledWith(
+        'enq-1',
+        'vr-1',
+        'Horse in pain',
+      );
     });
   });
 
