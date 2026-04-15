@@ -12,7 +12,7 @@ export default function AppointmentsPage() {
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-4 pb-20 md:p-6 md:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold">{t('title')}</h1>
             <p className="text-sm text-muted">{t('subtitle')}</p>
