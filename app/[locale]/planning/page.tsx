@@ -10,7 +10,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Link } from '@/i18n/navigation';
+import { Button } from '@/components/ui/Button';
+import { Link, useRouter } from '@/i18n/navigation';
 import { selectStyles } from '@/components/ui/FormField';
 
 interface PlanningItem {
@@ -29,6 +30,7 @@ export default function PlanningPage() {
   const t = useTranslations('planning');
   const tc = useTranslations('common');
   const tReq = useTranslations('requestTypes');
+  const router = useRouter();
   const [items, setItems] = useState<PlanningItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [urgencyFilter, setUrgencyFilter] = useState('');
@@ -77,7 +79,15 @@ export default function PlanningPage() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
-          <PageHeader title={t('title')} subtitle={t('subtitle')} />
+          <PageHeader
+            title={t('title')}
+            subtitle={t('subtitle')}
+            action={
+              <Button onClick={() => router.push('/route-runs')}>
+                {t('generateRoutes')}
+              </Button>
+            }
+          />
 
           <div className="mb-4 flex flex-col gap-3 sm:flex-row">
             <select value={urgencyFilter} onChange={(e) => setUrgencyFilter(e.target.value)} className={`${selectStyles} sm:max-w-[200px]`}>

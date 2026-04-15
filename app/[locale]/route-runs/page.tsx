@@ -1,11 +1,90 @@
+'use client';
+
 import { useTranslations } from 'next-intl';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingState } from '@/components/ui/LoadingState';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Link } from '@/i18n/navigation';
+import { selectStyles } from '@/components/ui/FormField';
+
+interface RouteRunSummary {
+  id: string;
+  runDate: string;
+  status: string;
+  totalDistanceMeters: number | null;
+  totalTravelMinutes: number | null;
+  totalVisitMinutes: number | null;
+  totalJobs: number | null;
+  totalHorses: number | null;
+  optimizationScore: number | null;
+  _count: { stops: number };
+}
 
 export default function RouteRunsPage() {
   const t = useTranslations('routeRuns');
+  const tc = useTranslations('common');
+  const [routeRuns, setRouteRuns] = useState<RouteRunSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [message, setMessage] = useState('');
+
+  const fetchRouteRuns = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ pageSize: '50' });
+    if (statusFilter) params.set('status', statusFilter);
+
+    const res = await fetch(`/api/route-planning/proposals?${params}`);
+    const json = await res.json();
+    setRouteRuns(json.data || []);
+    setLoading(false);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchRouteRuns();
+  }, [fetchRouteRuns]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/route-planning/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (json.proposalCount > 0) {
+        setMessage(t('generated', { count: json.proposalCount }));
+        await fetchRouteRuns();
+      } else {
+        setMessage(t('noEligible'));
+      }
+    } catch {
+      setMessage(tc('error'));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  const formatMinutes = (minutes: number | null) => {
+    if (minutes === null) return '-';
+    if (minutes < 60) return `${minutes} ${t('detail.min')}`;
+    const hrs = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hrs}${t('detail.hrs')} ${mins}${t('detail.min')}`;
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -13,13 +92,66 @@ export default function RouteRunsPage() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold">{t('title')}</h1>
-            <p className="text-sm text-muted">{t('subtitle')}</p>
+          <PageHeader
+            title={t('title')}
+            subtitle={t('subtitle')}
+            action={
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? t('generating') : t('generateRoutes')}
+              </Button>
+            }
+          />
+
+          {message && (
+            <div className="mb-4 rounded-md border border-border bg-surface p-3 text-sm">
+              {message}
+            </div>
+          )}
+
+          <div className="mb-4">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className={`${selectStyles} sm:max-w-[200px]`}
+            >
+              <option value="">{tc('all')}</option>
+              <option value="DRAFT">{t('draft')}</option>
+              <option value="PROPOSED">{t('proposed')}</option>
+              <option value="APPROVED">{t('approved')}</option>
+            </select>
           </div>
-          <Card>
-            <p className="text-sm text-muted">{t('empty')}</p>
-          </Card>
+
+          {loading ? (
+            <LoadingState />
+          ) : routeRuns.length === 0 ? (
+            <EmptyState message={t('empty')} />
+          ) : (
+            <div className="space-y-3">
+              {routeRuns.map((run) => (
+                <Link key={run.id} href={`/route-runs/${run.id}`}>
+                  <Card padding="sm" className="transition-colors hover:bg-surface">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{formatDate(run.runDate)}</span>
+                          <StatusBadge type="planning" value={run.status} />
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
+                          <span>{run._count?.stops ?? run.totalJobs ?? 0} {t('stops')}</span>
+                          <span>{run.totalHorses ?? 0} {t('horses')}</span>
+                          <span>{formatMinutes(run.totalTravelMinutes)}</span>
+                          {run.optimizationScore !== null && (
+                            <span>{t('score')}: {run.optimizationScore}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs text-primary">{t('viewDetail')}</span>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
         </main>
       </div>
       <MobileNav />
