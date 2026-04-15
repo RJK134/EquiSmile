@@ -1,0 +1,64 @@
+import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
+import type { CreateHorseInput, UpdateHorseInput, HorseQuery } from '@/lib/validations/horse.schema';
+import type { PaginatedResult } from '@/lib/types';
+
+export const horseRepository = {
+  async findMany(query: HorseQuery) {
+    const { customerId, primaryYardId, active, search, page, pageSize } = query;
+    const where: Prisma.HorseWhereInput = {};
+
+    if (customerId) where.customerId = customerId;
+    if (primaryYardId) where.primaryYardId = primaryYardId;
+    if (active !== undefined) where.active = active;
+
+    if (search) {
+      where.horseName = { contains: search, mode: 'insensitive' };
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.horse.findMany({
+        where,
+        orderBy: { horseName: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          customer: { select: { id: true, fullName: true } },
+          primaryYard: { select: { id: true, yardName: true } },
+        },
+      }),
+      prisma.horse.count({ where }),
+    ]);
+
+    const result: PaginatedResult<typeof data[number]> = {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+    return result;
+  },
+
+  async findById(id: string) {
+    return prisma.horse.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        primaryYard: true,
+      },
+    });
+  },
+
+  async create(data: CreateHorseInput) {
+    return prisma.horse.create({ data });
+  },
+
+  async update(id: string, data: UpdateHorseInput) {
+    return prisma.horse.update({ where: { id }, data });
+  },
+
+  async delete(id: string) {
+    return prisma.horse.delete({ where: { id } });
+  },
+};
