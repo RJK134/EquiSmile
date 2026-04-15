@@ -1,0 +1,55 @@
+{
+  "name": "04 - Yard Geocoding",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geocode-yard",
+        "responseMode": "onReceived"
+      },
+      "id": "geocode-webhook",
+      "name": "Geocode Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {},
+      "id": "build-address",
+      "name": "Build Full Address",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "google-geocode",
+      "name": "Google Geocoding API",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "update-yard",
+      "name": "Update Yard Coordinates",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Geocode Trigger": {
+      "main": [[{ "node": "Build Full Address", "type": "main", "index": 0 }]]
+    },
+    "Build Full Address": {
+      "main": [[{ "node": "Google Geocoding API", "type": "main", "index": 0 }]]
+    },
+    "Google Geocoding API": {
+      "main": [[{ "node": "Update Yard Coordinates", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": [{ "name": "phase5" }]
+}

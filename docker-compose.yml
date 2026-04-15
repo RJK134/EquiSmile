@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: equismile-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-equismile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-equismile}
+      POSTGRES_DB: ${POSTGRES_DB:-equismile}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-equismile}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: equismile-n8n
+    restart: unless-stopped
+    ports:
+      - '${N8N_PORT:-5678}:5678'
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-equismile}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-equismile}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-equismile}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_HOST: ${N8N_HOST:-localhost}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  n8n_data:

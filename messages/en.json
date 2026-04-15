@@ -1,0 +1,75 @@
+{
+  "app": {
+    "name": "EquiSmile",
+    "tagline": "Equine Dental Operations"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "enquiries": "Enquiries",
+    "customers": "Customers",
+    "routeRuns": "Routes",
+    "appointments": "Appointments",
+    "more": "More"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Operations overview",
+    "welcome": "Welcome to EquiSmile",
+    "description": "Your equine dental operations platform. Manage enquiries, plan routes, and track appointments — all in one place.",
+    "quickStats": "Quick Stats",
+    "recentActivity": "Recent Activity",
+    "noActivity": "No recent activity to display."
+  },
+  "enquiries": {
+    "title": "Enquiries",
+    "subtitle": "Manage inbound enquiries",
+    "empty": "No enquiries yet. Inbound messages from WhatsApp and email will appear here.",
+    "status": {
+      "new": "New",
+      "parsed": "Parsed",
+      "needsInfo": "Needs Info",
+      "triaged": "Triaged"
+    }
+  },
+  "customers": {
+    "title": "Customers",
+    "subtitle": "Manage customers and yards",
+    "empty": "No customers yet. Customers will be created when enquiries are received."
+  },
+  "routeRuns": {
+    "title": "Route Runs",
+    "subtitle": "Plan and manage visit routes",
+    "empty": "No route runs yet. Routes will be generated from the planning pool."
+  },
+  "appointments": {
+    "title": "Appointments",
+    "subtitle": "Track and manage appointments",
+    "empty": "No appointments yet. Appointments are created when routes are approved."
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Try again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "noResults": "No results found",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "fr": "Fran\u00e7ais"
+  },
+  "health": {
+    "title": "System Health",
+    "healthy": "All systems operational",
+    "degraded": "Some systems degraded"
+  }
+}

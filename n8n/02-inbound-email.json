@@ -1,0 +1,53 @@
+{
+  "name": "02 - Inbound Email",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] }
+      },
+      "id": "imap-trigger",
+      "name": "IMAP Email Trigger",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {},
+      "id": "parse-email",
+      "name": "Parse Email Content",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "match-customer",
+      "name": "Match or Create Customer",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "store-enquiry",
+      "name": "Store Enquiry in Database",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "IMAP Email Trigger": {
+      "main": [[{ "node": "Parse Email Content", "type": "main", "index": 0 }]]
+    },
+    "Parse Email Content": {
+      "main": [[{ "node": "Match or Create Customer", "type": "main", "index": 0 }]]
+    },
+    "Match or Create Customer": {
+      "main": [[{ "node": "Store Enquiry in Database", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": [{ "name": "phase3" }]
+}

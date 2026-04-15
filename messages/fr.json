@@ -1,0 +1,75 @@
+{
+  "app": {
+    "name": "EquiSmile",
+    "tagline": "Op\u00e9rations dentaires \u00e9quines"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "enquiries": "Demandes",
+    "customers": "Clients",
+    "routeRuns": "Itin\u00e9raires",
+    "appointments": "Rendez-vous",
+    "more": "Plus"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "subtitle": "Aper\u00e7u des op\u00e9rations",
+    "welcome": "Bienvenue sur EquiSmile",
+    "description": "Votre plateforme d\u2019op\u00e9rations dentaires \u00e9quines. G\u00e9rez les demandes, planifiez les itin\u00e9raires et suivez les rendez-vous \u2014 tout en un seul endroit.",
+    "quickStats": "Statistiques rapides",
+    "recentActivity": "Activit\u00e9 r\u00e9cente",
+    "noActivity": "Aucune activit\u00e9 r\u00e9cente \u00e0 afficher."
+  },
+  "enquiries": {
+    "title": "Demandes",
+    "subtitle": "G\u00e9rer les demandes entrantes",
+    "empty": "Aucune demande pour le moment. Les messages entrants de WhatsApp et e-mail appara\u00eetront ici.",
+    "status": {
+      "new": "Nouveau",
+      "parsed": "Analys\u00e9",
+      "needsInfo": "Infos requises",
+      "triaged": "Tri\u00e9"
+    }
+  },
+  "customers": {
+    "title": "Clients",
+    "subtitle": "G\u00e9rer les clients et les \u00e9curies",
+    "empty": "Aucun client pour le moment. Les clients seront cr\u00e9\u00e9s lors de la r\u00e9ception des demandes."
+  },
+  "routeRuns": {
+    "title": "Itin\u00e9raires",
+    "subtitle": "Planifier et g\u00e9rer les tourn\u00e9es",
+    "empty": "Aucun itin\u00e9raire pour le moment. Les itin\u00e9raires seront g\u00e9n\u00e9r\u00e9s \u00e0 partir du pool de planification."
+  },
+  "appointments": {
+    "title": "Rendez-vous",
+    "subtitle": "Suivre et g\u00e9rer les rendez-vous",
+    "empty": "Aucun rendez-vous pour le moment. Les rendez-vous sont cr\u00e9\u00e9s lorsque les itin\u00e9raires sont approuv\u00e9s."
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "R\u00e9essayer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Cr\u00e9er",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "noResults": "Aucun r\u00e9sultat trouv\u00e9",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Pr\u00e9c\u00e9dent"
+  },
+  "language": {
+    "label": "Langue",
+    "en": "English",
+    "fr": "Fran\u00e7ais"
+  },
+  "health": {
+    "title": "Sant\u00e9 du syst\u00e8me",
+    "healthy": "Tous les syst\u00e8mes sont op\u00e9rationnels",
+    "degraded": "Certains syst\u00e8mes sont d\u00e9grad\u00e9s"
+  }
+}
