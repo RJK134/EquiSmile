@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { routeRunRepository } from '@/lib/repositories/route-run.repository';
 
 const routeProposalSchema = z.object({
   routeRunId: z.string().uuid().optional(),
@@ -29,16 +30,32 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = routeProposalSchema.parse(body);
 
-    console.log('[n8n] Route proposal received', {
-      runDate: payload.runDate,
-      stopCount: payload.stops.length,
+    // Create RouteRun record
+    const routeRun = await routeRunRepository.create({
+      runDate: new Date(payload.runDate),
+      homeBaseAddress: env.HOME_BASE_ADDRESS || 'Home Base',
+      status: 'DRAFT',
+      totalDistanceMeters: payload.totalDistanceMeters,
+      totalTravelMinutes: payload.totalTravelMinutes,
+      totalJobs: payload.stops.length,
     });
 
-    // Placeholder: will be fully implemented in Phase 5 (route planning)
+    // Create RouteRunStop records
+    const stopData = payload.stops.map((stop) => ({
+      routeRunId: routeRun.id,
+      sequenceNo: stop.sequenceNo,
+      yardId: stop.yardId,
+      visitRequestId: stop.visitRequestId,
+      plannedArrival: stop.estimatedArrival ? new Date(stop.estimatedArrival) : undefined,
+      serviceMinutes: stop.estimatedDuration,
+    }));
+
+    await routeRunRepository.createStops(stopData);
+
     return NextResponse.json({
       success: true,
-      message: 'Route proposal acknowledged',
-      data: payload,
+      message: 'Route proposal stored',
+      data: { routeRunId: routeRun.id },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

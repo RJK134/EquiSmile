@@ -14,28 +14,98 @@
       "position": [250, 300]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "fullAddress",
+              "value": "={{$json.addressLine1}}, {{$json.addressLine2 ? $json.addressLine2 + ', ' : ''}}{{$json.town}}, {{$json.county ? $json.county + ', ' : ''}}{{$json.postcode}}"
+            }
+          ]
+        }
+      },
       "id": "build-address",
       "name": "Build Full Address",
-      "type": "n8n-nodes-base.noOp",
+      "type": "n8n-nodes-base.set",
       "typeVersion": 1,
       "position": [450, 300]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "url": "https://maps.googleapis.com/maps/api/geocode/json",
+        "qs": {
+          "address": "={{$json.fullAddress}}",
+          "key": "={{$env.GOOGLE_MAPS_API_KEY}}",
+          "region": "gb"
+        },
+        "options": {}
+      },
       "id": "google-geocode",
       "name": "Google Geocoding API",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
       "position": [650, 300]
     },
     {
-      "parameters": {},
-      "id": "update-yard",
-      "name": "Update Yard Coordinates",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "OK"
+            }
+          ]
+        }
+      },
+      "id": "check-result",
+      "name": "Check Result",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/n8n/geocode-result",
+        "method": "POST",
+        "body": {
+          "yardId": "={{$node['Geocode Trigger'].json.yardId}}",
+          "latitude": "={{$json.results[0].geometry.location.lat}}",
+          "longitude": "={{$json.results[0].geometry.location.lng}}",
+          "formattedAddress": "={{$json.results[0].formatted_address}}",
+          "placeId": "={{$json.results[0].place_id}}"
+        },
+        "headers": {
+          "Authorization": "Bearer {{$env.N8N_API_KEY}}"
+        },
+        "options": {}
+      },
+      "id": "update-yard",
+      "name": "Update Yard Coordinates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/n8n/geocode-result",
+        "method": "POST",
+        "body": {
+          "yardId": "={{$node['Geocode Trigger'].json.yardId}}",
+          "latitude": 0,
+          "longitude": 0
+        },
+        "headers": {
+          "Authorization": "Bearer {{$env.N8N_API_KEY}}"
+        },
+        "options": {
+          "ignore-ssl-issues": true
+        }
+      },
+      "id": "mark-failed",
+      "name": "Mark Geocode Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 400]
     }
   ],
   "connections": {
@@ -46,7 +116,13 @@
       "main": [[{ "node": "Google Geocoding API", "type": "main", "index": 0 }]]
     },
     "Google Geocoding API": {
-      "main": [[{ "node": "Update Yard Coordinates", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Check Result", "type": "main", "index": 0 }]]
+    },
+    "Check Result": {
+      "main": [
+        [{ "node": "Update Yard Coordinates", "type": "main", "index": 0 }],
+        [{ "node": "Mark Geocode Failed", "type": "main", "index": 0 }]
+      ]
     }
   },
   "active": false,
