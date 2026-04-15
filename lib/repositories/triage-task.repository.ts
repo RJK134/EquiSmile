@@ -79,4 +79,26 @@ export const triageTaskRepository = {
       },
     });
   },
+
+  async findOpenTasksEnriched() {
+    return prisma.triageTask.findMany({
+      where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        visitRequest: {
+          include: {
+            customer: { select: { id: true, fullName: true, preferredLanguage: true } },
+            yard: { select: { id: true, yardName: true, postcode: true } },
+            enquiry: { select: { id: true, channel: true, rawText: true, receivedAt: true } },
+          },
+        },
+      },
+    });
+  },
+
+  async countOpen() {
+    return prisma.triageTask.count({
+      where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+    });
+  },
 };
