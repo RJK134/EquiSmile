@@ -17,6 +17,14 @@ const mockTriageTaskRepo = {
   countOpen: vi.fn(),
 };
 
+const mockAppointmentRepo = {
+  findToday: vi.fn(),
+  findUpcoming: vi.fn(),
+  countPendingConfirmations: vi.fn(),
+  countCompletedThisWeek: vi.fn(),
+  countFollowUpsDue: vi.fn(),
+};
+
 vi.mock('@/lib/services/planning.service', () => ({
   planningService: mockPlanningService,
 }));
@@ -31,6 +39,10 @@ vi.mock('@/lib/repositories/visit-request.repository', () => ({
 
 vi.mock('@/lib/repositories/triage-task.repository', () => ({
   triageTaskRepository: mockTriageTaskRepo,
+}));
+
+vi.mock('@/lib/repositories/appointment.repository', () => ({
+  appointmentRepository: mockAppointmentRepo,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -69,6 +81,11 @@ describe('GET /api/dashboard', () => {
     });
     mockTriageTaskRepo.findOpenTasks.mockResolvedValue([{ id: 't1' }]);
     mockTriageTaskRepo.countOpen.mockResolvedValue(1);
+    mockAppointmentRepo.findToday.mockResolvedValue([]);
+    mockAppointmentRepo.findUpcoming.mockResolvedValue([]);
+    mockAppointmentRepo.countPendingConfirmations.mockResolvedValue(0);
+    mockAppointmentRepo.countCompletedThisWeek.mockResolvedValue(0);
+    mockAppointmentRepo.countFollowUpsDue.mockResolvedValue(0);
 
     const { GET } = await import('@/app/api/dashboard/route');
     const response = await GET();
