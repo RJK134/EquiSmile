@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.claude
+docs
+*.md
+!README.md
+.env
+.env.*
+.mcp.json
+claude-config
+n8n
+__tests__
