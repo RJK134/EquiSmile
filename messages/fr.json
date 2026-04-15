@@ -12,6 +12,7 @@
     "planning": "Planification",
     "yards": "Écuries",
     "horses": "Chevaux",
+    "completed": "Terminés",
     "more": "Plus"
   },
   "dashboard": {
@@ -470,6 +471,27 @@
       "followUpsDue": "Suivis à effectuer",
       "noUpcoming": "Aucun rendez-vous à venir."
     }
+  },
+  "completed": {
+    "title": "Visites terminées",
+    "subtitle": "Résultats des visites et suivi",
+    "empty": "Aucune visite terminée pour le moment.",
+    "allCompleted": "Tous les terminés",
+    "followUpOnly": "Suivi nécessaire",
+    "from": "Du",
+    "to": "Au",
+    "totalCompleted": "Total terminés",
+    "followUpsRequired": "Suivis nécessaires",
+    "overduFollowUps": "Suivis en retard",
+    "invoicesPending": "Factures en attente",
+    "date": "Date",
+    "customer": "Client",
+    "yard": "Écurie",
+    "horses": "Chevaux",
+    "outcome": "Résultat",
+    "followUp": "Suivi",
+    "invoice": "Facture",
+    "required": "Nécessaire"
   },
   "errors": {
     "title": "Une erreur est survenue",

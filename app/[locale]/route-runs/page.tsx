@@ -13,11 +13,13 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Link } from '@/i18n/navigation';
 import { selectStyles } from '@/components/ui/FormField';
+import { RouteMap } from '@/components/maps/RouteMap';
 
 interface RouteRunSummary {
   id: string;
   runDate: string;
   status: string;
+  homeBaseAddress?: string;
   totalDistanceMeters: number | null;
   totalTravelMinutes: number | null;
   totalVisitMinutes: number | null;
@@ -25,6 +27,16 @@ interface RouteRunSummary {
   totalHorses: number | null;
   optimizationScore: number | null;
   _count: { stops: number };
+  stops?: Array<{
+    sequenceNo: number;
+    yard: {
+      yardName: string;
+      postcode: string;
+      town?: string;
+      latitude: number | null;
+      longitude: number | null;
+    };
+  }>;
 }
 
 export default function RouteRunsPage() {
@@ -147,6 +159,28 @@ export default function RouteRunsPage() {
                       </div>
                       <span className="text-xs text-primary">{t('viewDetail')}</span>
                     </div>
+                    {run.stops && run.stops.length > 0 && (
+                      <div className="mt-2">
+                        <RouteMap
+                          compact
+                          stops={run.stops
+                            .filter((s) => s.yard.latitude != null && s.yard.longitude != null)
+                            .map((s) => ({
+                              sequenceNo: s.sequenceNo,
+                              yardName: s.yard.yardName,
+                              postcode: s.yard.postcode,
+                              town: s.yard.town,
+                              latitude: s.yard.latitude!,
+                              longitude: s.yard.longitude!,
+                            }))}
+                          homeBase={{
+                            latitude: parseFloat(process.env.NEXT_PUBLIC_HOME_BASE_LAT || '46.4553'),
+                            longitude: parseFloat(process.env.NEXT_PUBLIC_HOME_BASE_LNG || '6.8561'),
+                            label: run.homeBaseAddress || 'Home Base',
+                          }}
+                        />
+                      </div>
+                    )}
                   </Card>
                 </Link>
               ))}

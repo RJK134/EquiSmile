@@ -1,0 +1,7 @@
+{$DOMAIN:localhost} {
+  reverse_proxy app:3000
+}
+
+n8n.{$DOMAIN:localhost} {
+  reverse_proxy n8n:5678
+}
