@@ -1,5 +1,7 @@
 /**
  * Phase 7 Tests — ErrorBoundary component.
+ *
+ * @vitest-environment jsdom
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -47,14 +49,12 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Try again'));
 
-    // After retry, it will try to render children again
-    // Since ThrowError still throws, it will show error again
+    // After retry, re-render with non-throwing child
     rerender(
       <ErrorBoundary>
         <ThrowError shouldThrow={false} />
       </ErrorBoundary>,
     );
-    // After reset, non-throwing child should render
   });
 
   it('should render custom fallback when provided', () => {

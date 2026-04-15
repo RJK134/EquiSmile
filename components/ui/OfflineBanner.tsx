@@ -1,33 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+
+function subscribe(callback: () => void) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+function getSnapshot() {
+  return navigator.onLine;
+}
+
+function getServerSnapshot() {
+  return true; // Assume online on the server
+}
 
 export function OfflineBanner() {
-  const [isOffline, setIsOffline] = useState(false);
+  const isOnline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const wasOfflineRef = useRef(false);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOffline(false);
+    if (!isOnline) {
+      wasOfflineRef.current = true;
+    } else if (wasOfflineRef.current) {
+      wasOfflineRef.current = false;
       // Trigger replay of queued requests
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'REPLAY_QUEUE' });
       }
-    };
-    const handleOffline = () => setIsOffline(true);
+    }
+  }, [isOnline]);
 
-    // Check initial state
-    setIsOffline(!navigator.onLine);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  if (!isOffline) return null;
+  if (isOnline) return null;
 
   return (
     <div

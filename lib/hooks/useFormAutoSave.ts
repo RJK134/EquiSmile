@@ -15,23 +15,21 @@ export function useFormAutoSave<T>(
   setValues: (values: T) => void,
 ): {
   clearSavedForm: () => void;
-  hasSavedData: boolean;
 } {
   const storageKey = `${STORAGE_PREFIX}${formKey}`;
-  const hasSavedData = useRef(false);
-  const initialized = useRef(false);
+  const initializedRef = useRef(false);
 
-  // Restore on mount
+  // Restore on mount — use ref to avoid setState in effect lint issue
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
+    if (initializedRef.current) return;
+    initializedRef.current = true;
 
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved) as T;
-        setValues(parsed);
-        hasSavedData.current = true;
+        // Defer to next microtask to avoid synchronous setState in effect
+        queueMicrotask(() => setValues(parsed));
       }
     } catch {
       // Invalid stored data — ignore
@@ -40,6 +38,8 @@ export function useFormAutoSave<T>(
 
   // Save on change (debounced via effect)
   useEffect(() => {
+    if (!initializedRef.current) return;
+
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(storageKey, JSON.stringify(currentValues));
@@ -59,5 +59,5 @@ export function useFormAutoSave<T>(
     }
   }, [storageKey]);
 
-  return { clearSavedForm, hasSavedData: hasSavedData.current };
+  return { clearSavedForm };
 }

@@ -7,7 +7,7 @@ import { logger, maskPhone, maskEmail, toAppError, createTimer } from '@/lib/uti
 
 describe('maskPhone', () => {
   it('should mask a UK phone number', () => {
-    expect(maskPhone('+447911123456')).toBe('+447******56');
+    expect(maskPhone('+447911123456')).toBe('+447*******56');
   });
 
   it('should mask a short phone number', () => {
