@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
+import { withRetry, circuitBreakers } from '@/lib/utils/retry';
 
 interface SendEmailResult {
   messageId: string;
@@ -89,13 +90,19 @@ export const emailService = {
     );
 
     try {
-      const info = await transport.sendMail({
-        from: `EquiSmile <${from}>`,
-        to: options.to,
-        subject: options.subject,
-        text: options.text,
-        html,
-      });
+      const { data: info } = await withRetry(
+        async () => {
+          return transport.sendMail({
+            from: `EquiSmile <${from}>`,
+            to: options.to,
+            subject: options.subject,
+            text: options.text,
+            html,
+          });
+        },
+        { maxRetries: 2, operationName: 'email-send', timeoutMs: 30_000 },
+        circuitBreakers.email,
+      );
 
       const messageId = info.messageId || '';
 

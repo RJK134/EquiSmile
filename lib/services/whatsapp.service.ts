@@ -1,5 +1,12 @@
 import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
+import {
+  withRetry,
+  circuitBreakers,
+  generateIdempotencyKey,
+  hasBeenProcessed,
+  markAsProcessed,
+} from '@/lib/utils/retry';
 
 const GRAPH_API_VERSION = 'v21.0';
 
@@ -15,6 +22,7 @@ interface WhatsAppApiResponse {
 
 /**
  * WhatsApp outbound service using Meta Cloud API.
+ * Includes retry with exponential backoff, circuit breaker, and idempotency.
  */
 export const whatsappService = {
   /**
@@ -34,6 +42,13 @@ export const whatsappService = {
       return { messageId: '', success: false };
     }
 
+    // Idempotency: prevent duplicate sends on retry
+    const idempotencyKey = generateIdempotencyKey('wa-text', `${to}:${enquiryId || 'none'}:${Date.now()}`);
+    if (enquiryId && hasBeenProcessed(idempotencyKey)) {
+      console.warn('[WhatsApp] Duplicate send prevented', { to, enquiryId });
+      return { messageId: '', success: true };
+    }
+
     const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
 
     const body = {
@@ -45,26 +60,34 @@ export const whatsappService = {
     };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+      const { data: result } = await withRetry(
+        async (signal) => {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            signal,
+          });
+
+          const data: WhatsAppApiResponse = await response.json();
+
+          if (!response.ok || data.error) {
+            throw new Error(`WhatsApp API error (${response.status}): ${data.error?.message || 'Unknown'}`);
+          }
+
+          return data;
         },
-        body: JSON.stringify(body),
-      });
+        { maxRetries: 2, operationName: 'whatsapp-send-text' },
+        circuitBreakers.whatsapp,
+      );
 
-      const data: WhatsAppApiResponse = await response.json();
+      const messageId = result.messages?.[0]?.id || '';
 
-      if (!response.ok || data.error) {
-        console.error('[WhatsApp] Send failed', { status: response.status, error: data.error });
-        return { messageId: '', success: false };
-      }
-
-      const messageId = data.messages?.[0]?.id || '';
-
-      // Log outbound message
       if (enquiryId) {
+        markAsProcessed(idempotencyKey);
         await messageLogService.logMessage({
           enquiryId,
           direction: 'OUTBOUND',
@@ -102,6 +125,12 @@ export const whatsappService = {
       return { messageId: '', success: false };
     }
 
+    const idempotencyKey = generateIdempotencyKey('wa-tpl', `${to}:${templateName}:${enquiryId || 'none'}:${Date.now()}`);
+    if (enquiryId && hasBeenProcessed(idempotencyKey)) {
+      console.warn('[WhatsApp] Duplicate template send prevented', { to, templateName });
+      return { messageId: '', success: true };
+    }
+
     const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
 
     const languageCode = language === 'fr' ? 'fr' : 'en';
@@ -125,25 +154,34 @@ export const whatsappService = {
     };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+      const { data: result } = await withRetry(
+        async (signal) => {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            signal,
+          });
+
+          const data: WhatsAppApiResponse = await response.json();
+
+          if (!response.ok || data.error) {
+            throw new Error(`WhatsApp API error (${response.status}): ${data.error?.message || 'Unknown'}`);
+          }
+
+          return data;
         },
-        body: JSON.stringify(body),
-      });
+        { maxRetries: 2, operationName: 'whatsapp-send-template' },
+        circuitBreakers.whatsapp,
+      );
 
-      const data: WhatsAppApiResponse = await response.json();
-
-      if (!response.ok || data.error) {
-        console.error('[WhatsApp] Template send failed', { status: response.status, error: data.error });
-        return { messageId: '', success: false };
-      }
-
-      const messageId = data.messages?.[0]?.id || '';
+      const messageId = result.messages?.[0]?.id || '';
 
       if (enquiryId) {
+        markAsProcessed(idempotencyKey);
         await messageLogService.logMessage({
           enquiryId,
           direction: 'OUTBOUND',

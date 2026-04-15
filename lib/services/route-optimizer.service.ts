@@ -6,6 +6,7 @@
  */
 
 import { env } from '@/lib/env';
+import { withRetry, circuitBreakers } from '@/lib/utils/retry';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -236,18 +237,27 @@ export const routeOptimizerService = {
     // Auth: prefer API key, fallback to service account
     if (env.GOOGLE_MAPS_API_KEY) {
       const urlWithKey = `${url}?key=${env.GOOGLE_MAPS_API_KEY}`;
-      const response = await fetch(urlWithKey, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(request),
-      });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Route Optimization API error (${response.status}): ${error}`);
-      }
+      const { data } = await withRetry(
+        async (signal) => {
+          const response = await fetch(urlWithKey, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(request),
+            signal,
+          });
 
-      const data = (await response.json()) as RouteOptApiResponse;
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Route Optimization API error (${response.status}): ${errorText}`);
+          }
+
+          return (await response.json()) as RouteOptApiResponse;
+        },
+        { maxRetries: 2, operationName: 'route-optimization', timeoutMs: 30_000 },
+        circuitBreakers.routeOptimization,
+      );
+
       return routeOptimizerService.parseResponse(data, stops);
     }
 
