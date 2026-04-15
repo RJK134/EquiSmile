@@ -351,6 +351,9 @@ model Appointment {
   status              AppointmentStatus   @default(PROPOSED)
   confirmationChannel ConfirmationChannel?
   confirmationSentAt  DateTime?
+  reminderSentAt24h   DateTime?
+  reminderSentAt2h    DateTime?
+  cancellationReason  String?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
