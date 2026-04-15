@@ -6,12 +6,13 @@
 
 /** Health check response */
 export interface HealthCheckResponse {
-  status: 'ok' | 'degraded' | 'down';
+  status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   version: string;
-  checks?: {
-    database?: boolean;
-    n8n?: boolean;
+  checks: {
+    database: { status: 'up' | 'down'; latency_ms: number };
+    environment: { status: 'ok' | 'missing'; missing: string[] };
+    n8n: { status: 'up' | 'unreachable'; url: string };
   };
 }
 
