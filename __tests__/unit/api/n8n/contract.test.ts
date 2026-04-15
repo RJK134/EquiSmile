@@ -41,6 +41,19 @@ vi.mock('@/lib/services/email.service', () => ({
   },
 }));
 
+vi.mock('@/lib/services/geocoding.service', () => ({
+  geocodingService: {
+    updateYardCoordinates: vi.fn().mockResolvedValue({ success: true }),
+  },
+}));
+
+vi.mock('@/lib/repositories/route-run.repository', () => ({
+  routeRunRepository: {
+    create: vi.fn().mockResolvedValue({ id: 'rr-1' }),
+    createStops: vi.fn().mockResolvedValue({ count: 1 }),
+  },
+}));
+
 import { POST as triagePost } from '@/app/api/n8n/triage-result/route';
 import { POST as geocodePost } from '@/app/api/n8n/geocode-result/route';
 import { POST as routePost } from '@/app/api/n8n/route-proposal/route';
