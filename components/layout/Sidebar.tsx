@@ -20,7 +20,7 @@ export function Sidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 border-r border-border bg-background lg:block">
-      <nav className="flex flex-col gap-1 p-3">
+      <nav aria-label="Main navigation" className="flex flex-col gap-1 p-3">
         {sidebarItems.map(({ key, href }) => {
           const isActive = pathname.startsWith(href);
           return (

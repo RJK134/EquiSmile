@@ -15,7 +15,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background lg:hidden">
+    <nav aria-label="Mobile navigation" className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background lg:hidden">
       <ul className="flex items-center justify-around">
         {navItems.map(({ key, href, icon: Icon }) => {
           const isActive = pathname.startsWith(href);
@@ -47,6 +47,7 @@ function DashboardIcon({ active }: { active: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -65,6 +66,7 @@ function EnquiriesIcon({ active }: { active: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -83,6 +85,7 @@ function RoutesIcon({ active }: { active: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -101,6 +104,7 @@ function MoreIcon({ active }: { active: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"

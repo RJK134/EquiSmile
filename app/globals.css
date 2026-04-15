@@ -21,3 +21,40 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans);
 }
+
+/* Visible focus indicators for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Remove default focus ring for mouse clicks only */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Skip link styles */
+.sr-only:focus {
+  position: fixed;
+  clip: auto;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Minimum touch target size for mobile */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

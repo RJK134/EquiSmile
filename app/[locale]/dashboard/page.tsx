@@ -11,6 +11,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Link } from '@/i18n/navigation';
+import { SkipToContent } from '@/components/ui/SkipToContent';
 
 interface DashboardAppointment {
   id: string;
@@ -90,10 +91,11 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-full flex-col">
+      <SkipToContent />
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
           <PageHeader title={t('title')} subtitle={t('subtitle')} />
 
           {loading ? <LoadingState /> : !data ? (

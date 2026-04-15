@@ -83,5 +83,9 @@ export function StatusBadge({ type, value }: StatusBadgeProps) {
     label = value;
   }
 
-  return <Badge variant={config.variant}>{label}</Badge>;
+  return (
+    <Badge variant={config.variant} role="status" aria-label={label}>
+      {label}
+    </Badge>
+  );
 }
