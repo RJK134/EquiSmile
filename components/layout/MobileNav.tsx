@@ -15,7 +15,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Mobile navigation" className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background lg:hidden">
+    <nav aria-label="Mobile navigation" className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background pb-safe lg:hidden">
       <ul className="flex items-center justify-around">
         {navItems.map(({ key, href, icon: Icon }) => {
           const isActive = pathname.startsWith(href);
