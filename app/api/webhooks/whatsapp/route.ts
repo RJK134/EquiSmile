@@ -5,6 +5,7 @@ import { verifyWhatsAppSignature } from '@/lib/utils/signature';
 import { normalisePhone } from '@/lib/utils/phone';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
+import { autoTriageService } from '@/lib/services/auto-triage.service';
 
 // ---------------------------------------------------------------------------
 // GET — Webhook verification (Meta sends this during setup)
@@ -178,7 +179,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         });
 
         // Create visit request
-        await prisma.visitRequest.create({
+        const visitRequest = await prisma.visitRequest.create({
           data: {
             enquiryId: enquiry.id,
             customerId: customer.id,
@@ -191,6 +192,23 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
             preferredTimeBand: 'ANY',
           },
         });
+
+        // Run auto-triage rules
+        try {
+          const triageResult = await autoTriageService.triageEnquiry(
+            enquiry.id,
+            visitRequest.id,
+            messageText,
+          );
+          console.log('[WhatsApp] Auto-triage completed', {
+            enquiryId: enquiry.id,
+            urgency: triageResult.urgency,
+            confidence: triageResult.confidence,
+            tasksCreated: triageResult.tasksCreated.length,
+          });
+        } catch (triageErr) {
+          console.error('[WhatsApp] Auto-triage failed, enquiry still created', triageErr);
+        }
 
         console.log('[WhatsApp] Enquiry created', {
           enquiryId: enquiry.id,
