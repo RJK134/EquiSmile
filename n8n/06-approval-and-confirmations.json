@@ -14,28 +14,141 @@
       "position": [250, 300]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_URL }}/api/appointments/from-route/{{ $json.routeRunId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
       "id": "create-appointments",
       "name": "Create Appointments",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [450, 300]
     },
     {
-      "parameters": {},
-      "id": "send-confirmations",
-      "name": "Send Confirmation Messages",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.appointmentCount > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-appointments",
+      "name": "Appointments Created?",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [650, 300]
     },
     {
-      "parameters": {},
-      "id": "schedule-reminders",
-      "name": "Schedule Reminders",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "Route {{ $json.routeRunId }} booked with {{ $json.appointmentCount }} appointments. Confirmations dispatched."
+            }
+          ]
+        }
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "message",
+              "value": "No appointments created for route. Check route status."
+            }
+          ]
+        }
+      },
+      "id": "log-failure",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "reminder-schedule",
+      "name": "Reminder Check Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [850, 300]
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.APP_URL }}/api/reminders/check",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "check-reminders",
+      "name": "Check Due Reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 600]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "appointment-cancelled",
+        "responseMode": "onReceived"
+      },
+      "id": "cancel-webhook",
+      "name": "Cancellation Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 900]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_URL }}/api/appointments/{{ $json.appointmentId }}/cancel",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "reason",
+              "value": "={{ $json.reason }}"
+            }
+          ]
+        }
+      },
+      "id": "cancel-appointment",
+      "name": "Cancel Appointment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 900]
     }
   ],
   "connections": {
@@ -43,10 +156,19 @@
       "main": [[{ "node": "Create Appointments", "type": "main", "index": 0 }]]
     },
     "Create Appointments": {
-      "main": [[{ "node": "Send Confirmation Messages", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Appointments Created?", "type": "main", "index": 0 }]]
     },
-    "Send Confirmation Messages": {
-      "main": [[{ "node": "Schedule Reminders", "type": "main", "index": 0 }]]
+    "Appointments Created?": {
+      "main": [
+        [{ "node": "Log Success", "type": "main", "index": 0 }],
+        [{ "node": "Log Failure", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reminder Check Schedule": {
+      "main": [[{ "node": "Check Due Reminders", "type": "main", "index": 0 }]]
+    },
+    "Cancellation Trigger": {
+      "main": [[{ "node": "Cancel Appointment", "type": "main", "index": 0 }]]
     }
   },
   "active": false,

@@ -3,6 +3,7 @@ import { planningService } from '@/lib/services/planning.service';
 import { enquiryService } from '@/lib/services/enquiry.service';
 import { triageTaskRepository } from '@/lib/repositories/triage-task.repository';
 import { visitRequestRepository } from '@/lib/repositories/visit-request.repository';
+import { appointmentRepository } from '@/lib/repositories/appointment.repository';
 import { successResponse, handleApiError } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,12 @@ export async function GET() {
       totalTriagedCount,
       autoTriagedCount,
       openTaskCount,
+      // Appointment metrics
+      todayAppointments,
+      upcomingAppointments,
+      pendingConfirmations,
+      completedThisWeek,
+      followUpsDue,
     ] = await Promise.all([
       planningService.getDashboardStats(),
       enquiryService.getStats(),
@@ -87,6 +94,12 @@ export async function GET() {
       }),
       // Open triage task count
       triageTaskRepository.countOpen(),
+      // Appointment metrics
+      appointmentRepository.findToday(),
+      appointmentRepository.findUpcoming(7),
+      appointmentRepository.countPendingConfirmations(),
+      appointmentRepository.countCompletedThisWeek(),
+      appointmentRepository.countFollowUpsDue(),
     ]);
 
     const needsInfoItems = needsInfoRequests.data.filter((vr) => vr.yard === null || vr.horseCount === null);
@@ -108,6 +121,15 @@ export async function GET() {
         triagedWeekCount,
         autoTriageRate,
         openTaskCount,
+      },
+      appointments: {
+        todayCount: todayAppointments.length,
+        todayAppointments: todayAppointments.slice(0, 5),
+        upcomingCount: upcomingAppointments.length,
+        upcomingAppointments: upcomingAppointments.slice(0, 5),
+        pendingConfirmations,
+        completedThisWeek,
+        followUpsDue,
       },
     });
   } catch (error) {
