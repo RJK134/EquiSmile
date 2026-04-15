@@ -23,8 +23,8 @@ describe('prisma/seed.ts', () => {
   });
 
   it('includes both EN and FR customer examples', () => {
-    expect(seedContent).toContain('seed-customer-en');
-    expect(seedContent).toContain('seed-customer-fr');
+    expect(seedContent).toContain('seed-customer-sarah');
+    expect(seedContent).toContain('seed-customer-pierre');
   });
 
   it('creates yards with addresses and coordinates', () => {
@@ -50,9 +50,9 @@ describe('prisma/seed.ts', () => {
   });
 
   it('uses deterministic IDs for upsert stability', () => {
-    expect(seedContent).toContain("id: 'seed-customer-en'");
-    expect(seedContent).toContain("id: 'seed-customer-fr'");
-    expect(seedContent).toContain("id: 'seed-yard-en'");
-    expect(seedContent).toContain("id: 'seed-yard-fr'");
+    expect(seedContent).toContain("id: 'seed-customer-sarah'");
+    expect(seedContent).toContain("id: 'seed-customer-pierre'");
+    expect(seedContent).toContain("id: 'seed-yard-oakfield'");
+    expect(seedContent).toContain("id: 'seed-yard-haras'");
   });
 });
