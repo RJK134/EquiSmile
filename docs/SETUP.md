@@ -38,11 +38,24 @@ DATABASE_URL="postgresql://equismile:equismile@localhost:5432/equismile?schema=p
 
 ```bash
 docker compose up -d
+docker compose ps  # verify healthy
 ```
 
 This starts:
-- PostgreSQL 16 on port 5432
-- n8n on port 5678
+- **PostgreSQL 16** on port 5432 (health-checked with `pg_isready`)
+- **n8n** on port 5678 (waits for PostgreSQL to be healthy)
+
+To stop all services:
+
+```bash
+docker compose down
+```
+
+To stop services and remove volumes (resets all data):
+
+```bash
+docker compose down -v
+```
 
 ### 5. Set Up Database
 
@@ -50,6 +63,14 @@ This starts:
 npm run db:generate
 npm run db:migrate
 ```
+
+### 5a. Seed Test Data (Optional)
+
+```bash
+npm run db:seed
+```
+
+This creates sample customers, yards, horses, and visit requests. The seed is idempotent — running it multiple times will not duplicate data.
 
 ### 6. Start Development Server
 
@@ -71,15 +92,26 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 | `npm run test` | Run tests |
 | `npm run db:generate` | Generate Prisma client |
 | `npm run db:migrate` | Run Prisma migrations |
-| `npm run db:seed` | Seed database |
+| `npm run db:seed` | Seed database (idempotent) |
 | `npm run db:studio` | Open Prisma Studio |
 
 ## Docker Services
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| PostgreSQL | 5432 | Database |
-| n8n | 5678 | Workflow automation |
+| Service | Port | Purpose | Health Check |
+|---------|------|---------|--------------|
+| PostgreSQL | 5432 | Database | `pg_isready` every 10s |
+| n8n | 5678 | Workflow automation | Depends on healthy Postgres |
+
+### Docker Commands
+
+| Command | Description |
+|---------|-------------|
+| `docker compose up -d` | Start all services in background |
+| `docker compose down` | Stop all services |
+| `docker compose down -v` | Stop services and remove volumes |
+| `docker compose ps` | Show service status |
+| `docker compose logs -f postgres` | Follow PostgreSQL logs |
+| `docker compose logs -f n8n` | Follow n8n logs |
 
 ## Project Structure
 

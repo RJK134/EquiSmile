@@ -15,7 +15,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background lg:hidden">
       <ul className="flex items-center justify-around">
         {navItems.map(({ key, href, icon: Icon }) => {
           const isActive = pathname.startsWith(href);
@@ -23,7 +23,7 @@ export function MobileNav() {
             <li key={key}>
               <Link
                 href={href}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2 text-xs transition-colors ${
+                className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 px-3 py-2 text-xs transition-colors ${
                   isActive ? 'text-primary' : 'text-muted hover:text-foreground'
                 }`}
                 aria-current={isActive ? 'page' : undefined}

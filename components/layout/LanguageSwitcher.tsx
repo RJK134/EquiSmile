@@ -21,7 +21,7 @@ export function LanguageSwitcher() {
           key={loc}
           onClick={() => handleChange(loc)}
           disabled={loc === locale}
-          className={`rounded px-2 py-1 text-sm font-medium transition-colors ${
+          className={`min-h-[44px] min-w-[44px] rounded px-3 py-2 text-sm font-medium transition-colors ${
             loc === locale
               ? 'bg-primary text-white'
               : 'text-muted hover:bg-border hover:text-foreground'
