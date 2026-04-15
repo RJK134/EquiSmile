@@ -9,6 +9,9 @@
     "customers": "Customers",
     "routeRuns": "Routes",
     "appointments": "Appointments",
+    "planning": "Planning",
+    "yards": "Yards",
+    "horses": "Horses",
     "more": "More"
   },
   "dashboard": {
@@ -18,33 +21,217 @@
     "description": "Your equine dental operations platform. Manage enquiries, plan routes, and track appointments — all in one place.",
     "quickStats": "Quick Stats",
     "recentActivity": "Recent Activity",
-    "noActivity": "No recent activity to display."
+    "noActivity": "No recent activity to display.",
+    "urgentToday": "Urgent Today",
+    "needsInfo": "Needs More Info",
+    "planningPool": "Planning Pool",
+    "activeCustomers": "Active Customers",
+    "urgentItems": "Urgent Items",
+    "needsInfoItems": "Needs Info Items",
+    "recentEnquiries": "Recent Enquiries",
+    "noUrgent": "No urgent items.",
+    "noNeedsInfo": "No items needing info.",
+    "noEnquiries": "No recent enquiries.",
+    "viewAll": "View all"
   },
   "enquiries": {
     "title": "Enquiries",
     "subtitle": "Manage inbound enquiries",
     "empty": "No enquiries yet. Inbound messages from WhatsApp and email will appear here.",
+    "newEnquiry": "New Enquiry",
+    "channel": "Channel",
+    "received": "Received",
+    "customer": "Customer",
+    "yard": "Yard",
     "status": {
       "new": "New",
       "parsed": "Parsed",
       "needsInfo": "Needs Info",
       "triaged": "Triaged"
+    },
+    "detail": {
+      "title": "Enquiry Detail",
+      "rawMessage": "Message",
+      "visitRequests": "Visit Requests",
+      "triageStatus": "Triage Status",
+      "actions": "Actions",
+      "classify": "Classify",
+      "requestInfo": "Request Info",
+      "close": "Close",
+      "moveToPlanningPool": "Move to Planning"
+    },
+    "form": {
+      "title": "Create Manual Enquiry",
+      "selectCustomer": "Select Customer",
+      "createNewCustomer": "Create New Customer",
+      "customerName": "Customer Name",
+      "customerPhone": "Phone",
+      "customerEmail": "Email",
+      "channel": "Channel",
+      "subject": "Subject",
+      "message": "Message",
+      "selectYard": "Select Yard",
+      "horseCount": "Horse Count",
+      "requestType": "Request Type",
+      "urgencyLevel": "Urgency Level",
+      "preferredDays": "Preferred Days",
+      "preferredTime": "Preferred Time",
+      "notes": "Notes",
+      "submit": "Create Enquiry"
     }
   },
   "customers": {
     "title": "Customers",
     "subtitle": "Manage customers and yards",
-    "empty": "No customers yet. Customers will be created when enquiries are received."
+    "empty": "No customers yet. Customers will be created when enquiries are received.",
+    "newCustomer": "New Customer",
+    "fullName": "Full Name",
+    "phone": "Phone",
+    "email": "Email",
+    "preferredChannel": "Preferred Channel",
+    "preferredLanguage": "Language",
+    "notes": "Notes",
+    "yards": "Yards",
+    "horses": "Horses",
+    "enquiriesCount": "Enquiries",
+    "detail": {
+      "title": "Customer Detail",
+      "editCustomer": "Edit Customer",
+      "relatedYards": "Related Yards",
+      "relatedHorses": "Related Horses",
+      "relatedEnquiries": "Related Enquiries"
+    },
+    "form": {
+      "title": "Create Customer",
+      "editTitle": "Edit Customer",
+      "fullName": "Full Name",
+      "phone": "Mobile Phone",
+      "email": "Email Address",
+      "preferredChannel": "Preferred Channel",
+      "preferredLanguage": "Preferred Language",
+      "notes": "Notes"
+    }
   },
-  "routeRuns": {
-    "title": "Route Runs",
-    "subtitle": "Plan and manage visit routes",
-    "empty": "No route runs yet. Routes will be generated from the planning pool."
+  "yards": {
+    "title": "Yards",
+    "subtitle": "Manage yards and locations",
+    "empty": "No yards yet. Add yards to track visit locations.",
+    "newYard": "New Yard",
+    "yardName": "Yard Name",
+    "address": "Address",
+    "postcode": "Postcode",
+    "area": "Area",
+    "accessNotes": "Access Notes",
+    "linkedCustomer": "Linked Customer",
+    "horsesAtYard": "Horses at Yard",
+    "form": {
+      "title": "Create Yard",
+      "editTitle": "Edit Yard",
+      "yardName": "Yard Name",
+      "customer": "Customer",
+      "addressLine1": "Address Line 1",
+      "addressLine2": "Address Line 2",
+      "town": "Town",
+      "county": "County",
+      "postcode": "Postcode",
+      "accessNotes": "Access Notes",
+      "areaLabel": "Area Label"
+    }
   },
-  "appointments": {
-    "title": "Appointments",
-    "subtitle": "Track and manage appointments",
-    "empty": "No appointments yet. Appointments are created when routes are approved."
+  "horses": {
+    "title": "Horses",
+    "subtitle": "Manage horse records",
+    "empty": "No horses yet. Add horses to track dental records.",
+    "newHorse": "New Horse",
+    "horseName": "Name",
+    "age": "Age",
+    "dentalDue": "Dental Due",
+    "active": "Active",
+    "inactive": "Inactive",
+    "customer": "Owner",
+    "yard": "Yard",
+    "form": {
+      "title": "Create Horse",
+      "editTitle": "Edit Horse",
+      "horseName": "Horse Name",
+      "customer": "Owner (Customer)",
+      "yard": "Primary Yard",
+      "age": "Age (years)",
+      "notes": "Notes (handling, sedation)",
+      "dentalDueDate": "Dental Due Date",
+      "active": "Active"
+    }
+  },
+  "triage": {
+    "title": "Triage Queue",
+    "subtitle": "Review and classify incoming requests",
+    "empty": "No triage tasks pending.",
+    "urgentReview": "Urgent Review",
+    "askPostcode": "Ask for Postcode",
+    "askHorseCount": "Ask Horse Count",
+    "clarifySymptoms": "Clarify Symptoms",
+    "manualClassification": "Manual Classification",
+    "setUrgency": "Set Urgency",
+    "setRequestType": "Set Request Type",
+    "markNeedsInfo": "Needs More Info",
+    "markDone": "Mark Done",
+    "moveToPlanningPool": "Move to Planning Pool"
+  },
+  "planning": {
+    "title": "Planning Pool",
+    "subtitle": "Visit requests ready for route planning",
+    "empty": "No requests in the planning pool. Triage enquiries to add them here.",
+    "area": "Area",
+    "jobs": "jobs",
+    "horsesCount": "horses",
+    "urgency": "Urgency",
+    "requestType": "Type",
+    "preferredDays": "Preferred Days",
+    "groupBy": "Group by area"
+  },
+  "status": {
+    "new": "New",
+    "parsed": "Parsed",
+    "needsInfo": "Needs Info",
+    "triaged": "Triaged",
+    "untriaged": "Untriaged",
+    "readyForReview": "Ready for Review",
+    "planningPool": "Planning Pool",
+    "clustered": "Clustered",
+    "proposed": "Proposed",
+    "booked": "Booked",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "urgent": "Urgent",
+    "soon": "Soon",
+    "routine": "Routine",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "phone": "Phone",
+    "open": "Open",
+    "inProgress": "In Progress",
+    "done": "Done"
+  },
+  "requestTypes": {
+    "routineDental": "Routine Dental",
+    "followUp": "Follow-up",
+    "urgentIssue": "Urgent Issue",
+    "firstVisit": "First Visit",
+    "admin": "Admin"
+  },
+  "days": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
+  "timeBands": {
+    "am": "Morning",
+    "pm": "Afternoon",
+    "any": "Any Time"
   },
   "common": {
     "loading": "Loading...",
@@ -60,16 +247,31 @@
     "noResults": "No results found",
     "back": "Back",
     "next": "Next",
-    "previous": "Previous"
+    "previous": "Previous",
+    "confirm": "Confirm",
+    "close": "Close",
+    "actions": "Actions",
+    "details": "Details",
+    "all": "All",
+    "required": "Required",
+    "optional": "Optional",
+    "yes": "Yes",
+    "no": "No"
   },
   "language": {
     "label": "Language",
     "en": "English",
-    "fr": "Fran\u00e7ais"
+    "fr": "Français"
   },
   "health": {
     "title": "System Health",
     "healthy": "All systems operational",
     "degraded": "Some systems degraded"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email address",
+    "minLength": "Must be at least {min} characters",
+    "maxLength": "Must be at most {max} characters"
   }
 }

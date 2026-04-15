@@ -1,75 +1,277 @@
 {
   "app": {
     "name": "EquiSmile",
-    "tagline": "Op\u00e9rations dentaires \u00e9quines"
+    "tagline": "Opérations dentaires équines"
   },
   "nav": {
     "dashboard": "Tableau de bord",
     "enquiries": "Demandes",
     "customers": "Clients",
-    "routeRuns": "Itin\u00e9raires",
+    "routeRuns": "Itinéraires",
     "appointments": "Rendez-vous",
+    "planning": "Planification",
+    "yards": "Écuries",
+    "horses": "Chevaux",
     "more": "Plus"
   },
   "dashboard": {
     "title": "Tableau de bord",
-    "subtitle": "Aper\u00e7u des op\u00e9rations",
+    "subtitle": "Aperçu des opérations",
     "welcome": "Bienvenue sur EquiSmile",
-    "description": "Votre plateforme d\u2019op\u00e9rations dentaires \u00e9quines. G\u00e9rez les demandes, planifiez les itin\u00e9raires et suivez les rendez-vous \u2014 tout en un seul endroit.",
+    "description": "Votre plateforme d\u2019opérations dentaires équines. Gérez les demandes, planifiez les itinéraires et suivez les rendez-vous — tout en un seul endroit.",
     "quickStats": "Statistiques rapides",
-    "recentActivity": "Activit\u00e9 r\u00e9cente",
-    "noActivity": "Aucune activit\u00e9 r\u00e9cente \u00e0 afficher."
+    "recentActivity": "Activité récente",
+    "noActivity": "Aucune activité récente à afficher.",
+    "urgentToday": "Urgences du jour",
+    "needsInfo": "Infos requises",
+    "planningPool": "Pool de planification",
+    "activeCustomers": "Clients actifs",
+    "urgentItems": "Éléments urgents",
+    "needsInfoItems": "Éléments nécessitant des infos",
+    "recentEnquiries": "Demandes récentes",
+    "noUrgent": "Aucun élément urgent.",
+    "noNeedsInfo": "Aucun élément nécessitant des infos.",
+    "noEnquiries": "Aucune demande récente.",
+    "viewAll": "Voir tout"
   },
   "enquiries": {
     "title": "Demandes",
-    "subtitle": "G\u00e9rer les demandes entrantes",
-    "empty": "Aucune demande pour le moment. Les messages entrants de WhatsApp et e-mail appara\u00eetront ici.",
+    "subtitle": "Gérer les demandes entrantes",
+    "empty": "Aucune demande pour le moment. Les messages entrants de WhatsApp et e-mail apparaîtront ici.",
+    "newEnquiry": "Nouvelle demande",
+    "channel": "Canal",
+    "received": "Reçu",
+    "customer": "Client",
+    "yard": "Écurie",
     "status": {
       "new": "Nouveau",
-      "parsed": "Analys\u00e9",
+      "parsed": "Analysé",
       "needsInfo": "Infos requises",
-      "triaged": "Tri\u00e9"
+      "triaged": "Trié"
+    },
+    "detail": {
+      "title": "Détail de la demande",
+      "rawMessage": "Message",
+      "visitRequests": "Demandes de visite",
+      "triageStatus": "Statut de triage",
+      "actions": "Actions",
+      "classify": "Classifier",
+      "requestInfo": "Demander des infos",
+      "close": "Fermer",
+      "moveToPlanningPool": "Déplacer vers la planification"
+    },
+    "form": {
+      "title": "Créer une demande manuelle",
+      "selectCustomer": "Sélectionner un client",
+      "createNewCustomer": "Créer un nouveau client",
+      "customerName": "Nom du client",
+      "customerPhone": "Téléphone",
+      "customerEmail": "E-mail",
+      "channel": "Canal",
+      "subject": "Sujet",
+      "message": "Message",
+      "selectYard": "Sélectionner une écurie",
+      "horseCount": "Nombre de chevaux",
+      "requestType": "Type de demande",
+      "urgencyLevel": "Niveau d'urgence",
+      "preferredDays": "Jours préférés",
+      "preferredTime": "Horaire préféré",
+      "notes": "Notes",
+      "submit": "Créer la demande"
     }
   },
   "customers": {
     "title": "Clients",
-    "subtitle": "G\u00e9rer les clients et les \u00e9curies",
-    "empty": "Aucun client pour le moment. Les clients seront cr\u00e9\u00e9s lors de la r\u00e9ception des demandes."
+    "subtitle": "Gérer les clients et les écuries",
+    "empty": "Aucun client pour le moment. Les clients seront créés lors de la réception des demandes.",
+    "newCustomer": "Nouveau client",
+    "fullName": "Nom complet",
+    "phone": "Téléphone",
+    "email": "E-mail",
+    "preferredChannel": "Canal préféré",
+    "preferredLanguage": "Langue",
+    "notes": "Notes",
+    "yards": "Écuries",
+    "horses": "Chevaux",
+    "enquiriesCount": "Demandes",
+    "detail": {
+      "title": "Détail du client",
+      "editCustomer": "Modifier le client",
+      "relatedYards": "Écuries associées",
+      "relatedHorses": "Chevaux associés",
+      "relatedEnquiries": "Demandes associées"
+    },
+    "form": {
+      "title": "Créer un client",
+      "editTitle": "Modifier le client",
+      "fullName": "Nom complet",
+      "phone": "Téléphone mobile",
+      "email": "Adresse e-mail",
+      "preferredChannel": "Canal préféré",
+      "preferredLanguage": "Langue préférée",
+      "notes": "Notes"
+    }
   },
-  "routeRuns": {
-    "title": "Itin\u00e9raires",
-    "subtitle": "Planifier et g\u00e9rer les tourn\u00e9es",
-    "empty": "Aucun itin\u00e9raire pour le moment. Les itin\u00e9raires seront g\u00e9n\u00e9r\u00e9s \u00e0 partir du pool de planification."
+  "yards": {
+    "title": "Écuries",
+    "subtitle": "Gérer les écuries et emplacements",
+    "empty": "Aucune écurie pour le moment. Ajoutez des écuries pour suivre les lieux de visite.",
+    "newYard": "Nouvelle écurie",
+    "yardName": "Nom de l'écurie",
+    "address": "Adresse",
+    "postcode": "Code postal",
+    "area": "Zone",
+    "accessNotes": "Notes d'accès",
+    "linkedCustomer": "Client associé",
+    "horsesAtYard": "Chevaux à l'écurie",
+    "form": {
+      "title": "Créer une écurie",
+      "editTitle": "Modifier l'écurie",
+      "yardName": "Nom de l'écurie",
+      "customer": "Client",
+      "addressLine1": "Adresse ligne 1",
+      "addressLine2": "Adresse ligne 2",
+      "town": "Ville",
+      "county": "Département",
+      "postcode": "Code postal",
+      "accessNotes": "Notes d'accès",
+      "areaLabel": "Étiquette de zone"
+    }
   },
-  "appointments": {
-    "title": "Rendez-vous",
-    "subtitle": "Suivre et g\u00e9rer les rendez-vous",
-    "empty": "Aucun rendez-vous pour le moment. Les rendez-vous sont cr\u00e9\u00e9s lorsque les itin\u00e9raires sont approuv\u00e9s."
+  "horses": {
+    "title": "Chevaux",
+    "subtitle": "Gérer les dossiers des chevaux",
+    "empty": "Aucun cheval pour le moment. Ajoutez des chevaux pour suivre les dossiers dentaires.",
+    "newHorse": "Nouveau cheval",
+    "horseName": "Nom",
+    "age": "Âge",
+    "dentalDue": "Soins dentaires prévus",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "customer": "Propriétaire",
+    "yard": "Écurie",
+    "form": {
+      "title": "Créer un cheval",
+      "editTitle": "Modifier le cheval",
+      "horseName": "Nom du cheval",
+      "customer": "Propriétaire (Client)",
+      "yard": "Écurie principale",
+      "age": "Âge (années)",
+      "notes": "Notes (manipulation, sédation)",
+      "dentalDueDate": "Date de soins dentaires prévus",
+      "active": "Actif"
+    }
+  },
+  "triage": {
+    "title": "File de triage",
+    "subtitle": "Examiner et classifier les demandes entrantes",
+    "empty": "Aucune tâche de triage en attente.",
+    "urgentReview": "Examen urgent",
+    "askPostcode": "Demander le code postal",
+    "askHorseCount": "Demander le nombre de chevaux",
+    "clarifySymptoms": "Clarifier les symptômes",
+    "manualClassification": "Classification manuelle",
+    "setUrgency": "Définir l'urgence",
+    "setRequestType": "Définir le type de demande",
+    "markNeedsInfo": "Nécessite plus d'infos",
+    "markDone": "Marquer comme terminé",
+    "moveToPlanningPool": "Déplacer vers le pool de planification"
+  },
+  "planning": {
+    "title": "Pool de planification",
+    "subtitle": "Demandes de visite prêtes pour la planification d'itinéraire",
+    "empty": "Aucune demande dans le pool de planification. Triez les demandes pour les ajouter ici.",
+    "area": "Zone",
+    "jobs": "missions",
+    "horsesCount": "chevaux",
+    "urgency": "Urgence",
+    "requestType": "Type",
+    "preferredDays": "Jours préférés",
+    "groupBy": "Grouper par zone"
+  },
+  "status": {
+    "new": "Nouveau",
+    "parsed": "Analysé",
+    "needsInfo": "Infos requises",
+    "triaged": "Trié",
+    "untriaged": "Non trié",
+    "readyForReview": "Prêt pour examen",
+    "planningPool": "Pool de planification",
+    "clustered": "Regroupé",
+    "proposed": "Proposé",
+    "booked": "Réservé",
+    "completed": "Terminé",
+    "cancelled": "Annulé",
+    "urgent": "Urgent",
+    "soon": "Bientôt",
+    "routine": "Routine",
+    "whatsapp": "WhatsApp",
+    "email": "E-mail",
+    "phone": "Téléphone",
+    "open": "Ouvert",
+    "inProgress": "En cours",
+    "done": "Terminé"
+  },
+  "requestTypes": {
+    "routineDental": "Soins dentaires de routine",
+    "followUp": "Suivi",
+    "urgentIssue": "Problème urgent",
+    "firstVisit": "Première visite",
+    "admin": "Admin"
+  },
+  "days": {
+    "mon": "Lun",
+    "tue": "Mar",
+    "wed": "Mer",
+    "thu": "Jeu",
+    "fri": "Ven",
+    "sat": "Sam",
+    "sun": "Dim"
+  },
+  "timeBands": {
+    "am": "Matin",
+    "pm": "Après-midi",
+    "any": "Toute heure"
   },
   "common": {
     "loading": "Chargement...",
     "error": "Une erreur est survenue",
-    "retry": "R\u00e9essayer",
+    "retry": "Réessayer",
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",
     "edit": "Modifier",
-    "create": "Cr\u00e9er",
+    "create": "Créer",
     "search": "Rechercher",
     "filter": "Filtrer",
-    "noResults": "Aucun r\u00e9sultat trouv\u00e9",
+    "noResults": "Aucun résultat trouvé",
     "back": "Retour",
     "next": "Suivant",
-    "previous": "Pr\u00e9c\u00e9dent"
+    "previous": "Précédent",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "actions": "Actions",
+    "details": "Détails",
+    "all": "Tous",
+    "required": "Obligatoire",
+    "optional": "Facultatif",
+    "yes": "Oui",
+    "no": "Non"
   },
   "language": {
     "label": "Langue",
     "en": "English",
-    "fr": "Fran\u00e7ais"
+    "fr": "Français"
   },
   "health": {
-    "title": "Sant\u00e9 du syst\u00e8me",
-    "healthy": "Tous les syst\u00e8mes sont op\u00e9rationnels",
-    "degraded": "Certains syst\u00e8mes sont d\u00e9grad\u00e9s"
+    "title": "Santé du système",
+    "healthy": "Tous les systèmes sont opérationnels",
+    "degraded": "Certains systèmes sont dégradés"
+  },
+  "validation": {
+    "required": "Ce champ est obligatoire",
+    "invalidEmail": "Adresse e-mail invalide",
+    "minLength": "Doit contenir au moins {min} caractères",
+    "maxLength": "Doit contenir au maximum {max} caractères"
   }
 }
