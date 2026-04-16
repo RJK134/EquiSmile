@@ -22,6 +22,10 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Accept DATABASE_URL as a build arg so Prisma/Next.js can build without a live DB
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
 RUN npm run build
 
 # ─── Migrator ────────────────────────────────────────────────────────────────
