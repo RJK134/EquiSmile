@@ -23,11 +23,11 @@ npx prisma generate
 
 # Run migrations
 echo "🗄️  Running database migrations..."
-DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5432/equismile npx prisma migrate deploy
+DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile npx prisma migrate deploy
 
 # Seed demo data
 echo "🌱 Seeding demo data..."
-DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5432/equismile npx tsx prisma/seed-demo.ts
+DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile npx tsx prisma/seed-demo.ts
 
 # Start dev server
 echo ""
@@ -38,4 +38,4 @@ echo "   🎮 Demo Panel:    http://localhost:3000/en/demo"
 echo "   🇫🇷 French:        http://localhost:3000/fr"
 echo ""
 
-DEMO_MODE=true DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5432/equismile npm run dev
+DEMO_MODE=true DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile npm run dev

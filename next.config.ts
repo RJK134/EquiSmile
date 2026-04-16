@@ -12,6 +12,7 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  allowedDevOrigins: ['*.pinggy.link', '*.pinggy.io', '*.ngrok-free.app', '*.ngrok.io'],
 };
 
 export default withSerwist(withNextIntl(nextConfig));

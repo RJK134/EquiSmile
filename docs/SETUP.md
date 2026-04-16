@@ -31,7 +31,7 @@ cp .env.example .env
 Edit `.env` with your local settings. At minimum, set the database connection:
 
 ```
-DATABASE_URL="postgresql://equismile:equismile@localhost:5432/equismile?schema=public"
+DATABASE_URL="postgresql://equismile:equismile_dev@localhost:5433/equismile?schema=public"
 ```
 
 See `.env.example` for all available configuration options, including:

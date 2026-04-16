@@ -19,7 +19,7 @@ if (-not (Test-Path .env)) {
     Write-Host "  Creating .env with demo defaults..."
     @"
 DEMO_MODE=true
-DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5432/equismile
+DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile
 POSTGRES_USER=equismile
 POSTGRES_PASSWORD=equismile_dev
 POSTGRES_DB=equismile
@@ -42,7 +42,7 @@ Write-Host "  Generating Prisma client..." -ForegroundColor Yellow
 npx prisma generate
 
 Write-Host "  Running migrations..." -ForegroundColor Yellow
-$env:DATABASE_URL = "postgresql://equismile:equismile_dev@localhost:5432/equismile"
+$env:DATABASE_URL = "postgresql://equismile:equismile_dev@localhost:5433/equismile"
 npx prisma migrate deploy
 
 Write-Host "  Seeding demo data..." -ForegroundColor Yellow

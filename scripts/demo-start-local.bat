@@ -25,7 +25,7 @@ if not exist .env (
     echo  Creating .env with demo defaults...
     (
         echo DEMO_MODE=true
-        echo DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5432/equismile
+        echo DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile
         echo POSTGRES_USER=equismile
         echo POSTGRES_PASSWORD=equismile_dev
         echo POSTGRES_DB=equismile
@@ -53,7 +53,7 @@ call npx prisma generate
 
 echo.
 echo  Running database migrations...
-set DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5432/equismile
+set DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile
 call npx prisma migrate deploy
 
 echo.
