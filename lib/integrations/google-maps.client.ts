@@ -1,8 +1,12 @@
 /**
- * Phase 9 — Google Maps integration client with demo fallback.
+ * Phase 9/10 — Google Maps integration client with demo fallback.
  *
  * Uses real Google Maps API when API key exists,
  * falls back to demo simulator otherwise.
+ *
+ * Phase 10: Added real optimizeTours API call via routeOptimizerService
+ * when DEMO_MODE=false and credentials are set. Falls back to local
+ * nearest-neighbor algorithm on API failure or in demo mode.
  */
 
 import { isDemoMode, demoLog } from '@/lib/demo/demo-mode';
@@ -12,6 +16,7 @@ import {
   type RouteWaypoint,
   type SimulatedRouteResult,
 } from '@/lib/demo/maps-simulator';
+import { routeOptimizerService, type OptimizationStop, type OptimizationVehicle, type OptimizationResult } from '@/lib/services/route-optimizer.service';
 
 const GEOCODING_API_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 
@@ -26,6 +31,10 @@ interface GeocodeResult {
 
 function hasCredentials(): boolean {
   return !!process.env.GOOGLE_MAPS_API_KEY;
+}
+
+function hasOptimizationCredentials(): boolean {
+  return !!process.env.GOOGLE_MAPS_API_KEY && !!process.env.GCP_PROJECT_ID;
 }
 
 function getMode(): 'live' | 'demo' {
@@ -73,11 +82,73 @@ export const googleMapsClient = {
     };
   },
 
-  optimizeRoute(
+  /**
+   * Optimize a route using Google Route Optimization API (optimizeTours).
+   *
+   * When DEMO_MODE=false AND both GOOGLE_MAPS_API_KEY + GCP_PROJECT_ID are set,
+   * calls the real API. Falls back to local nearest-neighbor on API failure or
+   * when in demo mode.
+   */
+  async optimizeRoute(
     origin: RouteWaypoint,
     waypoints: RouteWaypoint[],
-  ): SimulatedRouteResult & { mode: 'live' | 'demo' } {
+  ): Promise<SimulatedRouteResult & { mode: 'live' | 'demo' }> {
     const mode = getMode();
+
+    // Use real API when not in demo mode and credentials are available
+    if (mode === 'live' && hasOptimizationCredentials()) {
+      try {
+        const now = new Date();
+        const dayEnd = new Date(now.getTime() + 9 * 3600_000);
+
+        const stops: OptimizationStop[] = waypoints.map((wp) => ({
+          visitRequestId: wp.label || `stop-${wp.lat}-${wp.lng}`,
+          yardId: wp.label || '',
+          latitude: wp.lat,
+          longitude: wp.lng,
+          serviceDurationSeconds: 45 * 60, // default 45 min per stop
+          timeWindowStart: now.toISOString(),
+          timeWindowEnd: dayEnd.toISOString(),
+          label: wp.label || '',
+        }));
+
+        const vehicle: OptimizationVehicle = {
+          startLatitude: origin.lat,
+          startLongitude: origin.lng,
+          endLatitude: origin.lat,
+          endLongitude: origin.lng,
+          startTime: now.toISOString(),
+          endTime: dayEnd.toISOString(),
+        };
+
+        const apiResult: OptimizationResult = await routeOptimizerService.optimizeRoute(stops, vehicle);
+
+        // Convert API result to SimulatedRouteResult format
+        const optimizedWaypoints: RouteWaypoint[] = apiResult.visits.map((v) => {
+          const original = waypoints.find((wp) => wp.label === v.visitRequestId) || waypoints[v.sequence - 1];
+          return original || waypoints[0];
+        });
+
+        return {
+          orderedWaypoints: optimizedWaypoints,
+          totalDistanceMeters: apiResult.totalDistanceMeters,
+          totalTravelMinutes: Math.round(apiResult.totalTravelSeconds / 60),
+          legs: apiResult.visits.map((v, i) => ({
+            from: i === 0 ? origin.label : (optimizedWaypoints[i - 1]?.label || ''),
+            to: optimizedWaypoints[i]?.label || v.label,
+            distanceMeters: v.travelDistanceMeters,
+            durationMinutes: Math.max(Math.round(v.travelDurationSeconds / 60), 1),
+          })),
+          mode: 'live',
+        };
+      } catch (error) {
+        console.warn(
+          '[GoogleMaps] Route Optimization API failed, falling back to local algorithm:',
+          error instanceof Error ? error.message : error,
+        );
+        // Fall through to local algorithm
+      }
+    }
 
     if (mode === 'demo') {
       demoLog('Google Maps route optimization (demo)', {
@@ -86,8 +157,7 @@ export const googleMapsClient = {
       });
     }
 
-    // Route optimization always uses the local algorithm in both modes
-    // (real Google Routes Optimization API would be used in production)
+    // Fallback: local nearest-neighbor algorithm
     const result = simulateRouteOptimization(origin, waypoints);
     return { ...result, mode };
   },

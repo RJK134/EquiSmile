@@ -22,7 +22,7 @@ import { routeRunRepository } from '@/lib/repositories/route-run.repository';
 // Planning constraints
 // ---------------------------------------------------------------------------
 
-const PLANNING_CONSTRAINTS = {
+export const PLANNING_CONSTRAINTS = {
   workdayStartHour: 8,
   workdayStartMinute: 30,
   workdayEndHour: 17,
@@ -149,16 +149,65 @@ export const routeProposalService = {
     const runDate = targetDate || new Date().toISOString().split('T')[0];
 
     for (const cluster of clusters) {
-      // Check planning constraints
+      // Hard constraint: enforce max stops per day (split if needed)
       if (cluster.visits.length > PLANNING_CONSTRAINTS.maxStopsPerDay) {
-        // Split large clusters - take top N by priority
+        // Sort by priority: SOON first, then ROUTINE
+        cluster.visits.sort((a, b) => {
+          const priority: Record<string, number> = { SOON: 0, ROUTINE: 1 };
+          return (priority[a.urgencyLevel] ?? 1) - (priority[b.urgencyLevel] ?? 1);
+        });
         cluster.visits.splice(PLANNING_CONSTRAINTS.maxStopsPerDay);
-        cluster.visitRequestIds.splice(PLANNING_CONSTRAINTS.maxStopsPerDay);
+        cluster.visitRequestIds = cluster.visits.map((v) => v.visitRequestId);
       }
 
-      if (cluster.totalHorseCount > PLANNING_CONSTRAINTS.maxHorsesPerDay) {
-        // Skip if we can't trim — move on to prioritize feasible clusters
-        if (cluster.visits.length <= 2) continue;
+      // Hard constraint: enforce max horses per day
+      // Trim lowest-priority visits until horse count is within limits
+      while (
+        cluster.visits.length > 1 &&
+        cluster.visits.reduce((sum, v) => sum + v.horseCount, 0) > PLANNING_CONSTRAINTS.maxHorsesPerDay
+      ) {
+        // Remove the last (lowest priority) visit
+        cluster.visits.pop();
+        cluster.visitRequestIds = cluster.visits.map((v) => v.visitRequestId);
+      }
+      // Final check: skip if single visit still exceeds horse limit
+      if (cluster.visits.reduce((sum, v) => sum + v.horseCount, 0) > PLANNING_CONSTRAINTS.maxHorsesPerDay) {
+        continue;
+      }
+
+      // Hard constraint: check estimated total travel won't exceed max
+      // (pre-check using cluster average distance; buildRouteProposal does final check)
+      const estimatedTravelMinutes = cluster.averageInterStopDistanceKm
+        ? (cluster.averageInterStopDistanceKm * cluster.visits.length / 60) * 60
+        : 0;
+      if (estimatedTravelMinutes > PLANNING_CONSTRAINTS.maxTravelMinutesPerDay * 2) {
+        continue; // Clearly exceeds, skip early
+      }
+
+      // Hard constraint: enforce working hours — total service + estimated travel
+      // must fit within 08:30-17:30 (540 minutes window)
+      const workdayMinutes =
+        (PLANNING_CONSTRAINTS.workdayEndHour * 60 + PLANNING_CONSTRAINTS.workdayEndMinute) -
+        (PLANNING_CONSTRAINTS.workdayStartHour * 60 + PLANNING_CONSTRAINTS.workdayStartMinute);
+      const totalServiceMinutes = cluster.visits.reduce(
+        (sum, v) =>
+          sum +
+          v.horseCount * PLANNING_CONSTRAINTS.standardServiceMinutesPerHorse +
+          PLANNING_CONSTRAINTS.bufferMinutesPerStop,
+        0,
+      );
+      if (totalServiceMinutes > workdayMinutes) {
+        // Service alone exceeds working day — trim visits
+        while (cluster.visits.length > 1 && cluster.visits.reduce(
+          (sum, v) =>
+            sum +
+            v.horseCount * PLANNING_CONSTRAINTS.standardServiceMinutesPerHorse +
+            PLANNING_CONSTRAINTS.bufferMinutesPerStop,
+          0,
+        ) > workdayMinutes) {
+          cluster.visits.pop();
+          cluster.visitRequestIds = cluster.visits.map((v) => v.visitRequestId);
+        }
       }
 
       // Check density threshold (allow high clinical priority to bypass)
@@ -319,13 +368,31 @@ async function buildRouteProposal(
     }
   }
 
-  // Check max travel constraint
+  // Hard constraint: max travel time per day
   if (totalTravelMinutes > PLANNING_CONSTRAINTS.maxTravelMinutesPerDay) {
     return null;
   }
 
-  // Score the route
+  // Hard constraint: max stops per day
+  if (stopRecords.length > PLANNING_CONSTRAINTS.maxStopsPerDay) {
+    return null;
+  }
+
+  // Hard constraint: max horses per day
   const totalHorses = cluster.visits.reduce((sum, v) => sum + v.horseCount, 0);
+  if (totalHorses > PLANNING_CONSTRAINTS.maxHorsesPerDay) {
+    return null;
+  }
+
+  // Hard constraint: total work must fit within working hours (08:30-17:30 = 540 min)
+  const workdayCapacity =
+    (PLANNING_CONSTRAINTS.workdayEndHour * 60 + PLANNING_CONSTRAINTS.workdayEndMinute) -
+    (PLANNING_CONSTRAINTS.workdayStartHour * 60 + PLANNING_CONSTRAINTS.workdayStartMinute);
+  if (totalTravelMinutes + totalVisitMinutes > workdayCapacity) {
+    return null;
+  }
+
+  // Score the route
   const scoreResult = scoreRoute({
     horseCount: totalHorses,
     jobs: stopRecords.length,

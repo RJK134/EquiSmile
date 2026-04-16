@@ -48,7 +48,7 @@ export const routeRunRepository = {
           stops: {
             orderBy: { sequenceNo: 'asc' },
             include: {
-              yard: { select: { id: true, yardName: true, postcode: true } },
+              yard: { select: { id: true, yardName: true, postcode: true, town: true, latitude: true, longitude: true } },
               visitRequest: {
                 select: {
                   id: true,

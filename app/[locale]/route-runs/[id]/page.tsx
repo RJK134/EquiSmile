@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Link } from '@/i18n/navigation';
+import { RouteMap } from '@/components/maps/RouteMap';
 
 interface RouteRunDetail {
   id: string;
@@ -43,6 +44,8 @@ interface RouteRunDetail {
       addressLine1: string;
       town: string;
       postcode: string;
+      latitude: number | null;
+      longitude: number | null;
       customer: { id: string; fullName: string };
     };
     visitRequest: {
@@ -286,16 +289,28 @@ export default function RouteRunDetailPage({ params }: { params: Promise<{ id: s
             </div>
           </Card>
 
-          {/* Map Placeholder */}
+          {/* Route Map */}
           <Card className="mb-6">
-            <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-border bg-surface">
-              <div className="text-center text-sm text-muted">
-                <p>Map View</p>
-                <p className="text-xs">
-                  {routeRun.stops.map((s) => `${s.yard.yardName} (${s.yard.postcode})`).join(' → ')}
-                </p>
-              </div>
-            </div>
+            <h2 className="mb-4 text-lg font-semibold">Map View</h2>
+            <RouteMap
+              stops={routeRun.stops
+                .filter((s) => s.yard.latitude != null && s.yard.longitude != null)
+                .map((s) => ({
+                  sequenceNo: s.sequenceNo,
+                  yardName: s.yard.yardName,
+                  postcode: s.yard.postcode,
+                  town: s.yard.town,
+                  latitude: s.yard.latitude!,
+                  longitude: s.yard.longitude!,
+                  plannedArrival: s.plannedArrival,
+                  plannedDeparture: s.plannedDeparture,
+                }))}
+              homeBase={{
+                latitude: parseFloat(process.env.NEXT_PUBLIC_HOME_BASE_LAT || '46.4553'),
+                longitude: parseFloat(process.env.NEXT_PUBLIC_HOME_BASE_LNG || '6.8561'),
+                label: routeRun.homeBaseAddress || 'Home Base',
+              }}
+            />
           </Card>
         </main>
       </div>

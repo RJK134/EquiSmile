@@ -199,6 +199,7 @@ model Enquiry {
   threadKey          String?
   triageStatus       TriageStatus @default(NEW)
   createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   customer Customer? @relation(fields: [customerId], references: [id])
   yard     Yard?     @relation(fields: [yardId], references: [id])

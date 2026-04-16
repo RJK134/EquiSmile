@@ -12,6 +12,7 @@
     "planning": "Planning",
     "yards": "Yards",
     "horses": "Horses",
+    "completed": "Completed",
     "more": "More"
   },
   "dashboard": {
@@ -470,6 +471,27 @@
       "followUpsDue": "Follow-ups Due",
       "noUpcoming": "No upcoming appointments."
     }
+  },
+  "completed": {
+    "title": "Completed Visits",
+    "subtitle": "Visit outcomes and follow-up tracking",
+    "empty": "No completed visits yet.",
+    "allCompleted": "All Completed",
+    "followUpOnly": "Follow-up Required",
+    "from": "From",
+    "to": "To",
+    "totalCompleted": "Total Completed",
+    "followUpsRequired": "Follow-ups Required",
+    "overduFollowUps": "Overdue Follow-ups",
+    "invoicesPending": "Invoices Pending",
+    "date": "Date",
+    "customer": "Customer",
+    "yard": "Yard",
+    "horses": "Horses",
+    "outcome": "Outcome",
+    "followUp": "Follow-up",
+    "invoice": "Invoice",
+    "required": "Required"
   },
   "errors": {
     "title": "Something went wrong",
