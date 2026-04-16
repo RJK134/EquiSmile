@@ -48,6 +48,23 @@ Open http://localhost — that's it.
 ```
 Open http://localhost:3000
 
+### Windows
+
+**Command Prompt (recommended):**
+```cmd
+scripts\demo-start-local.bat
+```
+
+**PowerShell:**
+```powershell
+.\scripts\demo-start.ps1
+```
+
+**Docker only (no Node.js required):**
+```cmd
+scripts\demo-start.bat
+```
+
 ### What's in the demo
 - 8 Swiss customers (4 French, 4 English) across Vaud, Fribourg, Valais
 - 20 horses with clinical histories
