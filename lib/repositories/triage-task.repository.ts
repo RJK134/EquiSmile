@@ -23,7 +23,7 @@ export const triageTaskRepository = {
             include: {
               customer: { select: { id: true, fullName: true } },
               yard: { select: { id: true, yardName: true, postcode: true } },
-              enquiry: { select: { id: true, channel: true } },
+              enquiry: { select: { id: true, channel: true, rawText: true, receivedAt: true } },
             },
           },
         },

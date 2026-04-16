@@ -1,8 +1,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -56,6 +57,14 @@ function timeAgo(dateStr: string): { text: string; isOverdue: boolean; minutes: 
 }
 
 export default function TriagePage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <TriagePageContent />
+    </Suspense>
+  );
+}
+
+function TriagePageContent() {
   const t = useTranslations('triage');
   const tc = useTranslations('common');
   const searchParams = useSearchParams();
@@ -343,7 +352,7 @@ export default function TriagePage() {
 
                           {/* Message snippet */}
                           {task.visitRequest.enquiry && (
-                            <p className="mt-1 truncate text-sm text-muted">{task.visitRequest.enquiry.rawText.slice(0, 100)}</p>
+                            <p className="mt-1 truncate text-sm text-muted">{(task.visitRequest.enquiry.rawText || '').slice(0, 100)}</p>
                           )}
 
                           {/* Extra details row */}
