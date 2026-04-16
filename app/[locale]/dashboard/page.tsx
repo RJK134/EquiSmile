@@ -44,7 +44,7 @@ interface DashboardData {
     id: string;
     urgencyLevel: string;
     requestType: string;
-    customer: { id: string; fullName: string };
+    customer: { id: string; fullName: string } | null;
     yard: { id: string; yardName: string } | null;
     enquiry: { id: string } | null;
   }>;
@@ -104,7 +104,7 @@ export default function DashboardPage() {
             <>
               {/* Summary Cards */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Link href="/triage">
+                <Link href="/triage?urgency=URGENT">
                   <Card className="hover:border-primary/30">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-muted">{t('urgentToday')}</p>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
                 <Card>
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="text-sm font-semibold">{t('urgentItems')}</h3>
-                    <Link href="/triage" className="text-xs text-primary hover:underline">{t('viewAll')}</Link>
+                    <Link href="/triage?urgency=URGENT" className="text-xs text-primary hover:underline">{t('viewAll')}</Link>
                   </div>
                   {data.urgentRequests.length === 0 ? (
                     <p className="text-sm text-muted">{t('noUrgent')}</p>
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                       {data.urgentRequests.slice(0, 5).map((vr) => (
                         <div key={vr.id} className="flex items-center justify-between rounded-md border border-danger/20 bg-red-50/50 px-3 py-2 text-sm">
                           <div>
-                            <Link href={`/customers/${vr.customer.id}`} className="font-medium text-primary hover:underline">{vr.customer.fullName}</Link>
+                            <Link href={`/customers/${vr.customer?.id}`} className="font-medium text-primary hover:underline">{vr.customer?.fullName || '—'}</Link>
                             {vr.yard && <span className="ml-2 text-xs text-muted">@ {vr.yard.yardName}</span>}
                           </div>
                           <StatusBadge type="urgency" value={vr.urgencyLevel} />

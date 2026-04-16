@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -57,12 +58,15 @@ function timeAgo(dateStr: string): { text: string; isOverdue: boolean; minutes: 
 export default function TriagePage() {
   const t = useTranslations('triage');
   const tc = useTranslations('common');
+  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<TriageTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>('urgency');
-  const [filterUrgency, setFilterUrgency] = useState<FilterUrgency>('ALL');
+  const [filterUrgency, setFilterUrgency] = useState<FilterUrgency>(
+    (searchParams.get('urgency') as FilterUrgency) || 'ALL'
+  );
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('ALL');
   const [overrideModal, setOverrideModal] = useState<{ taskId: string; vrId: string; action: string } | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
