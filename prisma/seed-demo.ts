@@ -933,6 +933,72 @@ async function main() {
 
   // ─── Summary ─────────────────────────────────────────────────────────────
 
+
+  // ── Triage Tasks ──────────────────────────────────────────
+  console.log('  Seeding triage tasks...');
+
+  await prisma.triageTask.upsert({
+    where: { id: 'demo-triage-1' },
+    update: {},
+    create: {
+      id: 'demo-triage-1',
+      visitRequestId: 'demo-visit-booked-2',
+      taskType: 'URGENT_REVIEW',
+      status: 'OPEN',
+      notes: 'Horse Mistral — not eating, drooling, oral pain. Urgent review needed.',
+      dueAt: new Date(Date.now() - 3600000), // 1 hour ago — overdue
+    },
+  });
+
+  await prisma.triageTask.upsert({
+    where: { id: 'demo-triage-2' },
+    update: {},
+    create: {
+      id: 'demo-triage-2',
+      visitRequestId: 'demo-visit-review',
+      taskType: 'CLARIFY_SYMPTOMS',
+      status: 'OPEN',
+      notes: 'Customer reported vague symptoms — need more details before scheduling.',
+    },
+  });
+
+  await prisma.triageTask.upsert({
+    where: { id: 'demo-triage-3' },
+    update: {},
+    create: {
+      id: 'demo-triage-3',
+      visitRequestId: 'demo-visit-pool-1',
+      taskType: 'ASK_FOR_POSTCODE',
+      status: 'OPEN',
+      notes: 'Missing postcode for route planning — need to confirm yard address.',
+    },
+  });
+
+  await prisma.triageTask.upsert({
+    where: { id: 'demo-triage-4' },
+    update: {},
+    create: {
+      id: 'demo-triage-4',
+      visitRequestId: 'demo-visit-pool-2',
+      taskType: 'ASK_HORSE_COUNT',
+      status: 'IN_PROGRESS',
+      notes: 'Customer mentioned "several horses" — need exact count for scheduling.',
+    },
+  });
+
+  await prisma.triageTask.upsert({
+    where: { id: 'demo-triage-5' },
+    update: {},
+    create: {
+      id: 'demo-triage-5',
+      visitRequestId: 'demo-visit-pool-3',
+      taskType: 'MANUAL_CLASSIFICATION',
+      status: 'OPEN',
+      notes: 'Auto-triage confidence low (42%) — needs manual review.',
+    },
+  });
+
+
   console.log('\n═══ Demo Seed Summary ═══');
   console.log('  Customers: 8 (4 FR, 4 EN)');
   console.log('  Yards: 8 (Villeneuve, Montreux, Aigle, Château-d\'Oex, Bulle, Avenches, Lausanne, Nyon)');
@@ -941,6 +1007,7 @@ async function main() {
   console.log('  Visit Requests: 8 (BOOKED, PLANNING_POOL, READY_FOR_REVIEW)');
   console.log('  Route Runs: 3 (1 DRAFT, 1 APPROVED, 1 COMPLETED)');
   console.log('  Appointments: 5 (CONFIRMED, PROPOSED, COMPLETED, CANCELLED, NO_SHOW)');
+  console.log('  Triage Tasks: 5 (URGENT_REVIEW, CLARIFY, ASK_POSTCODE, ASK_HORSES, MANUAL)');
   console.log('\nDemo seeding complete.');
 }
 
