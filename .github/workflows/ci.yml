@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build -t equismile:ci .
+        run: docker build --build-arg DATABASE_URL="postgresql://test:test@localhost:5432/test" -t equismile:ci .
       - name: Verify container starts
         run: |
           docker run -d --name equismile-test \
