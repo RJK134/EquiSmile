@@ -24,6 +24,16 @@ ENV NODE_ENV=production
 
 RUN npm run build
 
+# ─── Migrator ────────────────────────────────────────────────────────────────
+FROM base AS migrator
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY prisma/seed-demo.ts ./prisma/
+COPY tsconfig.json ./
+CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$DEMO_MODE\" = \"true\" ]; then npx tsx prisma/seed-demo.ts; fi"]
+
 # ─── Production ──────────────────────────────────────────────────────────────
 FROM base AS runner
 WORKDIR /app
