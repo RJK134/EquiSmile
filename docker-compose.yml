@@ -14,6 +14,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-equismile}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U equismile']
       interval: 5s
@@ -25,6 +26,19 @@ services:
           memory: 512M
           cpus: '1.0'
     stop_grace_period: 30s
+
+  migrator:
+    build:
+      context: .
+      target: migrator
+    container_name: equismile-migrator
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-equismile}:${POSTGRES_PASSWORD:-equismile_dev}@postgres:5432/${POSTGRES_DB:-equismile}
+      DEMO_MODE: ${DEMO_MODE:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   app:
     build: .
@@ -57,10 +71,12 @@ services:
       HOME_BASE_LAT: ${HOME_BASE_LAT:-}
       HOME_BASE_LNG: ${HOME_BASE_LNG:-}
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/api/health']
       interval: 10s
       timeout: 5s
       retries: 3

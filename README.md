@@ -32,7 +32,31 @@ EquiSmile manages the complete customer lifecycle: WhatsApp and email enquiry in
 | Testing | Vitest, React Testing Library |
 | CI/CD | GitHub Actions, Docker |
 
-## Quick Start
+## Demo Mode (Quick Start)
+
+Run a fully working demo with simulated integrations — no API keys needed:
+
+### Option 1: Docker (recommended)
+```bash
+./scripts/demo-start.sh
+```
+Open http://localhost — that's it.
+
+### Option 2: Local development
+```bash
+./scripts/demo-start-local.sh
+```
+Open http://localhost:3000
+
+### What's in the demo
+- 8 Swiss customers (4 French, 4 English) across Vaud, Fribourg, Valais
+- 20 horses with clinical histories
+- 12 enquiries at various triage stages
+- Pre-built route runs and appointments
+- Simulated WhatsApp, email, geocoding, and route optimization
+- Demo control panel at `/en/demo` to trigger live simulations
+
+## Quick Start (Development)
 
 ```bash
 # Clone and install
