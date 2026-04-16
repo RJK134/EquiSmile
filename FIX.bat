@@ -11,7 +11,10 @@ call npx prisma migrate deploy
 echo  Loading demo data...
 call npx tsx prisma/seed-demo.ts 2>nul
 echo.
+echo  Building production app...
+call npm run build
+echo.
 echo  Starting app...
 echo  Wait for "Ready" then check your phone.
 echo.
-npm run dev
+npm run start
