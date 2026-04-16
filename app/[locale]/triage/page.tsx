@@ -3,7 +3,6 @@
 import { useTranslations } from 'next-intl';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LoadingState } from '@/components/ui/LoadingState';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Sidebar } from '@/components/layout/Sidebar';
