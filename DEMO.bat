@@ -14,8 +14,10 @@ echo.
 echo  Press any key to start...
 pause >nul
 
+cd /d D:\Projects\Equismile\EquiSmile
+
 echo.
-echo  [1/8] Pulling latest code...
+echo  [1/7] Pulling latest code...
 echo  -------------------------------------------------------
 git pull
 if errorlevel 1 (
@@ -23,7 +25,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo  [2/8] Checking Docker...
+echo  [2/7] Checking Docker...
 echo  -------------------------------------------------------
 docker info >nul 2>&1
 if errorlevel 1 (
@@ -37,13 +39,11 @@ if errorlevel 1 (
 echo  Docker is running.
 
 echo.
-echo  [3/8] Starting PostgreSQL database...
+echo  [3/7] Starting PostgreSQL database...
 echo  -------------------------------------------------------
 docker compose up -d postgres
 echo  Waiting for database to be ready...
 timeout /t 8 /nobreak >nul
-
-REM Verify postgres is responding
 docker exec equismile-postgres pg_isready -U equismile >nul 2>&1
 if errorlevel 1 (
     echo  Waiting a bit longer for database...
@@ -52,16 +52,9 @@ if errorlevel 1 (
 echo  Database is ready.
 
 echo.
-echo  [4/8] Installing dependencies...
+echo  [4/7] Loading environment from .env...
 echo  -------------------------------------------------------
-call npm install --silent 2>nul
-if errorlevel 1 (
-    call npm install
-)
-
-echo.
-echo  [5/8] Setting up database schema...
-echo  -------------------------------------------------------
+REM Core settings (always set these)
 set DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile
 set DEMO_MODE=true
 set NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -70,75 +63,59 @@ set HOME_BASE_LAT=46.4553
 set HOME_BASE_LNG=6.8561
 set HOME_BASE_ADDRESS=Blonay, Switzerland
 
-call npx prisma generate
-call npx prisma migrate deploy
+REM Load additional vars from .env file if it exists
+if exist .env (
+    for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
+        set "line=%%a"
+        if not "!line:~0,1!"=="#" (
+            if not "%%a"=="" set "%%a=%%b"
+        )
+    )
+    echo  Loaded credentials from .env file.
+) else (
+    echo  [WARNING] No .env file found - API integrations will be limited.
+    echo  Create a .env file with your API keys for full functionality.
+)
 
 echo.
-echo  [6/8] Loading demo data...
+echo  [5/7] Setting up database schema + demo data...
 echo  -------------------------------------------------------
+call npx prisma generate
+call npx prisma migrate deploy
 call npx tsx prisma/seed-demo.ts 2>nul
 if errorlevel 1 (
     echo  Demo data may already be loaded - continuing.
 )
 
 echo.
-echo  [7/8] Starting EquiSmile app...
+echo  [6/7] Building production app (required for mobile)...
 echo  -------------------------------------------------------
-
-REM Create a temporary .env file for the dev server
-(
-    echo DEMO_MODE=true
-    echo DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile
-    echo NEXT_PUBLIC_APP_URL=http://localhost:3000
-    echo NEXT_PUBLIC_DEFAULT_LOCALE=en
-    echo HOME_BASE_LAT=46.4553
-    echo HOME_BASE_LNG=6.8561
-    echo HOME_BASE_ADDRESS=Blonay, Switzerland
-) > .env
-
-REM Start Next.js in a new minimized window
-start "EquiSmile App Server" /min cmd /c "set DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile && set DEMO_MODE=true && npm run dev"
-
-echo  App server starting...
-echo  Waiting for app to be ready...
-
-REM Poll until the app responds
-set /a attempts=0
-:wait_loop
-set /a attempts+=1
-if !attempts! gtr 60 (
-    echo  [WARNING] App is taking longer than expected to start.
-    echo  Check the minimized window for errors.
-    goto :start_tunnel
-)
-timeout /t 2 /nobreak >nul
-curl -sf http://localhost:3000/api/health >nul 2>&1
+call npm run build
 if errorlevel 1 (
-    powershell -command "try { $r = Invoke-WebRequest -Uri 'http://localhost:3000' -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }" >nul 2>&1
-    if errorlevel 1 goto :wait_loop
+    echo.
+    echo  [ERROR] Build failed! Check errors above.
+    pause
+    exit /b 1
 )
 
-echo  App is ready!
-
-:start_tunnel
 echo.
-echo  [8/8] Starting Pinggy tunnel...
+echo  [7/7] Starting EquiSmile...
 echo  -------------------------------------------------------
 echo.
 echo  ======================================================
 echo.
-echo       EquiSmile is READY for your demo!
+echo       EquiSmile is starting...
 echo.
-echo       Local:  http://localhost:3000/en
-echo       French: http://localhost:3000/fr
-echo       Demo:   http://localhost:3000/en/demo
+echo       Local:   http://localhost:3000/en
+echo       French:  http://localhost:3000/fr
+echo       Demo:    http://localhost:3000/en/demo
 echo.
-echo       The Pinggy tunnel URL will appear below.
-echo       Use that URL on your iPhone.
+echo       For mobile access, open another terminal and run:
+echo       ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R0:localhost:3000 hXtmxAH6vAP@pro.pinggy.io
 echo.
-echo       To stop: close this window and the minimized one
+echo       To stop: press Ctrl+C
 echo.
 echo  ======================================================
 echo.
 
-ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R0:localhost:3000 hXtmxAH6vAP@pro.pinggy.io
+npm run start
