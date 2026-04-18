@@ -219,3 +219,4 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for full production deployment guide.
 | State management | Server-side | Next.js route handlers with Prisma, minimal client state |
 | Automation | n8n | Visual workflow builder for non-developers, self-hosted |
 | Deployment | Docker Compose | Simple single-server deployment suitable for small practice |
+| Email intake | n8n (not direct IMAP) | n8n handles inbound email polling via workflow `02-inbound-email.json`. The app does not use direct IMAP connections — all email intake is routed through n8n webhooks to the app's `/api/webhooks/email` endpoint. |

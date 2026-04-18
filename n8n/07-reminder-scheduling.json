@@ -1,0 +1,113 @@
+{
+  "name": "07 - Reminder Scheduling",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "reminder-cron",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.APP_URL}}/api/reminders/check",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "check-reminders",
+      "name": "Check Due Reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.data?.data?.length ?? 0 }}",
+              "operation": "largerEqual",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "has-reminders",
+      "name": "Any Reminders Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "reminders_sent"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Check Due Reminders').item.json.data.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-result",
+      "name": "Log Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "no_reminders_due"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "no-reminders",
+      "name": "No Reminders Due",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [[{ "node": "Check Due Reminders", "type": "main", "index": 0 }]]
+    },
+    "Check Due Reminders": {
+      "main": [[{ "node": "Any Reminders Sent?", "type": "main", "index": 0 }]]
+    },
+    "Any Reminders Sent?": {
+      "main": [
+        [{ "node": "Log Result", "type": "main", "index": 0 }],
+        [{ "node": "No Reminders Due", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [{ "name": "phase6" }, { "name": "phase12d" }]
+}

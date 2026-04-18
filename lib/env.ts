@@ -37,11 +37,7 @@ const envSchema = z.object({
   WHATSAPP_VERIFY_TOKEN: z.string().optional().default(''),
   WHATSAPP_APP_SECRET: z.string().optional().default(''),
 
-  // Email (IMAP/SMTP)
-  IMAP_HOST: z.string().optional().default(''),
-  IMAP_PORT: z.string().optional().default('993'),
-  IMAP_USER: z.string().optional().default(''),
-  IMAP_PASSWORD: z.string().optional().default(''),
+  // Email (SMTP — outbound only; inbound email is handled by n8n)
   SMTP_HOST: z.string().optional().default(''),
   SMTP_PORT: z.string().optional().default('587'),
   SMTP_USER: z.string().optional().default(''),
@@ -116,6 +112,16 @@ if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test') {
           `${group.label} features will be unavailable until these are set.`
       );
     }
+  }
+
+  // Fail-loud warning: WHATSAPP_APP_SECRET required in production mode
+  const isDemo = process.env.DEMO_MODE === 'true';
+  if (!isDemo && !process.env.WHATSAPP_APP_SECRET) {
+    console.error(
+      '[EquiSmile] CRITICAL: WHATSAPP_APP_SECRET is not set and DEMO_MODE is off. ' +
+        'WhatsApp webhook signature verification will reject all requests. ' +
+        'Set WHATSAPP_APP_SECRET in your environment or enable DEMO_MODE.'
+    );
   }
 }
 
