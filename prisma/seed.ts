@@ -13,6 +13,8 @@ const prisma = new PrismaClient();
  * normal intake channels (WhatsApp, email, manual entry).
  */
 async function main() {
+  await prisma.$connect();
+
   console.log('EquiSmile production seed\n');
   console.log('Database connection verified.');
   console.log('No sample data created — this is a clean production install.');

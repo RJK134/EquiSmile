@@ -37,7 +37,7 @@
         "conditions": {
           "number": [
             {
-              "value1": "={{ $json.data?.data?.length ?? 0 }}",
+              "value1": "={{ $json.data?.length ?? 0 }}",
               "operation": "largerEqual",
               "value2": 1
             }
@@ -60,7 +60,7 @@
             },
             {
               "name": "message",
-              "value": "={{ $('Check Due Reminders').item.json.data.message }}"
+              "value": "={{ $('Check Due Reminders').item.json.message }}"
             }
           ]
         },

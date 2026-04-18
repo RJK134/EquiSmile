@@ -72,10 +72,7 @@ export async function POST(request: NextRequest) {
   const isDemo = env.DEMO_MODE === 'true';
   if (!env.WHATSAPP_APP_SECRET && !isDemo) {
     console.error('[WhatsApp] WHATSAPP_APP_SECRET is not set — refusing to process webhook without signature verification. Set WHATSAPP_APP_SECRET or enable DEMO_MODE.');
-    return NextResponse.json(
-      { error: 'Server misconfiguration: WHATSAPP_APP_SECRET is required for webhook signature verification' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
   if (env.WHATSAPP_APP_SECRET) {
