@@ -41,7 +41,7 @@ export default function CompletedPage() {
   const t = useTranslations('completed');
   const [visits, setVisits] = useState<CompletedVisit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'followUp'>('all');
+  const [filter, setFilter] = useState<'all' | 'followUp' | 'overdue'>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -70,9 +70,19 @@ export default function CompletedPage() {
     return () => { cancelled = true; controller.abort(); };
   }, [dateFrom, dateTo]);
 
-  const filteredVisits = filter === 'followUp'
-    ? visits.filter((v) => v.visitOutcome?.followUpRequired)
-    : visits;
+  const overdueVisits = visits.filter(
+    (v) =>
+      v.visitOutcome?.followUpRequired &&
+      v.visitOutcome?.followUpDueDate &&
+      new Date(v.visitOutcome.followUpDueDate) < new Date(),
+  );
+
+  const filteredVisits =
+    filter === 'followUp'
+      ? visits.filter((v) => v.visitOutcome?.followUpRequired)
+      : filter === 'overdue'
+        ? overdueVisits
+        : visits;
 
   const followUpCount = visits.filter((v) => v.visitOutcome?.followUpRequired).length;
 
@@ -91,11 +101,12 @@ export default function CompletedPage() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <select
               value={filter}
-              onChange={(e) => setFilter(e.target.value as 'all' | 'followUp')}
-              className={`${selectStyles} sm:max-w-[200px]`}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'followUp' | 'overdue')}
+              className={`${selectStyles} sm:max-w-[220px]`}
             >
               <option value="all">{t('allCompleted')}</option>
               <option value="followUp">{t('followUpOnly')} ({followUpCount})</option>
+              <option value="overdue">{t('overdueOnly')} ({overdueVisits.length})</option>
             </select>
 
             <div className="flex items-center gap-2">
@@ -129,13 +140,9 @@ export default function CompletedPage() {
               <p className="text-xl font-bold text-amber-600">{followUpCount}</p>
             </Card>
             <Card padding="sm">
-              <p className="text-xs text-muted">{t('overduFollowUps')}</p>
+              <p className="text-xs text-muted">{t('overdueFollowUps')}</p>
               <p className="text-xl font-bold text-red-600">
-                {visits.filter((v) =>
-                  v.visitOutcome?.followUpRequired &&
-                  v.visitOutcome?.followUpDueDate &&
-                  new Date(v.visitOutcome.followUpDueDate) < new Date(),
-                ).length}
+                {overdueVisits.length}
               </p>
             </Card>
             <Card padding="sm">
