@@ -195,6 +195,24 @@ describe('googleMapsClient.optimizeRoute — data mapping', () => {
     expect(stops[0].serviceDurationSeconds).toBe(expected);
   });
 
+  it('defaults to 1 horse when horseCount is zero', async () => {
+    vi.stubEnv('GOOGLE_MAPS_API_KEY', 'test-api-key');
+    vi.stubEnv('GCP_PROJECT_ID', 'test-project');
+    vi.mocked(isDemoMode).mockReturnValue(false);
+
+    await googleMapsClient.optimizeRoute(
+      { lat: 46.4653, lng: 6.8961, label: 'Home' },
+      [{ lat: 46.397, lng: 6.9277, label: 'yard-zero', horseCount: 0 }],
+    );
+
+    const stops = getPassedStops();
+    expect(stops).toHaveLength(1);
+    const expected =
+      (1 * ROUTE_PLANNING_PARAMS.standardServiceMinutesPerHorse +
+        ROUTE_PLANNING_PARAMS.bufferMinutesPerStop) * 60;
+    expect(stops[0].serviceDurationSeconds).toBe(expected);
+  });
+
   it('maps waypoint labels to visitRequestId', async () => {
     vi.stubEnv('GOOGLE_MAPS_API_KEY', 'test-api-key');
     vi.stubEnv('GCP_PROJECT_ID', 'test-project');

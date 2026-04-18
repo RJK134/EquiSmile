@@ -106,7 +106,7 @@ export const googleMapsClient = {
         const dayEnd = new Date(now.getTime() + 9 * 3600_000);
 
         const stops: OptimizationStop[] = waypoints.map((wp) => {
-          const horses = wp.horseCount ?? 1;
+          const horses = Math.max(wp.horseCount ?? 1, 1);
           const serviceMinutes =
             horses * ROUTE_PLANNING_PARAMS.standardServiceMinutesPerHorse +
             ROUTE_PLANNING_PARAMS.bufferMinutesPerStop;
