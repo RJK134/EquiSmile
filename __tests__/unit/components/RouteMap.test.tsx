@@ -95,10 +95,9 @@ describe('RouteMap component', () => {
     expect(content).toContain('StaticMapPlaceholder');
   });
 
-  it('has a loading state component', () => {
+  it('does not export an unused loading state component', () => {
     const content = readFileSync(COMPONENT_PATH, 'utf-8');
-    expect(content).toContain('MapLoadingState');
-    expect(content).toContain('Loading map');
+    expect(content).not.toContain('export function MapLoadingState');
   });
 });
 
