@@ -87,6 +87,19 @@ describe('RouteMap component', () => {
     expect(content).toContain('FitBounds');
     expect(content).toContain('fitBounds');
   });
+
+  it('has an error boundary that falls back to static placeholder', () => {
+    const content = readFileSync(COMPONENT_PATH, 'utf-8');
+    expect(content).toContain('MapErrorBoundary');
+    expect(content).toContain('getDerivedStateFromError');
+    expect(content).toContain('StaticMapPlaceholder');
+  });
+
+  it('has a loading state component', () => {
+    const content = readFileSync(COMPONENT_PATH, 'utf-8');
+    expect(content).toContain('MapLoadingState');
+    expect(content).toContain('Loading map');
+  });
 });
 
 describe('RouteMap integration in pages', () => {

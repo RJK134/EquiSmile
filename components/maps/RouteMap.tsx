@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, Component, type ReactNode } from 'react';
 import {
   APIProvider,
   Map,
@@ -9,6 +9,62 @@ import {
   useMap,
 } from '@vis.gl/react-google-maps';
 import { useState, useCallback, useEffect } from 'react';
+
+// ---------------------------------------------------------------------------
+// Error boundary — catches Google Maps JS API failures gracefully
+// ---------------------------------------------------------------------------
+
+interface MapErrorBoundaryProps {
+  fallback: ReactNode;
+  children: ReactNode;
+}
+
+interface MapErrorBoundaryState {
+  hasError: boolean;
+}
+
+class MapErrorBoundary extends Component<MapErrorBoundaryProps, MapErrorBoundaryState> {
+  constructor(props: MapErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): MapErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error): void {
+    console.warn('[RouteMap] Google Maps error caught by boundary:', error.message);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loading state
+// ---------------------------------------------------------------------------
+
+export function MapLoadingState({ height }: { height: string }) {
+  return (
+    <div
+      className="flex items-center justify-center rounded-md border border-border bg-surface"
+      style={{ height, minHeight: '120px' }}
+    >
+      <div className="flex flex-col items-center gap-2 text-muted">
+        <svg className="h-6 w-6 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+          <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+          <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+        </svg>
+        <span className="text-xs">Loading map&hellip;</span>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -180,67 +236,69 @@ export function RouteMap({ stops, homeBase, height = '400px', compact = false }:
   }
 
   return (
-    <div style={{ height: effectiveHeight, minHeight: '120px' }} className="overflow-hidden rounded-md border border-border">
-      <APIProvider apiKey={apiKey}>
-        <Map
-          defaultCenter={center}
-          defaultZoom={11}
-          gestureHandling="cooperative"
-          disableDefaultUI={compact}
-          mapId="route-map"
-          style={{ width: '100%', height: '100%' }}
-        >
-          <FitBounds stops={stops} homeBase={homeBase} />
-          <RoutePolyline stops={stops} homeBase={homeBase} />
+    <MapErrorBoundary fallback={<StaticMapPlaceholder stops={stops} homeBase={homeBase} height={effectiveHeight} />}>
+      <div style={{ height: effectiveHeight, minHeight: '120px' }} className="overflow-hidden rounded-md border border-border">
+        <APIProvider apiKey={apiKey}>
+          <Map
+            defaultCenter={center}
+            defaultZoom={11}
+            gestureHandling="cooperative"
+            disableDefaultUI={compact}
+            mapId="route-map"
+            style={{ width: '100%', height: '100%' }}
+          >
+            <FitBounds stops={stops} homeBase={homeBase} />
+            <RoutePolyline stops={stops} homeBase={homeBase} />
 
-          {/* Home base marker */}
-          {homeBase && (
-            <AdvancedMarker
-              position={{ lat: homeBase.latitude, lng: homeBase.longitude }}
-              title={homeBase.label || 'Home Base'}
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-green-600 text-xs font-bold text-white shadow-md">
-                H
-              </div>
-            </AdvancedMarker>
-          )}
-
-          {/* Stop markers */}
-          {stops.map((stop) => (
-            <AdvancedMarker
-              key={stop.sequenceNo}
-              position={{ lat: stop.latitude, lng: stop.longitude }}
-              title={`${stop.sequenceNo}. ${stop.yardName}`}
-              onClick={() => handleMarkerClick(stop.sequenceNo)}
-            >
-              <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary text-xs font-bold text-white shadow-md">
-                {stop.sequenceNo}
-              </div>
-            </AdvancedMarker>
-          ))}
-
-          {/* Info windows */}
-          {stops.map((stop) =>
-            activeMarker === stop.sequenceNo ? (
-              <InfoWindow
-                key={`info-${stop.sequenceNo}`}
-                position={{ lat: stop.latitude, lng: stop.longitude }}
-                onCloseClick={() => setActiveMarker(null)}
+            {/* Home base marker */}
+            {homeBase && (
+              <AdvancedMarker
+                position={{ lat: homeBase.latitude, lng: homeBase.longitude }}
+                title={homeBase.label || 'Home Base'}
               >
-                <div className="min-w-[160px] p-1">
-                  <p className="font-semibold">{stop.yardName}</p>
-                  <p className="text-xs text-gray-500">{stop.postcode}{stop.town ? `, ${stop.town}` : ''}</p>
-                  {stop.plannedArrival && (
-                    <p className="mt-1 text-xs">
-                      Planned: {new Date(stop.plannedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  )}
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-green-600 text-xs font-bold text-white shadow-md">
+                  H
                 </div>
-              </InfoWindow>
-            ) : null,
-          )}
-        </Map>
-      </APIProvider>
-    </div>
+              </AdvancedMarker>
+            )}
+
+            {/* Stop markers */}
+            {stops.map((stop) => (
+              <AdvancedMarker
+                key={stop.sequenceNo}
+                position={{ lat: stop.latitude, lng: stop.longitude }}
+                title={`${stop.sequenceNo}. ${stop.yardName}`}
+                onClick={() => handleMarkerClick(stop.sequenceNo)}
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary text-xs font-bold text-white shadow-md">
+                  {stop.sequenceNo}
+                </div>
+              </AdvancedMarker>
+            ))}
+
+            {/* Info windows */}
+            {stops.map((stop) =>
+              activeMarker === stop.sequenceNo ? (
+                <InfoWindow
+                  key={`info-${stop.sequenceNo}`}
+                  position={{ lat: stop.latitude, lng: stop.longitude }}
+                  onCloseClick={() => setActiveMarker(null)}
+                >
+                  <div className="min-w-[160px] p-1">
+                    <p className="font-semibold">{stop.yardName}</p>
+                    <p className="text-xs text-gray-500">{stop.postcode}{stop.town ? `, ${stop.town}` : ''}</p>
+                    {stop.plannedArrival && (
+                      <p className="mt-1 text-xs">
+                        Planned: {new Date(stop.plannedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                </InfoWindow>
+              ) : null,
+            )}
+          </Map>
+        </APIProvider>
+      </div>
+    </MapErrorBoundary>
   );
 }

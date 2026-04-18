@@ -8,6 +8,10 @@
  * 4. Optimize routes via Google API
  * 5. Score routes
  * 6. Create RouteRun + RouteRunStop records
+ *
+ * Phase 12a: Hard constraints extracted to lib/config/route-constraints.ts
+ * and enforced via validateRouteConstraints() — proposals are REJECTED
+ * (not merely penalised) when they exceed working-day limits.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -17,23 +21,21 @@ import { clusteringService, type ClusterableVisit, type Cluster } from './cluste
 import { scoreRoute } from './route-scoring.service';
 import { routeOptimizerService, type OptimizationStop, type OptimizationResult } from './route-optimizer.service';
 import { routeRunRepository } from '@/lib/repositories/route-run.repository';
+import {
+  ROUTE_HARD_CONSTRAINTS,
+  ROUTE_PLANNING_PARAMS,
+  WORKDAY_MINUTES,
+  validateRouteConstraints,
+} from '@/lib/config/route-constraints';
 
 // ---------------------------------------------------------------------------
-// Planning constraints
+// Planning constraints — re-exported for backwards compatibility
 // ---------------------------------------------------------------------------
 
 export const PLANNING_CONSTRAINTS = {
-  workdayStartHour: 8,
-  workdayStartMinute: 30,
-  workdayEndHour: 17,
-  workdayEndMinute: 30,
-  maxTravelMinutesPerDay: 180,
-  maxStopsPerDay: 6,
-  maxHorsesPerDay: 10,
-  standardServiceMinutesPerHorse: 30,
-  bufferMinutesPerStop: 15,
-  preferredMaxInterStopMinutes: 25,
-  minDensityScoreThreshold: 20,
+  ...ROUTE_HARD_CONSTRAINTS,
+  maxStopsPerDay: ROUTE_HARD_CONSTRAINTS.maxYardsPerDay,
+  ...ROUTE_PLANNING_PARAMS,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -185,10 +187,7 @@ export const routeProposalService = {
       }
 
       // Hard constraint: enforce working hours — total service + estimated travel
-      // must fit within 08:30-17:30 (540 minutes window)
-      const workdayMinutes =
-        (PLANNING_CONSTRAINTS.workdayEndHour * 60 + PLANNING_CONSTRAINTS.workdayEndMinute) -
-        (PLANNING_CONSTRAINTS.workdayStartHour * 60 + PLANNING_CONSTRAINTS.workdayStartMinute);
+      // must fit within 08:30–17:30 (WORKDAY_MINUTES)
       const totalServiceMinutes = cluster.visits.reduce(
         (sum, v) =>
           sum +
@@ -196,7 +195,7 @@ export const routeProposalService = {
           PLANNING_CONSTRAINTS.bufferMinutesPerStop,
         0,
       );
-      if (totalServiceMinutes > workdayMinutes) {
+      if (totalServiceMinutes > WORKDAY_MINUTES) {
         // Service alone exceeds working day — trim visits
         while (cluster.visits.length > 1 && cluster.visits.reduce(
           (sum, v) =>
@@ -204,7 +203,7 @@ export const routeProposalService = {
             v.horseCount * PLANNING_CONSTRAINTS.standardServiceMinutesPerHorse +
             PLANNING_CONSTRAINTS.bufferMinutesPerStop,
           0,
-        ) > workdayMinutes) {
+        ) > WORKDAY_MINUTES) {
           cluster.visits.pop();
           cluster.visitRequestIds = cluster.visits.map((v) => v.visitRequestId);
         }
@@ -368,27 +367,20 @@ async function buildRouteProposal(
     }
   }
 
-  // Hard constraint: max travel time per day
-  if (totalTravelMinutes > PLANNING_CONSTRAINTS.maxTravelMinutesPerDay) {
-    return null;
-  }
-
-  // Hard constraint: max stops per day
-  if (stopRecords.length > PLANNING_CONSTRAINTS.maxStopsPerDay) {
-    return null;
-  }
-
-  // Hard constraint: max horses per day
+  // Hard constraint enforcement — reject proposals that exceed working-day limits
   const totalHorses = cluster.visits.reduce((sum, v) => sum + v.horseCount, 0);
-  if (totalHorses > PLANNING_CONSTRAINTS.maxHorsesPerDay) {
-    return null;
-  }
+  const violations = validateRouteConstraints({
+    totalTravelMinutes,
+    stopCount: stopRecords.length,
+    totalHorses,
+    totalWorkMinutes: totalTravelMinutes + totalVisitMinutes,
+  });
 
-  // Hard constraint: total work must fit within working hours (08:30-17:30 = 540 min)
-  const workdayCapacity =
-    (PLANNING_CONSTRAINTS.workdayEndHour * 60 + PLANNING_CONSTRAINTS.workdayEndMinute) -
-    (PLANNING_CONSTRAINTS.workdayStartHour * 60 + PLANNING_CONSTRAINTS.workdayStartMinute);
-  if (totalTravelMinutes + totalVisitMinutes > workdayCapacity) {
+  if (violations.length > 0) {
+    console.warn(
+      '[route-proposal] Proposal rejected — hard constraint violations:',
+      violations.map((v) => v.message).join('; '),
+    );
     return null;
   }
 
