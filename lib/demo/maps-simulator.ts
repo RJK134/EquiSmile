@@ -138,6 +138,8 @@ export interface RouteWaypoint {
   lat: number;
   lng: number;
   label: string;
+  /** Number of horses at this stop (used for service duration calculation) */
+  horseCount?: number;
 }
 
 export interface SimulatedRouteResult {
