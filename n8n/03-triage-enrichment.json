@@ -17,6 +17,8 @@
       "parameters": {
         "method": "POST",
         "url": "={{$env.APP_URL}}/api/triage-ops/classify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -41,7 +43,7 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ $json.data.needsMoreInfo }}",
+              "value1": "={{ $json.needsMoreInfo }}",
               "value2": true
             }
           ]
@@ -57,12 +59,14 @@
       "parameters": {
         "method": "POST",
         "url": "={{$env.APP_URL}}/api/triage-ops/follow-up",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "visitRequestId",
-              "value": "={{ $('Classify Urgency').item.json.data.visitRequestId }}"
+              "value": "={{ $json.visitRequestId }}"
             }
           ]
         },
@@ -90,11 +94,11 @@
             },
             {
               "name": "visitRequestId",
-              "value": "={{ $('Classify Urgency').item.json.data.visitRequestId }}"
+              "value": "={{ $json.visitRequestId }}"
             },
             {
               "name": "planningStatus",
-              "value": "={{ $('Classify Urgency').item.json.data.planningStatus }}"
+              "value": "={{ $json.planningStatus }}"
             }
           ]
         },
