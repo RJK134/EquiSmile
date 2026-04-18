@@ -1,5 +1,5 @@
 /**
- * Phase 9/10 — Google Maps integration client with demo fallback.
+ * Phase 9/10/12b — Google Maps integration client with demo fallback.
  *
  * Uses real Google Maps API when API key exists,
  * falls back to demo simulator otherwise.
@@ -7,6 +7,9 @@
  * Phase 10: Added real optimizeTours API call via routeOptimizerService
  * when DEMO_MODE=false and credentials are set. Falls back to local
  * nearest-neighbor algorithm on API failure or in demo mode.
+ *
+ * Phase 12b: Service duration now uses per-horse calculation
+ * (horseCount × 30 min) instead of a fixed 45 min per stop.
  */
 
 import { isDemoMode, demoLog } from '@/lib/demo/demo-mode';
@@ -17,6 +20,7 @@ import {
   type SimulatedRouteResult,
 } from '@/lib/demo/maps-simulator';
 import { routeOptimizerService, type OptimizationStop, type OptimizationVehicle, type OptimizationResult } from '@/lib/services/route-optimizer.service';
+import { ROUTE_PLANNING_PARAMS } from '@/lib/config/route-constraints';
 
 const GEOCODING_API_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 
@@ -101,16 +105,23 @@ export const googleMapsClient = {
         const now = new Date();
         const dayEnd = new Date(now.getTime() + 9 * 3600_000);
 
-        const stops: OptimizationStop[] = waypoints.map((wp) => ({
-          visitRequestId: wp.label || `stop-${wp.lat}-${wp.lng}`,
-          yardId: wp.label || '',
-          latitude: wp.lat,
-          longitude: wp.lng,
-          serviceDurationSeconds: 45 * 60, // default 45 min per stop
-          timeWindowStart: now.toISOString(),
-          timeWindowEnd: dayEnd.toISOString(),
-          label: wp.label || '',
-        }));
+        const stops: OptimizationStop[] = waypoints.map((wp) => {
+          const horses = wp.horseCount ?? 1;
+          const serviceMinutes =
+            horses * ROUTE_PLANNING_PARAMS.standardServiceMinutesPerHorse +
+            ROUTE_PLANNING_PARAMS.bufferMinutesPerStop;
+
+          return {
+            visitRequestId: wp.label || `stop-${wp.lat}-${wp.lng}`,
+            yardId: wp.label || '',
+            latitude: wp.lat,
+            longitude: wp.lng,
+            serviceDurationSeconds: serviceMinutes * 60,
+            timeWindowStart: now.toISOString(),
+            timeWindowEnd: dayEnd.toISOString(),
+            label: wp.label || '',
+          };
+        });
 
         const vehicle: OptimizationVehicle = {
           startLatitude: origin.lat,
