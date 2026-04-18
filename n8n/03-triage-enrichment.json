@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "triage-trigger",
-        "responseMode": "onReceived"
+        "responseMode": "lastNode"
       },
       "id": "triage-webhook",
       "name": "Triage Trigger",
@@ -14,28 +14,97 @@
       "position": [250, 300]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.APP_URL}}/api/triage-ops/classify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "enquiryId",
+              "value": "={{ $json.body.enquiryId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
       "id": "classify-urgency",
       "name": "Classify Urgency",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [450, 300]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.data.needsMoreInfo }}",
+              "value2": true
+            }
+          ]
+        }
+      },
       "id": "check-missing-info",
       "name": "Check Missing Information",
-      "type": "n8n-nodes-base.noOp",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [650, 300]
     },
     {
-      "parameters": {},
-      "id": "create-visit-request",
-      "name": "Create Visit Request",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [850, 300]
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.APP_URL}}/api/triage-ops/follow-up",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "visitRequestId",
+              "value": "={{ $('Classify Urgency').item.json.data.visitRequestId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-follow-up",
+      "name": "Send Follow-Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "ready"
+            },
+            {
+              "name": "message",
+              "value": "Enquiry classified and ready for planning"
+            },
+            {
+              "name": "visitRequestId",
+              "value": "={{ $('Classify Urgency').item.json.data.visitRequestId }}"
+            },
+            {
+              "name": "planningStatus",
+              "value": "={{ $('Classify Urgency').item.json.data.planningStatus }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-ready-status",
+      "name": "Ready for Planning",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 400]
     }
   ],
   "connections": {
@@ -46,10 +115,15 @@
       "main": [[{ "node": "Check Missing Information", "type": "main", "index": 0 }]]
     },
     "Check Missing Information": {
-      "main": [[{ "node": "Create Visit Request", "type": "main", "index": 0 }]]
+      "main": [
+        [{ "node": "Send Follow-Up", "type": "main", "index": 0 }],
+        [{ "node": "Ready for Planning", "type": "main", "index": 0 }]
+      ]
     }
   },
   "active": false,
-  "settings": {},
-  "tags": [{ "name": "phase4" }]
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [{ "name": "phase4" }, { "name": "phase12c" }]
 }
