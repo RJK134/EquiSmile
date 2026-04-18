@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { routeRunRepository } from '@/lib/repositories/route-run.repository';
+import { validateRouteConstraints } from '@/lib/config/route-constraints';
 import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -36,6 +37,28 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const body = await request.json();
     const data = updateSchema.parse(body);
+
+    // Hard constraint check: validate before approving a route
+    if (data.status === 'APPROVED') {
+      const totalHorses = routeRun.totalHorses ?? 0;
+      const totalTravelMinutes = routeRun.totalTravelMinutes ?? 0;
+      const totalVisitMinutes = routeRun.totalVisitMinutes ?? 0;
+      const stopCount = routeRun.stops?.length ?? 0;
+
+      const violations = validateRouteConstraints({
+        totalTravelMinutes,
+        stopCount,
+        totalHorses,
+        totalWorkMinutes: totalTravelMinutes + totalVisitMinutes,
+      });
+
+      if (violations.length > 0) {
+        return errorResponse(
+          `Cannot approve route — constraint violations: ${violations.map((v) => v.message).join('; ')}`,
+          422,
+        );
+      }
+    }
 
     const updated = await routeRunRepository.update(id, data);
     return successResponse(updated);
