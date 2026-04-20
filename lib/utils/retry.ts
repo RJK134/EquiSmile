@@ -225,21 +225,35 @@ export function generateIdempotencyKey(scope: string, uniqueId: string): string 
 }
 
 /**
- * In-memory idempotency check set.
- * For production, this should be backed by Redis or the database.
+ * Postgres-backed idempotency check (phase 13, AMBER-14 remediation).
+ *
+ * These helpers are now async — they delegate to `idempotencyService`
+ * which persists keys in the `IdempotencyKey` table. Keys survive
+ * restarts and are shared across app instances.
+ *
+ * Callers that were previously synchronous must `await` these.
  */
-const processedKeys = new Set<string>();
+import { idempotencyService } from '@/lib/services/idempotency.service';
 
-export function hasBeenProcessed(key: string): boolean {
-  return processedKeys.has(key);
+// Default TTL — 30 days — long enough that any meaningful retry window
+// closes well inside it, short enough that the table doesn't grow unbounded.
+const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function hasBeenProcessed(key: string): Promise<boolean> {
+  return idempotencyService.hasProcessed(key);
 }
 
-export function markAsProcessed(key: string): void {
-  processedKeys.add(key);
+export async function markAsProcessed(
+  key: string,
+  scope = 'unknown',
+  ttlMs: number = DEFAULT_TTL_MS,
+): Promise<void> {
+  return idempotencyService.markProcessed(key, scope, ttlMs);
 }
 
-export function clearProcessedKeys(): void {
-  processedKeys.clear();
+export async function clearProcessedKeys(): Promise<void> {
+  // Useful for tests; prunes every row regardless of expiry.
+  await idempotencyService.pruneExpired(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
 }
 
 // ---------------------------------------------------------------------------

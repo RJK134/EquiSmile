@@ -44,7 +44,7 @@ export const whatsappService = {
 
     // Idempotency: prevent duplicate sends on retry
     const idempotencyKey = generateIdempotencyKey('wa-text', `${to}:${enquiryId || 'none'}:${Date.now()}`);
-    if (enquiryId && hasBeenProcessed(idempotencyKey)) {
+    if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
       console.warn('[WhatsApp] Duplicate send prevented', { to, enquiryId });
       return { messageId: '', success: true };
     }
@@ -87,7 +87,7 @@ export const whatsappService = {
       const messageId = result.messages?.[0]?.id || '';
 
       if (enquiryId) {
-        markAsProcessed(idempotencyKey);
+        await markAsProcessed(idempotencyKey, 'wa-text');
         await messageLogService.logMessage({
           enquiryId,
           direction: 'OUTBOUND',
@@ -126,7 +126,7 @@ export const whatsappService = {
     }
 
     const idempotencyKey = generateIdempotencyKey('wa-tpl', `${to}:${templateName}:${enquiryId || 'none'}:${Date.now()}`);
-    if (enquiryId && hasBeenProcessed(idempotencyKey)) {
+    if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
       console.warn('[WhatsApp] Duplicate template send prevented', { to, templateName });
       return { messageId: '', success: true };
     }
@@ -181,7 +181,7 @@ export const whatsappService = {
       const messageId = result.messages?.[0]?.id || '';
 
       if (enquiryId) {
-        markAsProcessed(idempotencyKey);
+        await markAsProcessed(idempotencyKey, 'wa-tpl');
         await messageLogService.logMessage({
           enquiryId,
           direction: 'OUTBOUND',

@@ -3,6 +3,35 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Phase 13: idempotency is now Postgres-backed via idempotency.service.
+// Mock it so these unit tests don't hit Prisma.
+vi.mock('@/lib/services/idempotency.service', () => {
+  const store = new Map<string, { scope: string; expiresAt: Date | null }>();
+  return {
+    idempotencyService: {
+      async hasProcessed(key: string) {
+        const row = store.get(key);
+        if (!row) return false;
+        if (row.expiresAt && row.expiresAt < new Date()) {
+          store.delete(key);
+          return false;
+        }
+        return true;
+      },
+      async markProcessed(key: string, scope: string, ttlMs?: number) {
+        const expiresAt = typeof ttlMs === 'number' ? new Date(Date.now() + ttlMs) : null;
+        store.set(key, { scope, expiresAt });
+      },
+      async pruneExpired() {
+        const count = store.size;
+        store.clear();
+        return count;
+      },
+    },
+  };
+});
+
 import {
   withRetry,
   RetryError,
@@ -124,8 +153,8 @@ describe('CircuitBreaker', () => {
 });
 
 describe('Idempotency', () => {
-  beforeEach(() => {
-    clearProcessedKeys();
+  beforeEach(async () => {
+    await clearProcessedKeys();
   });
 
   it('should generate deterministic keys', () => {
@@ -135,19 +164,19 @@ describe('Idempotency', () => {
     expect(key1).toBe('confirmation:appt-123');
   });
 
-  it('should track processed keys', () => {
+  it('should track processed keys', async () => {
     const key = generateIdempotencyKey('test', 'id-1');
-    expect(hasBeenProcessed(key)).toBe(false);
-    markAsProcessed(key);
-    expect(hasBeenProcessed(key)).toBe(true);
+    expect(await hasBeenProcessed(key)).toBe(false);
+    await markAsProcessed(key, 'test');
+    expect(await hasBeenProcessed(key)).toBe(true);
   });
 
-  it('should clear all processed keys', () => {
-    markAsProcessed('key1');
-    markAsProcessed('key2');
-    expect(hasBeenProcessed('key1')).toBe(true);
-    clearProcessedKeys();
-    expect(hasBeenProcessed('key1')).toBe(false);
-    expect(hasBeenProcessed('key2')).toBe(false);
+  it('should clear all processed keys', async () => {
+    await markAsProcessed('key1', 'test');
+    await markAsProcessed('key2', 'test');
+    expect(await hasBeenProcessed('key1')).toBe(true);
+    await clearProcessedKeys();
+    expect(await hasBeenProcessed('key1')).toBe(false);
+    expect(await hasBeenProcessed('key2')).toBe(false);
   });
 });
