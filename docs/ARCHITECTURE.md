@@ -333,7 +333,7 @@ existing columns can be backfilled from it.
 
 ### Appointment auditability (AMBER-10, 11, 13)
 
-Resolved in Phase 14 PR D:
+Resolved in Phase 14 PR D + truthfulness pass (Phase 14.1):
 - `ConfirmationDispatch` records every outbound confirmation (success
   or failure) with channel + timestamp + optional external message id.
 - `AppointmentResponse` records inbound customer replies with kind

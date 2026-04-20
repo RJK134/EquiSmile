@@ -395,3 +395,28 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Forcing a WhatsApp send against an invalid phone number enqueues a `FailedOperation` row whose `payload` contains `[redacted]` for any Bearer/api_key value that may have been attempted.
 - `/en/visit-requests` loads at 390px width; filters refine the returned list.
 - Only documentation-only AMBERs remain open: AMBER-09 (`AppointmentHorse` link table) — deferred per the audit note (adequate until per-appointment horse metadata is tracked).
+
+---
+
+## Phase 14.1 — Truthfulness pass
+
+### Scope
+- Verify the overnight hardening report claims against the repo, fix any mismatches with the smallest safe change, and lock the fix in with a regression test.
+
+### Findings & fixes
+- **Uploader attribution spoofing** (high-severity) — `app/api/horses/[id]/attachments` POST previously fell back to `uploadedById` read from the multipart form if present, and used `subject.id` (Auth.js `User.id`) as a second fallback. Two bugs:
+  1. Authenticated vet could spoof a colleague as the uploader by adding `uploadedById=<victim-staff-id>` to the form.
+  2. `HorseAttachment.uploadedById` FK references `Staff.id`, so the fallback would also fail the FK check (or silently mis-attribute) when `subject.id` is a bare User id.
+
+  **Fix**: ignore the form field entirely; resolve `staffRepository.findByUserId(subject.id)` and store `staff?.id ?? null`. New regression suite `__tests__/unit/api/horses-attachments.test.ts` locks in four cases: session→staff happy path, spoofed form value dropped, no-linked-staff falls back to null, description passes through unchanged.
+
+### Other claims re-verified (no code change needed)
+- Every `Appointment.status` mutation site (`bookingService`, `rescheduleService.cancel`/`markNoShow`, `visitOutcomeService`) now writes `AppointmentStatusHistory`; no stray mutation site exists.
+- Every `requireRole` placement matches the overnight report (`/api/export/vetup` ADMIN, `/api/staff` mutations ADMIN, `/api/attachments/[id]` NURSE GET + VET DELETE, `/api/attachments/[id]/analyse` VET, `/api/horses/[id]/clinical` NURSE GET + VET POST, `/api/horses/[id]/attachments` NURSE GET + VET POST, `/api/prescriptions/[id]` VET, `/api/status` ADMIN).
+- Rate limits wired at the four claimed routes (`webhooks/whatsapp`, `webhooks/email`, `export/vetup`, `attachments/[id]/analyse`).
+- `deadLetterService.enqueue` called from three claimed sites (`whatsapp sendTextMessage`, `whatsapp sendTemplateMessage`, `email sendEmail`).
+- `applySecurityHeaders` wraps every branch of `middleware.ts` (6 call sites).
+- `verifyWhatsAppVerifyToken` is the only verify-token check in `app/api/webhooks/whatsapp/route.ts` (no residual `===`).
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate`, `build` — all green. Net 739 tests passing (+4 new).
