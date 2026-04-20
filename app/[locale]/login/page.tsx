@@ -4,18 +4,41 @@ import { SignInButton } from '@/components/auth/SignInButton';
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 
+const CALLBACK_URL_ORIGIN = 'http://localhost';
+
 interface LoginPageProps {
   params: Promise<{ locale: string }>;
   searchParams: Promise<{ error?: string; callbackUrl?: string }>;
 }
 
+function getSafeCallbackUrl(callbackUrl: string | undefined, locale: string) {
+  const fallbackUrl = `/${locale}`;
+
+  if (!callbackUrl?.startsWith('/')) {
+    return fallbackUrl;
+  }
+
+  try {
+    const parsedCallbackUrl = new URL(callbackUrl, CALLBACK_URL_ORIGIN);
+
+    if (parsedCallbackUrl.origin !== CALLBACK_URL_ORIGIN) {
+      return fallbackUrl;
+    }
+
+    return `${parsedCallbackUrl.pathname}${parsedCallbackUrl.search}${parsedCallbackUrl.hash}`;
+  } catch {
+    return fallbackUrl;
+  }
+}
+
 export default async function LoginPage({ params, searchParams }: LoginPageProps) {
   const [{ locale }, { error, callbackUrl }] = await Promise.all([params, searchParams]);
   const t = await getTranslations({ locale, namespace: 'auth' });
+  const safeCallbackUrl = getSafeCallbackUrl(callbackUrl, locale);
 
   const session = await auth();
   if (session?.user) {
-    redirect(callbackUrl ?? `/${locale}`);
+    redirect(safeCallbackUrl);
   }
 
   return (
