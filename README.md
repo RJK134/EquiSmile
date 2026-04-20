@@ -65,6 +65,9 @@ scripts\demo-start-local.bat
 scripts\demo-start.bat
 ```
 
+**One-click launchers (vet workstation):**
+Windows batch launchers (`DEMO.bat`, `LAUNCH.bat`, `REBUILD.bat`, `FIX.bat`, etc.) live under `scripts/windows/`. See `scripts/windows/README.md` for what each one does.
+
 ### What's in the demo
 - 8 Swiss customers (4 French, 4 English) across Vaud, Fribourg, Valais
 - 20 horses with clinical histories

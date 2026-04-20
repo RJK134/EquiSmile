@@ -6,7 +6,8 @@ const prisma = new PrismaClient();
  * Production seed — minimal setup for a fresh EquiSmile installation.
  *
  * This does NOT create fake customers, yards, horses, or enquiries.
- * For demo data, use `seed-demo.ts` (run via DEMO.bat or DEMO_MODE=true).
+ * For demo data, use `seed-demo.ts` (run via scripts/windows/DEMO.bat or
+ * DEMO_MODE=true).
  *
  * The production seed only verifies the database connection and logs
  * the clean-start state. Real data will be created through the app's
@@ -23,7 +24,7 @@ async function main() {
   console.log('  3. Or create customers and yards manually via the UI');
   console.log('');
   console.log('For demo data, run: npx prisma db seed -- --demo');
-  console.log('  (or use DEMO.bat / set DEMO_MODE=true)');
+  console.log('  (or use scripts/windows/DEMO.bat / set DEMO_MODE=true)');
   console.log('\nProduction seed complete.');
 }
 
