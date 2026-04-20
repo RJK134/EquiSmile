@@ -54,9 +54,9 @@ function shouldRedactKey(key: string): boolean {
 }
 
 function redactValue(key: string, value: unknown, seen: WeakSet<object>): unknown {
+  if (shouldRedactKey(key)) return SENTINEL;
   if (value === null || value === undefined) return value;
   if (typeof value === 'string') {
-    if (shouldRedactKey(key)) return SENTINEL;
     if (looksLikeBearer(value)) return SENTINEL;
     return value;
   }
@@ -64,6 +64,8 @@ function redactValue(key: string, value: unknown, seen: WeakSet<object>): unknow
     return value;
   }
   if (Array.isArray(value)) {
+    if (seen.has(value)) return '[circular]';
+    seen.add(value);
     return value.map((item, i) => redactValue(`${key}[${i}]`, item, seen));
   }
   if (typeof value === 'object') {
@@ -72,11 +74,7 @@ function redactValue(key: string, value: unknown, seen: WeakSet<object>): unknow
     seen.add(obj);
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
-      if (shouldRedactKey(k) && typeof v === 'string') {
-        result[k] = SENTINEL;
-      } else {
-        result[k] = redactValue(k, v, seen);
-      }
+      result[k] = redactValue(k, v, seen);
     }
     return result;
   }

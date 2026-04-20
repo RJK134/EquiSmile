@@ -47,6 +47,18 @@ describe('redact', () => {
     expect(out.message).toBe('[redacted]');
   });
 
+  it('redacts sensitive keys regardless of the value type', () => {
+    expect(
+      redact({
+        password: 12345,
+        secret: { data: 'value' },
+      })
+    ).toEqual({
+      password: '[redacted]',
+      secret: '[redacted]',
+    });
+  });
+
   it('recurses into nested objects and arrays', () => {
     const out = redact({
       config: { auth: { password: 'p' } },
@@ -66,6 +78,14 @@ describe('redact', () => {
     const out = redact(a) as Record<string, unknown>;
     expect(out.name).toBe('x');
     expect(out.self).toBe('[circular]');
+  });
+
+  it('handles circular arrays without exploding', () => {
+    const arr: unknown[] = [];
+    arr.push(arr);
+    expect(redact({ x: arr })).toEqual({
+      x: ['[circular]'],
+    });
   });
 
   it('passes through null/undefined', () => {
