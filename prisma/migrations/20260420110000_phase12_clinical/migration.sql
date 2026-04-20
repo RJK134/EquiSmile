@@ -44,6 +44,7 @@ CREATE UNIQUE INDEX "DentalChart_attachmentId_key" ON "DentalChart"("attachmentI
 CREATE INDEX "DentalChart_horseId_idx" ON "DentalChart"("horseId");
 CREATE INDEX "DentalChart_recordedAt_idx" ON "DentalChart"("recordedAt");
 ALTER TABLE "DentalChart" ADD CONSTRAINT "DentalChart_horseId_fkey" FOREIGN KEY ("horseId") REFERENCES "Horse"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "DentalChart" ADD CONSTRAINT "DentalChart_appointmentId_fkey" FOREIGN KEY ("appointmentId") REFERENCES "Appointment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "DentalChart" ADD CONSTRAINT "DentalChart_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "Staff"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "DentalChart" ADD CONSTRAINT "DentalChart_attachmentId_fkey" FOREIGN KEY ("attachmentId") REFERENCES "HorseAttachment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 

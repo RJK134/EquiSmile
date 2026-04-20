@@ -224,7 +224,7 @@ model Horse {
   attachments    HorseAttachment[]
   dentalCharts   DentalChart[]
   findings       ClinicalFinding[]
-  prescriptions  Prescription[]
+  prescriptions Prescription[]
 
   @@index([customerId])
   @@index([primaryYardId])
@@ -302,7 +302,7 @@ model VisitRequest {
   auditLogs      TriageAuditLog[]
   routeRunStops  RouteRunStop[]
   appointments   Appointment[]
-  prescriptions  Prescription[]
+  prescriptions Prescription[]
 
   @@index([customerId])
   @@index([planningStatus])
@@ -411,6 +411,7 @@ model Appointment {
   routeRun     RouteRun?     @relation(fields: [routeRunId], references: [id])
   visitOutcome VisitOutcome?
   assignments  AppointmentAssignment[]
+  dentalCharts DentalChart[]
   prescriptions Prescription[]
 
   @@index([visitRequestId])
@@ -547,6 +548,7 @@ model DentalChart {
   attachmentId  String?  @unique
 
   horse       Horse             @relation(fields: [horseId], references: [id], onDelete: Cascade)
+  appointment Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   recordedBy  Staff?            @relation(fields: [recordedById], references: [id], onDelete: SetNull)
   attachment  HorseAttachment?  @relation("DentalChartAttachment", fields: [attachmentId], references: [id], onDelete: SetNull)
   findings    ClinicalFinding[]

@@ -82,18 +82,27 @@ export const attachmentService = {
     await fs.mkdir(path.dirname(absPath), { recursive: true });
     await fs.writeFile(absPath, input.bytes);
 
-    return prisma.horseAttachment.create({
-      data: {
-        horseId: input.horseId,
-        kind: input.kind ?? inferKindFromMime(input.mimeType),
-        filename: input.filename,
-        mimeType: input.mimeType,
-        sizeBytes: input.bytes.byteLength,
-        storagePath: relativePath,
-        description: input.description ?? null,
-        uploadedById: input.uploadedById ?? null,
-      },
-    });
+    try {
+      return await prisma.horseAttachment.create({
+        data: {
+          horseId: input.horseId,
+          kind: input.kind ?? inferKindFromMime(input.mimeType),
+          filename: input.filename,
+          mimeType: input.mimeType,
+          sizeBytes: input.bytes.byteLength,
+          storagePath: relativePath,
+          description: input.description ?? null,
+          uploadedById: input.uploadedById ?? null,
+        },
+      });
+    } catch (error) {
+      try {
+        await fs.unlink(absPath);
+      } catch {
+        // Preserve the original DB error even if cleanup fails.
+      }
+      throw error;
+    }
   },
 
   async listForHorse(horseId: string) {
