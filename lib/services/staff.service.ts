@@ -83,8 +83,8 @@ export const staffService = {
 
   async unassignFromRouteRun(input: { routeRunId: string; staffId: string; wasLead?: boolean }) {
     if (input.wasLead) {
-      return prisma.routeRun.update({
-        where: { id: input.routeRunId },
+      return prisma.routeRun.updateMany({
+        where: { id: input.routeRunId, leadStaffId: input.staffId },
         data: { leadStaffId: null },
       });
     }

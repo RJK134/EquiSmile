@@ -19,6 +19,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     routeRun: {
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     appointment: {
       findMany: vi.fn(),
@@ -83,7 +84,7 @@ describe('staffService', () => {
       await staffService.create({ name: 'Dr. Vet' });
       const call = (staffRepository.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
       // role undefined here; repository applies VET default
-      expect(call.role ?? 'VET').toBe('VET');
+      expect(call.role).toBeUndefined();
     });
   });
 
@@ -152,6 +153,17 @@ describe('staffService', () => {
           where: { routeRunId_staffId: { routeRunId: 'r1', staffId: 's2' } },
         }),
       );
+    });
+
+    it('only clears the lead when the staff matches the current lead', async () => {
+      (prisma.routeRun.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+
+      await staffService.unassignFromRouteRun({ routeRunId: 'r1', staffId: 's1', wasLead: true });
+
+      expect(prisma.routeRun.updateMany).toHaveBeenCalledWith({
+        where: { id: 'r1', leadStaffId: 's1' },
+        data: { leadStaffId: null },
+      });
     });
   });
 
