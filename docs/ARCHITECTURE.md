@@ -258,3 +258,97 @@ Auth tables live alongside the domain tables in `prisma/schema.prisma`:
 - **Secure cookies** — Auth.js config emits `__Secure-` / `__Host-` prefixes, `HttpOnly`, `SameSite=Lax`, `Secure` in production (`useSecureCookies`). 30-day `session.maxAge` with 24-hour `updateAge`.
 - **`trustHost`** — only enabled when `AUTH_URL` is explicitly configured; prevents Host-header spoofing in front of a reverse proxy.
 - **Security headers** — `lib/security/headers.ts` applies CSP, HSTS (production only), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, COOP/CORP on every middleware-gated response. API responses use `default-src 'none'; frame-ancestors 'none'` (non-browseable); HTML uses a pragmatic CSP that permits Next.js inline hydration, PWA service worker, Google Maps, and Anthropic vision calls while blocking `object-src`, `frame-ancestors`, and cross-site `form-action`.
+
+---
+
+## Domain vocabulary reconciliation (AMBER-05, 07, 08, 12)
+
+The PHASE_*_MASTER_PROMPT documents described several concepts that the
+implementation names differently. None of these are functional gaps —
+the shape is equivalent — but the mapping needs to be explicit so
+future contributors don't chase ghost features.
+
+### Triage dispositions (AMBER-05)
+
+The master prompt listed seven triage dispositions. In code they're
+split across three existing enums:
+
+| Master-prompt disposition | Implementation |
+|---|---|
+| New | `Enquiry.triageStatus = NEW` |
+| Parsed | `Enquiry.triageStatus = PARSED` |
+| Needs info | `Enquiry.triageStatus = NEEDS_INFO` + `VisitRequest.needsMoreInfo` |
+| Urgent review | `TriageTask.taskType = URGENT_REVIEW` (+ `UrgencyLevel = URGENT`) |
+| Manual classification | `TriageTask.taskType = MANUAL_CLASSIFICATION` |
+| Triaged | `Enquiry.triageStatus = TRIAGED` |
+| In planning pool | `VisitRequest.planningStatus = PLANNING_POOL` |
+
+The split is intentional: `TriageStatus` is per-enquiry (inbound
+message lifecycle), `PlanningStatus` is per-visit-request (operational
+lifecycle), and `TriageTaskType` is the human-action queue.
+
+### RouteRun / RouteProposal (AMBER-07)
+
+The master prompt used `RouteProposal` / `RouteStop`; the schema uses
+`RouteRun` / `RouteRunStop`. Functionally identical: `RouteRun.status`
+starts at `DRAFT`, moves to `PROPOSED` when the optimiser produces a
+candidate, `APPROVED` after operator review, `BOOKED` once appointments
+are generated, `COMPLETED` when all stops are marked done.
+
+No rename planned — the current naming better reflects the lifecycle
+(a proposal BECOMES a run once it's approved).
+
+### AppointmentStatus (AMBER-08)
+
+A single `AppointmentStatus` enum (`PROPOSED | CONFIRMED | COMPLETED |
+CANCELLED | NO_SHOW`) is used instead of the three separate
+Booking/Confirmation/Reminder enums the master prompt proposed.
+
+Rationale:
+- `CONFIRMED` covers both "booking is final" and "customer has
+  confirmed" because the domain flow never persists the appointment
+  without customer agreement; a booked-but-unconfirmed state is
+  represented by `PROPOSED`.
+- Reminder state is captured by the `reminderSentAt24h` /
+  `reminderSentAt2h` timestamps on the appointment; operators care
+  when reminders went out, not a separate state machine.
+- Multi-send confirmation audit is now captured by the
+  `ConfirmationDispatch` table (AMBER-10) — the enum doesn't need to
+  encode it.
+
+### ReminderSchedule (AMBER-12)
+
+The master prompt proposed a `ReminderSchedule` queue. The
+implementation uses inline `reminderSentAt24h` / `reminderSentAt2h`
+columns on `Appointment`, fired from the `POST /api/reminders/check`
+endpoint (called every 15 minutes by `n8n/07-reminder-scheduling.json`
+— AMBER-14's cron).
+
+For a single-vet practice this is adequate: the cron is idempotent,
+the timestamps are the single source of truth, and there's no
+requirement to queue reminder cancellations independently. If the
+practice scales to several operators or per-customer reminder
+preferences, promote to a dedicated `ReminderSchedule` table; the
+existing columns can be backfilled from it.
+
+### Appointment auditability (AMBER-10, 11, 13)
+
+Resolved in Phase 14 PR D:
+- `ConfirmationDispatch` records every outbound confirmation (success
+  or failure) with channel + timestamp + optional external message id.
+- `AppointmentResponse` records inbound customer replies with kind
+  (`CONFIRMED` | `CANCELLED` | `RESCHEDULE_REQUESTED` | `OTHER`) +
+  channel + raw text + optional link back to the source
+  `EnquiryMessage`.
+- `AppointmentStatusHistory` records every `Appointment.status`
+  transition with from/to + actor + optional reason. Written inline by
+  the booking, reschedule, and visit-outcome services in the same
+  transaction as the status mutation.
+
+### Dead-letter queue (AMBER-15)
+
+Resolved in Phase 14 PR D: `FailedOperation` table + `deadLetterService`.
+Outbound send paths in `whatsappService` and `emailService` now enqueue
+on permanent failure. Operators replay via `deadLetterService.markStatus`.
+Payloads are scrubbed through `redact()` before being stored, so no
+secrets end up in the DLQ.

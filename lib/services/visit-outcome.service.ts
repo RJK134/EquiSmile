@@ -68,9 +68,19 @@ export const visitOutcomeService = {
       });
 
       // 3. Update appointment status
+      const priorStatus = appointment.status;
       await tx.appointment.update({
         where: { id: appointmentId },
         data: { status: 'COMPLETED' },
+      });
+      // AMBER-13 — status history for the CONFIRMED|PROPOSED → COMPLETED transition.
+      await tx.appointmentStatusHistory.create({
+        data: {
+          appointmentId,
+          fromStatus: priorStatus,
+          toStatus: 'COMPLETED',
+          changedBy: 'system',
+        },
       });
 
       // 4. Update visit request planning status

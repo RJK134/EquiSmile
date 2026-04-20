@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
 import { messageLogService } from '@/lib/services/message-log.service';
+import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
 
 interface AppointmentWithDetails {
   id: string;
@@ -194,6 +195,15 @@ export const confirmationService = {
         data: { confirmationSentAt: new Date() },
       });
     }
+
+    // AMBER-10: every dispatch attempt (success or failure) lands in the
+    // ConfirmationDispatch log so we can audit multi-send history.
+    await appointmentAuditService.logConfirmationDispatch({
+      appointmentId,
+      channel,
+      success: sent,
+      errorMessage: error ?? null,
+    });
 
     return { appointmentId, sent, channel, error };
   },

@@ -10,6 +10,7 @@ const sidebarItems = [
   { key: 'yards' as const, href: '/yards' },
   { key: 'horses' as const, href: '/horses' },
   { key: 'planning' as const, href: '/planning' },
+  { key: 'visitRequests' as const, href: '/visit-requests' },
   { key: 'routeRuns' as const, href: '/route-runs' },
   { key: 'appointments' as const, href: '/appointments' },
   { key: 'completed' as const, href: '/completed' },

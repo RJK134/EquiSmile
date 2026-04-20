@@ -1,5 +1,6 @@
 import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
+import { deadLetterService } from '@/lib/services/dead-letter.service';
 import {
   withRetry,
   circuitBreakers,
@@ -102,6 +103,13 @@ export const whatsappService = {
       return { messageId, success: true };
     } catch (error) {
       console.error('[WhatsApp] Send error', error);
+      // AMBER-15 — record the permanent failure for operator triage.
+      await deadLetterService.enqueue({
+        scope: 'whatsapp-send-text',
+        payload: { to, enquiryId, language, messagePreview: text.slice(0, 120) },
+        lastError: error,
+        operationKey: enquiryId ? `wa-text:${enquiryId}` : null,
+      });
       return { messageId: '', success: false };
     }
   },
@@ -196,6 +204,12 @@ export const whatsappService = {
       return { messageId, success: true };
     } catch (error) {
       console.error('[WhatsApp] Template send error', error);
+      await deadLetterService.enqueue({
+        scope: 'whatsapp-send-template',
+        payload: { to, templateName, language, enquiryId, parameters },
+        lastError: error,
+        operationKey: enquiryId ? `wa-tpl:${enquiryId}:${templateName}` : null,
+      });
       return { messageId: '', success: false };
     }
   },
