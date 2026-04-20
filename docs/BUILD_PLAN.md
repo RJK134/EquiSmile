@@ -262,3 +262,30 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Restart the app between two sends with the same idempotency key → second call still detects the dupe (was previously lost).
 - `POST /api/health` shows the new table in `prisma migrate status`.
 - Expired keys are pruned automatically on first `hasProcessed` read (self-healing).
+
+---
+
+## Phase 14 — Security Hardening (PR A: Auth + Headers)
+
+### Scope
+- Harden authentication and introduce defence-in-depth HTTP response headers.
+
+### Deliverables
+- `lib/auth/redirect.ts` — `isSafeCallbackUrl` / `safeCallbackUrl`. Rejects absolute URLs, protocol-relative URLs (`//evil`), percent-encoded variants, `javascript:`/`data:` schemes, path traversal, CR/LF/NUL injection, and oversize values. Wired into `middleware.ts`, `auth.ts` `redirect` callback, and `app/[locale]/login/page.tsx`.
+- `lib/auth/allowlist.ts` — upgraded to constant-time comparison via `crypto.timingSafeEqual` (no short-circuit walk; length-gated).
+- `auth.ts` — explicit secure cookie config (`__Secure-` / `__Host-` prefixes, `SameSite=Lax`, `HttpOnly`, `Secure` in production), 30-day session with 24-hour rotation, `trustHost` only when `AUTH_URL` is set, `useSecureCookies` in prod, `redirect` callback that enforces same-origin.
+- `lib/security/headers.ts` + middleware wiring — adds:
+  - `Content-Security-Policy` (pragmatic for HTML; strict `default-src 'none'; frame-ancestors 'none'` for API)
+  - `Strict-Transport-Security` (production only)
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy` (disables camera/mic/etc.)
+  - `Cross-Origin-Opener-Policy: same-origin`
+  - `Cross-Origin-Resource-Policy: same-origin`
+- Tests: 12 redirect tests + 8 header tests + 5 new allowlist tests + 2 new middleware tests.
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate` all pass (674 tests across 73 files).
+- Open-redirect vectors (`//evil`, `%2F%2Fevil`, `/javascript:...`, `/../admin`, CR/LF injection) are rejected by both the middleware callbackUrl attach step and the Auth.js `redirect` callback.
+- Non-allow-listed sign-in attempts are logged without identifiers; production cookies carry `__Secure-` prefix.

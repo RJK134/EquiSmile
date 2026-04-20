@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { auth } from '@/auth';
 import { routing } from './i18n/routing';
+import { safeCallbackUrl } from '@/lib/auth/redirect';
+import { applySecurityHeaders } from '@/lib/security/headers';
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -26,29 +28,35 @@ export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
-    return isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);
+    const response = isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);
+    return applySecurityHeaders(response, { pathname });
   }
 
   const session = await auth();
 
   if (!session?.user) {
     if (isApiPath(pathname)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return applySecurityHeaders(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        { pathname },
+      );
     }
     const localeMatch = pathname.match(/^\/([a-z]{2})(\/|$)/);
     const locale = localeMatch ? localeMatch[1] : routing.defaultLocale;
     const loginUrl = new URL(`/${locale}/login`, request.url);
     if (pathname !== '/') {
-      loginUrl.searchParams.set('callbackUrl', pathname);
+      // Only attach safe same-origin paths; guards against open-redirect
+      // via crafted /?callbackUrl=... on the sign-out page.
+      loginUrl.searchParams.set('callbackUrl', safeCallbackUrl(pathname, '/'));
     }
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl), { pathname });
   }
 
   if (isApiPath(pathname)) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next(), { pathname });
   }
 
-  return intlMiddleware(request);
+  return applySecurityHeaders(intlMiddleware(request), { pathname });
 }
 
 export const config = {
