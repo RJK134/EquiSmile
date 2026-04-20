@@ -4,6 +4,10 @@ import { resolve } from 'path';
 
 const ROOT = resolve(__dirname, '../../..');
 
+// NTFS has no Unix exec bit. Skip exec-bit assertions on Windows;
+// Unix CI/dev continue to enforce them.
+const itPosix = process.platform === 'win32' ? it.skip : it;
+
 describe('Demo startup scripts', () => {
   describe('scripts/demo-start.sh', () => {
     const scriptPath = resolve(ROOT, 'scripts/demo-start.sh');
@@ -12,7 +16,7 @@ describe('Demo startup scripts', () => {
       expect(existsSync(scriptPath)).toBe(true);
     });
 
-    it('is executable', () => {
+    itPosix('is executable', () => {
       const stat = statSync(scriptPath);
       // Check owner execute bit (0o100)
       expect(stat.mode & 0o111).toBeGreaterThan(0);
@@ -61,7 +65,7 @@ describe('Demo startup scripts', () => {
       expect(existsSync(scriptPath)).toBe(true);
     });
 
-    it('is executable', () => {
+    itPosix('is executable', () => {
       const stat = statSync(scriptPath);
       expect(stat.mode & 0o111).toBeGreaterThan(0);
     });
@@ -169,7 +173,7 @@ describe('n8n database init script', () => {
     expect(existsSync(initScriptPath)).toBe(true);
   });
 
-  it('is executable', () => {
+  itPosix('is executable', () => {
     const stat = statSync(initScriptPath);
     expect(stat.mode & 0o111).toBeGreaterThan(0);
   });
