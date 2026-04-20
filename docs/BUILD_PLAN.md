@@ -289,3 +289,40 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - `npm run lint`, `typecheck`, `test`, `prisma validate` all pass (674 tests across 73 files).
 - Open-redirect vectors (`//evil`, `%2F%2Fevil`, `/javascript:...`, `/../admin`, CR/LF injection) are rejected by both the middleware callbackUrl attach step and the Auth.js `redirect` callback.
 - Non-allow-listed sign-in attempts are logged without identifiers; production cookies carry `__Secure-` prefix.
+
+---
+
+## Phase 14 — Security Hardening (PR B: RBAC + Audit Log)
+
+### Scope
+- Enforce least-privilege on sensitive API routes and record every security-relevant action in an append-only audit log.
+
+### Deliverables
+- `lib/auth/rbac.ts` — `ROLES` enum (`admin | vet | nurse | readonly`) + `normaliseRole` + `hasRole` + `requireAuth` + `requireRole` + `withRole` + `AuthzError`. Unknown roles default to `readonly` (deny-by-default).
+- Prisma: `SecurityAuditLog` + `SecurityAuditEvent` enum with 17 event types. Additive migration `20260420130000_phase14_security_audit`.
+- `lib/services/security-audit.service.ts`: `record(event, actor, ...)` (best-effort, never blocks the primary request), `recent({limit, event})` for admin dashboards; detail is truncated to 500 chars; no secrets.
+- Route lockdowns (with audit where appropriate):
+  - `GET/POST /api/export/vetup` → **ADMIN** + `EXPORT_DATASET` audit
+  - `POST /api/staff` → **ADMIN** + `STAFF_CREATED`
+  - `PATCH /api/staff/[id]` → **ADMIN** + `ROLE_CHANGED` | `STAFF_UPDATED`
+  - `DELETE /api/staff/[id]` → **ADMIN** + `STAFF_DEACTIVATED`
+  - `GET /api/staff` + `GET /api/staff/[id]` → **READONLY**
+  - `POST/DELETE /api/staff/assign` → **VET**
+  - `GET /api/attachments/[id]` → **NURSE** + `ATTACHMENT_DOWNLOADED`
+  - `DELETE /api/attachments/[id]` → **VET** + `ATTACHMENT_DELETED`
+  - `POST /api/attachments/[id]/analyse` → **VET** + `VISION_ANALYSIS_INVOKED`
+  - `GET /api/horses/[id]/attachments` → **NURSE**
+  - `POST /api/horses/[id]/attachments` → **VET** (uploader attribution taken from session, not form)
+  - `GET /api/horses/[id]/clinical` → **NURSE**
+  - `POST /api/horses/[id]/clinical` (dentalChart/finding/prescription) → **VET** + `CLINICAL_RECORD_CREATED`
+  - `PATCH /api/prescriptions/[id]` → **VET** + `PRESCRIPTION_STATUS_CHANGED`
+  - `GET /api/status` → **ADMIN**
+- `auth.ts` sign-in denial callback writes `SIGN_IN_DENIED` audit events with a coarse actor label (no denied-user identifiers stored).
+- `/api/setup` lint warning cleaned up as a drive-by.
+- Tests: 15 RBAC tests + 10 audit-service tests. Net 695 passing across 75 files.
+
+### Verification
+- A `nurse` cannot `POST /api/horses/<id>/clinical` or `DELETE /api/attachments/<id>` (403).
+- A `readonly` cannot `POST /api/staff` (403) but can `GET /api/customers`.
+- A `vet` cannot `GET /api/export/vetup` (admin-only).
+- Every admin export, attachment delete/download, clinical mutation, prescription status change, and vision-analysis invocation lands in `SecurityAuditLog`.

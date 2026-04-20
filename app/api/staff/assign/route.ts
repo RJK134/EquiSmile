@@ -2,14 +2,17 @@ import { NextRequest } from 'next/server';
 import { staffService } from '@/lib/services/staff.service';
 import { assignAppointmentSchema, assignRouteRunSchema } from '@/lib/validations/staff.schema';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
 
 /**
- * POST /api/staff/assign
- * Body: { target: 'appointment', ...assignAppointmentSchema }
- *       | { target: 'routeRun', ...assignRouteRunSchema }
+ * Staff assignment changes affect operational scheduling; VET+ is
+ * enough (the lead vet can reassign rounds). Audit is not required for
+ * every assignment — the domain RouteRun/Appointment tables already
+ * carry an updatedAt marker.
  */
 export async function POST(request: NextRequest) {
   try {
+    await requireRole(ROLES.VET);
     const body = await request.json();
 
     if (body.target === 'appointment') {
@@ -26,12 +29,14 @@ export async function POST(request: NextRequest) {
 
     return errorResponse("target must be 'appointment' or 'routeRun'", 400);
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
+    await requireRole(ROLES.VET);
     const body = await request.json();
 
     if (body.target === 'appointment') {
@@ -48,6 +53,7 @@ export async function DELETE(request: NextRequest) {
 
     return errorResponse("target must be 'appointment' or 'routeRun'", 400);
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }

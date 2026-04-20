@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { vetupExportService } from '@/lib/services/vetup-export.service';
 import { handleApiError, errorResponse } from '@/lib/api-utils';
+import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 
 function filename(base: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -9,10 +11,21 @@ function filename(base: string): string {
 
 /**
  * GET /api/export/vetup?profile=patient|customers|yards
- * Returns a CSV stream for importing into VetUp (or any patient-centric PMS).
- * Default profile is `patient` (one row per horse with denormalised owner + yard).
+ *
+ * Bulk CSV export of customer / horse / yard data. Restricted to
+ * `ROLES.ADMIN` because it emits personally-identifiable information
+ * (names, phone numbers, email addresses, locations) for the entire
+ * dataset. Every invocation is appended to `SecurityAuditLog`.
  */
 export async function GET(request: NextRequest) {
+  let subject: Awaited<ReturnType<typeof requireRole>>;
+  try {
+    subject = await requireRole(ROLES.ADMIN);
+  } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
+    return handleApiError(error);
+  }
+
   try {
     const profile = request.nextUrl.searchParams.get('profile') ?? 'patient';
 
@@ -34,6 +47,16 @@ export async function GET(request: NextRequest) {
       default:
         return errorResponse(`Unknown profile '${profile}' (expected: patient, customers, yards)`, 400);
     }
+
+    // Best-effort audit entry — await so a failure is surfaced but never
+    // blocks the export itself (the service catches its own errors).
+    await securityAuditService.record({
+      event: 'EXPORT_DATASET',
+      actor: subject,
+      targetType: 'vetup-export',
+      targetId: profile,
+      detail: `profile=${profile}; size=${csv.length} bytes`,
+    });
 
     return new Response(csv, {
       status: 200,
