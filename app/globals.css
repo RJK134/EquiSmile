@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #1e40af;
-  --color-primary-light: #3b82f6;
-  --color-primary-dark: #1e3a8a;
+  /* Brand palette — maroon per PHASE_1_MASTER_PROMPT § 1.2 and Logo.png. */
+  --color-primary: #9b214d;
+  --color-primary-light: #c23b6c;
+  --color-primary-dark: #6f1738;
   --color-accent: #059669;
   --color-accent-light: #10b981;
   --color-warning: #d97706;
