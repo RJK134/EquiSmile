@@ -3,6 +3,11 @@ import { vetupExportService } from '@/lib/services/vetup-export.service';
 import { handleApiError, errorResponse } from '@/lib/api-utils';
 import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
 import { securityAuditService } from '@/lib/services/security-audit.service';
+import { rateLimiter, rateLimitedResponse } from '@/lib/utils/rate-limit';
+
+// 10 bulk exports per admin per hour is more than any human operator
+// needs; a tighter cap discourages automated exfil attempts.
+const exportLimiter = rateLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
 
 function filename(base: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -25,6 +30,9 @@ export async function GET(request: NextRequest) {
     if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
+
+  const decision = exportLimiter.check(`export:${subject.id}`);
+  if (!decision.allowed) return rateLimitedResponse(decision);
 
   try {
     const profile = request.nextUrl.searchParams.get('profile') ?? 'patient';

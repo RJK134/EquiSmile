@@ -7,6 +7,11 @@ import { normaliseEmail } from '@/lib/utils/email';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
+import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+
+// n8n typically batches a handful of emails per minute; cap generously
+// at 200/min per IP to catch misconfigured loops.
+const emailWebhookLimiter = rateLimiter({ windowMs: 60_000, max: 200 });
 
 // ---------------------------------------------------------------------------
 // Validation schema for email intake payload
@@ -30,6 +35,11 @@ type EmailPayload = z.infer<typeof emailPayloadSchema>;
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
+  // Per-IP rate limit first so burst abuse doesn't burn CPU on
+  // signature/parse work.
+  const decision = emailWebhookLimiter.check(clientKeyFromRequest(request, 'email-wh'));
+  if (!decision.allowed) return rateLimitedResponse(decision);
+
   // Authenticate with n8n API key
   const authHeader = request.headers.get('authorization');
   if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {

@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'crypto';
-import { verifyWhatsAppSignature, verifyN8nApiKey } from '@/lib/utils/signature';
+import {
+  verifyWhatsAppSignature,
+  verifyN8nApiKey,
+  verifyWhatsAppVerifyToken,
+  constantTimeStringEquals,
+} from '@/lib/utils/signature';
 
 describe('verifyWhatsAppSignature', () => {
   const appSecret = 'test-app-secret';
@@ -56,5 +61,36 @@ describe('verifyN8nApiKey', () => {
 
   it('rejects empty expected key', () => {
     expect(verifyN8nApiKey('Bearer test', '')).toBe(false);
+  });
+});
+
+describe('verifyWhatsAppVerifyToken', () => {
+  it('returns true for equal tokens', () => {
+    expect(verifyWhatsAppVerifyToken('my-token', 'my-token')).toBe(true);
+  });
+
+  it('returns false for different tokens of equal length', () => {
+    expect(verifyWhatsAppVerifyToken('my-token', 'my-tokez')).toBe(false);
+  });
+
+  it('returns false for different-length tokens without throwing', () => {
+    expect(verifyWhatsAppVerifyToken('short', 'way-longer-token')).toBe(false);
+  });
+
+  it('returns false for null/undefined/empty inputs', () => {
+    expect(verifyWhatsAppVerifyToken(null, 'expected')).toBe(false);
+    expect(verifyWhatsAppVerifyToken('received', undefined)).toBe(false);
+    expect(verifyWhatsAppVerifyToken('', 'expected')).toBe(false);
+  });
+});
+
+describe('constantTimeStringEquals', () => {
+  it('handles unicode without throwing', () => {
+    expect(constantTimeStringEquals('café', 'café')).toBe(true);
+    expect(constantTimeStringEquals('café', 'cafe')).toBe(false);
+  });
+
+  it('returns false for unequal-length strings', () => {
+    expect(constantTimeStringEquals('abc', 'abcd')).toBe(false);
   });
 });
