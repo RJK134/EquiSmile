@@ -259,30 +259,32 @@ export const rescheduleService = {
    * Mark an appointment as no-show (admin action).
    */
   async markNoShow(appointmentId: string): Promise<void> {
-    const appointment = await prisma.appointment.findUnique({
-      where: { id: appointmentId },
-    });
+    return prisma.$transaction(async (tx) => {
+      const appointment = await tx.appointment.findUnique({
+        where: { id: appointmentId },
+      });
 
-    if (!appointment) {
-      throw new Error('Appointment not found');
-    }
+      if (!appointment) {
+        throw new Error('Appointment not found');
+      }
 
-    if (appointment.status === 'COMPLETED' || appointment.status === 'CANCELLED') {
-      throw new Error(`Cannot mark as no-show: appointment is ${appointment.status}`);
-    }
+      if (appointment.status === 'COMPLETED' || appointment.status === 'CANCELLED') {
+        throw new Error(`Cannot mark as no-show: appointment is ${appointment.status}`);
+      }
 
-    const priorStatus = appointment.status;
-    await prisma.appointment.update({
-      where: { id: appointmentId },
-      data: { status: 'NO_SHOW' },
-    });
-    await prisma.appointmentStatusHistory.create({
-      data: {
-        appointmentId,
-        fromStatus: priorStatus,
-        toStatus: 'NO_SHOW',
-        changedBy: 'system',
-      },
+      const priorStatus = appointment.status;
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: { status: 'NO_SHOW' },
+      });
+      await tx.appointmentStatusHistory.create({
+        data: {
+          appointmentId,
+          fromStatus: priorStatus,
+          toStatus: 'NO_SHOW',
+          changedBy: 'system',
+        },
+      });
     });
   },
 };

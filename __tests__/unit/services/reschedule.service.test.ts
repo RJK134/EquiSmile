@@ -42,6 +42,18 @@ import { rescheduleService } from '@/lib/services/reschedule.service';
 describe('rescheduleService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        appointment: {
+          findUnique: mockAppointmentFindUnique,
+          update: mockAppointmentUpdate,
+        },
+        appointmentStatusHistory: {
+          create: mockStatusHistoryCreate,
+        },
+      };
+      return fn(tx);
+    });
   });
 
   describe('parseCustomerIntent', () => {
@@ -157,12 +169,22 @@ describe('rescheduleService', () => {
         status: 'CONFIRMED',
       });
       mockAppointmentUpdate.mockResolvedValue({});
+      mockStatusHistoryCreate.mockResolvedValue({});
 
       await rescheduleService.markNoShow('appt1');
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockAppointmentUpdate).toHaveBeenCalledWith({
         where: { id: 'appt1' },
         data: { status: 'NO_SHOW' },
+      });
+      expect(mockStatusHistoryCreate).toHaveBeenCalledWith({
+        data: {
+          appointmentId: 'appt1',
+          fromStatus: 'CONFIRMED',
+          toStatus: 'NO_SHOW',
+          changedBy: 'system',
+        },
       });
     });
   });
