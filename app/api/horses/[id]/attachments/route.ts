@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { attachmentService, ATTACHMENT_LIMITS } from '@/lib/services/attachment.service';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
+import { staffRepository } from '@/lib/repositories/staff.repository';
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -39,12 +40,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const description = form.get('description');
-    const formStaffId = form.get('uploadedById');
-    // Trust the session for attribution; fall back to the form value only
-    // when the subject did not propagate one (never trust unauth'd input
-    // to set the uploader identity).
-    const uploadedById =
-      typeof formStaffId === 'string' && formStaffId.length > 0 ? formStaffId : subject.id;
+
+    // Uploader attribution MUST come from the authenticated session only.
+    // We deliberately do NOT read `uploadedById` (or any identity-like field)
+    // from the multipart form — an authenticated vet could otherwise spoof
+    // the uploader and blame a colleague.
+    //
+    // `subject.id` is the Auth.js `User.id`. The attachment FK points at
+    // `Staff.id`, so we resolve via the optional 1:1 link `Staff.userId`.
+    // If this operator hasn't been linked to a Staff row yet, attribution
+    // falls back to `null` (best-effort: the session still provides audit
+    // via `SecurityAuditLog` at higher layers).
+    const staff = await staffRepository.findByUserId(subject.id);
+    const uploadedById = staff?.id ?? null;
 
     const attachment = await attachmentService.upload({
       horseId: id,
