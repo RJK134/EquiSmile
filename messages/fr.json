@@ -19,6 +19,44 @@
     "emailRequired": "Veuillez saisir une adresse e-mail valide.",
     "linkSendFailed": "Impossible d'envoyer le lien de connexion. Veuillez réessayer."
   },
+  "staff": {
+    "title": "Personnel",
+    "subtitle": "Vétérinaires, infirmiers et administration — affectez-les aux visites et tournées",
+    "empty": "Aucun membre du personnel. Ajoutez un premier vétérinaire pour activer les affectations.",
+    "newStaff": "Ajouter",
+    "email": "E-mail",
+    "phone": "Téléphone",
+    "deactivate": "Désactiver",
+    "reactivate": "Réactiver",
+    "role": {
+      "vet": "Vétérinaire",
+      "admin": "Administration",
+      "nurse": "Infirmier·ère"
+    },
+    "form": {
+      "title": "Ajouter un membre",
+      "name": "Nom",
+      "role": "Rôle",
+      "email": "E-mail",
+      "phone": "Téléphone",
+      "colour": "Couleur du calendrier",
+      "colourHelp": "Code hexadécimal identifiant ce vétérinaire sur la carte et le calendrier (ex. #9b214d).",
+      "notes": "Notes"
+    },
+    "assignment": {
+      "primary": "Vétérinaire principal",
+      "secondary": "Conjoint",
+      "assistant": "Assistant",
+      "lead": "Vétérinaire responsable",
+      "assignVet": "Affecter un vétérinaire",
+      "noneAssigned": "Aucun vétérinaire affecté",
+      "selectVet": "Sélectionnez un vétérinaire"
+    },
+    "calendarFilter": {
+      "label": "Filtrer par vétérinaire",
+      "all": "Tous les vétérinaires"
+    }
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "enquiries": "Demandes",
@@ -28,6 +66,7 @@
     "planning": "Planification",
     "yards": "Écuries",
     "horses": "Chevaux",
+    "staff": "Personnel",
     "completed": "Terminés",
     "more": "Plus"
   },

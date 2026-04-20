@@ -13,6 +13,7 @@ const sidebarItems = [
   { key: 'routeRuns' as const, href: '/route-runs' },
   { key: 'appointments' as const, href: '/appointments' },
   { key: 'completed' as const, href: '/completed' },
+  { key: 'staff' as const, href: '/staff' },
 ];
 
 export function Sidebar() {
