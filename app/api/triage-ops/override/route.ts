@@ -1,23 +1,28 @@
 import { NextRequest } from 'next/server';
 import { overrideService } from '@/lib/services/override.service';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { getCurrentUser, performedByFor } from '@/lib/auth/session';
 
 /**
  * POST /api/triage-ops/override
  * Perform a manual override action on a visit request.
  *
- * Body: { action, visitRequestId, reason, performedBy?, ...actionParams }
+ * Body: { action, visitRequestId, reason, ...actionParams }
+ * performedBy is taken from the authenticated session, not the request body.
  * Actions: overrideUrgency, overrideRequestType, overridePlanningStatus,
  *          forceToPool, forceToUrgentReview, addClinicalNote
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, visitRequestId, reason, performedBy } = body;
+    const { action, visitRequestId, reason } = body;
 
     if (!action || !visitRequestId || !reason) {
       return errorResponse('action, visitRequestId, and reason are required', 400);
     }
+
+    const user = await getCurrentUser();
+    const performedBy = performedByFor(user);
 
     const base = { visitRequestId, reason, performedBy };
 

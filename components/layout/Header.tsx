@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 export function Header() {
   const t = useTranslations('app');
@@ -12,7 +13,10 @@ export function Header() {
         <span className="text-lg font-bold text-primary">{t('name')}</span>
         <span className="hidden text-sm text-muted sm:inline">{t('tagline')}</span>
       </div>
-      <LanguageSwitcher />
+      <div className="flex items-center gap-3">
+        <LanguageSwitcher />
+        <UserMenu />
+      </div>
     </header>
   );
 }

@@ -130,3 +130,31 @@ Following the release of `rc/v1.0.0`, a retrospective verification pass was run 
 **State drift:** The audit was anchored at `fbafbd9`. During publication, PRs #13–#17 landed Phase 12 work on `main` (current HEAD `3e295ba`). AMBER-03 (seed counts) was resolved by PR #17's seed split; remaining AMBERs re-verified against the diff and stand.
 
 Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER-02), Phase 6 data-model richness (AMBER-08 through AMBER-13), and idempotency store externalisation (AMBER-14). See the findings file for the per-deliverable evidence tables.
+
+---
+
+## Phase 9 — Authentication (GitHub OAuth)
+
+### Scope
+- Gate the internal operations UI behind GitHub sign-in using Auth.js v5 with the `@auth/prisma-adapter`.
+- Restrict access to an env-driven allow-list (`ALLOWED_GITHUB_LOGINS`), matching either GitHub login or email (case-insensitive).
+- Add standard Auth.js Prisma models (`User`, `Account`, `Session`, `VerificationToken`) with a `role` column and `githubLogin` stored on `User` for future RBAC and audit wiring.
+- Chain Auth.js middleware with the existing `next-intl` middleware; keep `/api/webhooks/*` (n8n) and `/api/auth/*` public.
+- Replace the hard-coded `performedBy = "admin"` default in `app/api/triage-ops/override/route.ts` with the signed-in user's GitHub login/email.
+
+### Deliverables
+- `auth.ts`, `lib/auth/allowlist.ts`, `lib/auth/session.ts`
+- `app/api/auth/[...nextauth]/route.ts`
+- `app/[locale]/login/page.tsx`, `components/auth/{SignInButton,UserMenu,AuthSessionProvider}.tsx`
+- Prisma schema + migration for auth tables
+- Updated `middleware.ts`, `lib/utils/env-check.ts`, `.env.example`
+- Allow-list + middleware unit tests
+- Docs: SETUP (GitHub OAuth App section), ARCHITECTURE (Authentication section), KNOWN_ISSUES (KI-006)
+
+### Verification
+- `npm run lint && npm run typecheck && npm run test` pass.
+- `npx prisma validate` passes and a `prisma migrate dev` run creates the four auth tables.
+- Unauthenticated visits to any locale route redirect to `/{locale}/login`.
+- Allow-listed GitHub account signs in successfully; non-allow-listed account is denied with the `notAuthorised` banner.
+- `/api/webhooks/whatsapp` still accepts n8n calls with `N8N_API_KEY` alone (no session).
+- Triage override creates audit rows with `performedBy` set to the signed-in user, not `"admin"`.

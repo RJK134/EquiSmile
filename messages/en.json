@@ -3,6 +3,14 @@
     "name": "EquiSmile",
     "tagline": "Equine Dental Operations"
   },
+  "auth": {
+    "loginTitle": "Sign in to EquiSmile",
+    "loginSubtitle": "Internal operations app — staff access only.",
+    "signInWithGithub": "Sign in with GitHub",
+    "signOut": "Sign out",
+    "notAuthorised": "This GitHub account is not authorised to access EquiSmile. Contact an administrator if you believe this is a mistake.",
+    "signingIn": "Signing in…"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "enquiries": "Enquiries",

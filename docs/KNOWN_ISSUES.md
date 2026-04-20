@@ -9,6 +9,7 @@
 | KI-003 | 7 | Low | PWA offline queue does not retry mutations in the original submission order if multiple were queued | Mutations are eventually consistent; order rarely matters for this app's use case |
 | KI-004 | 3 | Medium | WhatsApp webhook verification requires the app to be publicly accessible — not possible in local dev | Use ngrok or similar tunnel for local WhatsApp testing |
 | KI-005 | 4 | Low | Auto-triage confidence scores are heuristic-based and may misclassify edge cases | Manual override is available; triage tasks created for low-confidence classifications |
+| KI-006 | 9 | Info | `/api/webhook/*` routes intentionally bypass session auth and stay behind the separate `N8N_API_KEY` check. This is by design — n8n calls these server-to-server without a browser session. | No action; enforced in `middleware.ts` via `PUBLIC_PATH_PATTERNS`. |
 
 ## v1.0.0 Retrospective Audit — AMBER items (2026-04-20)
 

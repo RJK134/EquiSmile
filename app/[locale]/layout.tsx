@@ -6,6 +6,8 @@ import { routing } from '@/i18n/routing';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { AuthSessionProvider } from '@/components/auth/AuthSessionProvider';
+import { auth } from '@/auth';
 import '@/app/globals.css';
 
 export const metadata: Metadata = {
@@ -35,19 +37,21 @@ export default async function LocaleLayout({
     notFound();
   }
 
-  const messages = await getMessages();
+  const [messages, session] = await Promise.all([getMessages(), auth()]);
 
   return (
     <html lang={locale} className="h-full">
       <body className="h-full bg-surface text-foreground antialiased">
-        <NextIntlClientProvider messages={messages}>
-          <ErrorBoundary>
-            <ToastProvider>
-              <OfflineBanner />
-              {children}
-            </ToastProvider>
-          </ErrorBoundary>
-        </NextIntlClientProvider>
+        <AuthSessionProvider session={session}>
+          <NextIntlClientProvider messages={messages}>
+            <ErrorBoundary>
+              <ToastProvider>
+                <OfflineBanner />
+                {children}
+              </ToastProvider>
+            </ErrorBoundary>
+          </NextIntlClientProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

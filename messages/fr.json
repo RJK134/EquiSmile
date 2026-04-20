@@ -3,6 +3,14 @@
     "name": "EquiSmile",
     "tagline": "Opérations dentaires équines"
   },
+  "auth": {
+    "loginTitle": "Connexion à EquiSmile",
+    "loginSubtitle": "Application interne — accès réservé au personnel.",
+    "signInWithGithub": "Se connecter avec GitHub",
+    "signOut": "Se déconnecter",
+    "notAuthorised": "Ce compte GitHub n'est pas autorisé à accéder à EquiSmile. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+    "signingIn": "Connexion en cours…"
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "enquiries": "Demandes",

@@ -13,6 +13,14 @@ interface EnvCheckResult {
 
 const REQUIRED_VARS = ['DATABASE_URL'] as const;
 
+// Auth vars are required in non-demo mode (the app requires sign-in to access any UI).
+const AUTH_REQUIRED_VARS = [
+  'AUTH_SECRET',
+  'AUTH_GITHUB_ID',
+  'AUTH_GITHUB_SECRET',
+  'ALLOWED_GITHUB_LOGINS',
+] as const;
+
 const OPTIONAL_GROUPS: Array<{ label: string; vars: string[] }> = [
   {
     label: 'WhatsApp',
@@ -54,6 +62,16 @@ export function checkEnvironment(): EnvCheckResult {
   for (const key of REQUIRED_VARS) {
     if (!process.env[key]) {
       errors.push(`Missing required env var: ${key}`);
+    }
+  }
+
+  // Auth vars — required unless explicitly in demo mode.
+  const demoMode = process.env.DEMO_MODE === 'true';
+  if (!demoMode) {
+    for (const key of AUTH_REQUIRED_VARS) {
+      if (!process.env[key]) {
+        errors.push(`Missing required auth env var: ${key}`);
+      }
     }
   }
 
