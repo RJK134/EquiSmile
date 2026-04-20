@@ -190,6 +190,10 @@ model Yard {
   longitude      Float?
   geocodeFailed  Boolean  @default(false)
   geocodedAt     DateTime?
+  // AMBER-06 remediation — record provenance / quality of the geocode result.
+  geocodeSource    String?
+  geocodePrecision String?  // ROOFTOP / RANGE_INTERPOLATED / GEOMETRIC_CENTER / APPROXIMATE
+  formattedAddress String?
   accessNotes    String?
   areaLabel      String?
   createdAt      DateTime @default(now())
@@ -412,6 +416,9 @@ model Appointment {
   visitOutcome VisitOutcome?
   assignments  AppointmentAssignment[]
   prescriptions Prescription[]
+  confirmationDispatches ConfirmationDispatch[]
+  responses              AppointmentResponse[]
+  statusHistory          AppointmentStatusHistory[]
 
   @@index([visitRequestId])
   @@index([status])
@@ -672,6 +679,94 @@ model Prescription {
   @@index([horseId])
   @@index([status])
   @@index([prescribedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Appointment auditability — Phase 14 PR D (AMBER-10, AMBER-11, AMBER-13).
+// ---------------------------------------------------------------------------
+
+// AMBER-10: every outbound confirmation send produces one row.
+model ConfirmationDispatch {
+  id            String              @id @default(uuid())
+  appointmentId String
+  channel       ConfirmationChannel
+  sentAt        DateTime            @default(now())
+  success       Boolean             @default(true)
+  externalMessageId String?
+  errorMessage  String?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@index([sentAt])
+}
+
+// AMBER-11: inbound customer replies to confirmations (confirmed / cancelled /
+// reschedule) linked directly to the appointment.
+enum AppointmentResponseKind {
+  CONFIRMED
+  CANCELLED
+  RESCHEDULE_REQUESTED
+  OTHER
+}
+
+model AppointmentResponse {
+  id            String                  @id @default(uuid())
+  appointmentId String
+  kind          AppointmentResponseKind @default(OTHER)
+  channel       ConfirmationChannel
+  receivedAt    DateTime                @default(now())
+  rawText       String?
+  // Optional link back to the EnquiryMessage we parsed this reply out of.
+  enquiryMessageId String?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@index([kind])
+  @@index([receivedAt])
+}
+
+// AMBER-13: tamper-evident status history. Each `Appointment.status` change
+// emits one row. The domain service writes these alongside status mutations.
+model AppointmentStatusHistory {
+  id            String            @id @default(uuid())
+  appointmentId String
+  fromStatus    AppointmentStatus?
+  toStatus      AppointmentStatus
+  changedBy     String
+  reason        String?
+  changedAt     DateTime          @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@index([changedAt])
+}
+
+// AMBER-15: dead-letter queue for permanent failures after the retry loop
+// exhausts. Callers enqueue here when `withRetry` throws a RetryError; an
+// operator can inspect and replay later.
+enum FailedOperationStatus {
+  PENDING
+  REPLAYED
+  ABANDONED
+}
+
+model FailedOperation {
+  id          String                @id @default(uuid())
+  scope       String                // e.g. "whatsapp-send-text"
+  operationKey String?              // idempotency key if one existed
+  payload     String                // JSON string, redacted
+  lastError   String
+  attempts    Int                   @default(0)
+  status      FailedOperationStatus @default(PENDING)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([scope])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------

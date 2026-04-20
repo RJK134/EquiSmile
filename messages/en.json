@@ -26,6 +26,7 @@
     "routeRuns": "Routes",
     "appointments": "Appointments",
     "planning": "Planning",
+    "visitRequests": "Visit Requests",
     "yards": "Yards",
     "horses": "Horses",
     "staff": "Staff",
@@ -288,6 +289,14 @@
     "auditHistory": "Audit History",
     "noAuditHistory": "No override history.",
     "taskCount": "{count} tasks"
+  },
+  "visitRequests": {
+    "title": "Visit Requests",
+    "subtitle": "Every triaged request across the planning pipeline",
+    "empty": "No visit requests match the current filters.",
+    "allStatuses": "All statuses",
+    "allUrgencies": "All urgencies",
+    "open": "Open"
   },
   "planning": {
     "title": "Planning Pool",

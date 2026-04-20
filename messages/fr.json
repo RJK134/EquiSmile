@@ -64,6 +64,7 @@
     "routeRuns": "Itinéraires",
     "appointments": "Rendez-vous",
     "planning": "Planification",
+    "visitRequests": "Demandes de visite",
     "yards": "Écuries",
     "horses": "Chevaux",
     "staff": "Personnel",
@@ -288,6 +289,14 @@
     "auditHistory": "Historique d'audit",
     "noAuditHistory": "Aucun historique de remplacement.",
     "taskCount": "{count} tâches"
+  },
+  "visitRequests": {
+    "title": "Demandes de visite",
+    "subtitle": "Toutes les demandes triées dans le pipeline de planification",
+    "empty": "Aucune demande de visite ne correspond aux filtres.",
+    "allStatuses": "Tous les statuts",
+    "allUrgencies": "Toutes les urgences",
+    "open": "Ouvrir"
   },
   "planning": {
     "title": "Pool de planification",

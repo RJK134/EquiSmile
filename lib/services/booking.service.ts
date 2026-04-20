@@ -82,6 +82,17 @@ export const bookingService = {
         });
         appointmentIds.push(appointment.id);
 
+        // AMBER-13 — record the initial status.
+        await tx.appointmentStatusHistory.create({
+          data: {
+            appointmentId: appointment.id,
+            fromStatus: null,
+            toStatus: 'PROPOSED',
+            changedBy: 'system',
+            reason: `created from route-run ${routeRunId}`,
+          },
+        });
+
         // 2b. Update visit request: PROPOSED → BOOKED
         await tx.visitRequest.update({
           where: { id: stop.visitRequestId },

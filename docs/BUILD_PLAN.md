@@ -352,3 +352,46 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 ### Limits / follow-ups
 - The rate limiter is in-memory per Node instance. Horizontal scaling needs a Redis (or Postgres — same pattern as `IdempotencyKey`) backend.
 - The `log-redact` utility is available but not yet automatically wired into every `console.log`; adopt on a per-call basis as call sites are reviewed.
+
+---
+
+## Phase 14 — Security Hardening (PR D: AMBER gap closure)
+
+### Scope
+- Resolve the functional gaps logged during the v1.0.0 retrospective audit. Split across three data-model additions, three audit-service wirings, a dead-letter queue, a visit-requests operator page, and docs reconciliation for the items that were naming/narrative gaps rather than code gaps.
+
+### Deliverables
+- Prisma additive migration `20260420140000_phase14_amber_gap_closure`:
+  - AMBER-06: `Yard` gets nullable `geocodeSource`, `geocodePrecision`, `formattedAddress`.
+  - AMBER-10: `ConfirmationDispatch { appointmentId, channel, sentAt, success, externalMessageId?, errorMessage? }`.
+  - AMBER-11: `AppointmentResponse { appointmentId, kind, channel, receivedAt, rawText?, enquiryMessageId? }` + `AppointmentResponseKind` enum.
+  - AMBER-13: `AppointmentStatusHistory { appointmentId, fromStatus?, toStatus, changedBy, reason?, changedAt }`.
+  - AMBER-15: `FailedOperation { scope, operationKey?, payload, lastError, attempts, status, createdAt, updatedAt }` + `FailedOperationStatus` enum.
+- `lib/services/appointment-audit.service.ts`: `logConfirmationDispatch`, `logResponse`, `logStatusChange` (skips no-op transitions), plus readers. Best-effort writes.
+- `lib/services/dead-letter.service.ts`: `enqueue` (runs `redact()` + caps sizes), `list({status,scope,limit})`, `markStatus`.
+- Wirings:
+  - `confirmationService.sendConfirmation` writes a `ConfirmationDispatch` row on every attempt (success or failure).
+  - `bookingService.bookRoute`, `rescheduleService.cancelAppointment` / `markNoShow`, `visitOutcomeService.completeVisit` each write `AppointmentStatusHistory` rows in the same transaction as the status mutation.
+  - `whatsappService.sendTextMessage` / `sendTemplateMessage` and `emailService.sendEmail` enqueue `FailedOperation` rows on permanent failure.
+- `app/[locale]/visit-requests/page.tsx` (AMBER-04) — list view with planning-status + urgency filters; sidebar entry + EN/FR i18n.
+- Docs: `docs/ARCHITECTURE.md` new "Domain vocabulary reconciliation" section (AMBER-05, 07, 08, 12) with explicit mapping tables; `docs/KNOWN_ISSUES.md` updated — 10 AMBERs closed.
+- `eslint.config.mjs`: `argsIgnorePattern: ^_` so `_text`-style deliberately-unused args stop tripping the linter.
+- Tests: 6 appointment-audit + 7 dead-letter = 13 new tests. Net (pre-PR D baseline 722) → see running-totals below.
+
+### AMBERs closed in PR D
+- AMBER-04 (code) — `/visit-requests` route + UI
+- AMBER-05 (docs) — triage vocabulary reconciliation
+- AMBER-06 (code) — geocoding metadata
+- AMBER-07 (docs) — RouteRun naming rationale
+- AMBER-08 (docs) — AppointmentStatus rationale
+- AMBER-10 (code) — `ConfirmationDispatch`
+- AMBER-11 (code) — `AppointmentResponse`
+- AMBER-12 (docs) — `ReminderSchedule` rationale
+- AMBER-13 (code) — `AppointmentStatusHistory`
+- AMBER-15 (code) — `FailedOperation` DLQ
+
+### Verification
+- `SELECT event, actor, targetType FROM "SecurityAuditLog"` after a full booking → cancellation cycle shows the expected trail of events AND `AppointmentStatusHistory` shows `null → PROPOSED → CANCELLED`.
+- Forcing a WhatsApp send against an invalid phone number enqueues a `FailedOperation` row whose `payload` contains `[redacted]` for any Bearer/api_key value that may have been attempted.
+- `/en/visit-requests` loads at 390px width; filters refine the returned list.
+- Only documentation-only AMBERs remain open: AMBER-09 (`AppointmentHorse` link table) — deferred per the audit note (adequate until per-appointment horse metadata is tracked).

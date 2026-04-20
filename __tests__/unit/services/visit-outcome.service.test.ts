@@ -29,6 +29,7 @@ describe('visitOutcomeService', () => {
           visitRequest: { create: vi.fn(), update: vi.fn() },
           routeRunStop: { updateMany: vi.fn() },
           horse: { updateMany: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });
@@ -57,6 +58,7 @@ describe('visitOutcomeService', () => {
           visitRequest: { create: vi.fn(), update: vi.fn() },
           routeRunStop: { updateMany: vi.fn() },
           horse: { updateMany: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });
@@ -91,6 +93,7 @@ describe('visitOutcomeService', () => {
           visitRequest: { create: vi.fn(), update: mockVrUpdate },
           routeRunStop: { updateMany: vi.fn() },
           horse: { updateMany: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });
@@ -144,6 +147,7 @@ describe('visitOutcomeService', () => {
           visitRequest: { create: mockVrCreate, update: vi.fn().mockResolvedValue({}) },
           routeRunStop: { updateMany: vi.fn() },
           horse: { updateMany: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });
@@ -186,6 +190,7 @@ describe('visitOutcomeService', () => {
           visitRequest: { create: vi.fn(), update: vi.fn().mockResolvedValue({}) },
           routeRunStop: { updateMany: vi.fn() },
           horse: { updateMany: mockHorseUpdate },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });
