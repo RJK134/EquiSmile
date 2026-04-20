@@ -41,6 +41,29 @@ See `.env.example` for all available configuration options, including:
 - **SMTP** — Email sending configuration
 - **Google Maps** — Geocoding and route optimisation
 - **Home Base** — Starting location for route planning
+- **Auth** — GitHub OAuth (see "GitHub OAuth App" below)
+
+#### GitHub OAuth App
+
+Access to EquiSmile is gated by a GitHub sign-in with an allow-list (internal staff only).
+
+1. Visit <https://github.com/settings/developers> → **New OAuth App**.
+2. Fill in:
+   - **Application name**: `EquiSmile (dev)` (or similar per environment)
+   - **Homepage URL**: `http://localhost:3000`
+   - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github`
+3. Copy the Client ID and generate a client secret.
+4. Populate `.env`:
+   ```
+   AUTH_SECRET=$(openssl rand -base64 32)
+   AUTH_URL=http://localhost:3000
+   AUTH_GITHUB_ID=<client-id>
+   AUTH_GITHUB_SECRET=<client-secret>
+   ALLOWED_GITHUB_LOGINS=your-github-login,teammate-login
+   ```
+5. For production, create a separate OAuth App with the production callback URL and update `AUTH_URL`.
+
+`ALLOWED_GITHUB_LOGINS` is a comma-separated list of GitHub usernames and/or email addresses. Matching is case-insensitive. If empty, all sign-ins are denied.
 
 ### 4. Start Infrastructure
 

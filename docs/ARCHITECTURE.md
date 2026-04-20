@@ -220,3 +220,28 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for full production deployment guide.
 | Automation | n8n | Visual workflow builder for non-developers, self-hosted |
 | Deployment | Docker Compose | Simple single-server deployment suitable for small practice |
 | Email intake | n8n (not direct IMAP) | n8n handles inbound email polling via workflow `02-inbound-email.json`. The app does not use direct IMAP connections — all email intake is routed through n8n webhooks to the app's `/api/webhooks/email` endpoint. |
+
+## Authentication
+
+EquiSmile is an internal operations app — access is gated by GitHub sign-in via **Auth.js v5** (`next-auth@5`) with the `@auth/prisma-adapter`.
+
+### Flow
+1. All locale routes and most `/api/*` endpoints are protected by `middleware.ts`, which wraps the existing `next-intl` middleware. Unauthenticated requests are redirected to `/{locale}/login`.
+2. The login page at `app/[locale]/login/page.tsx` exposes a single "Sign in with GitHub" button that calls `signIn('github')`.
+3. GitHub OAuth returns the user to `/api/auth/callback/github`. Auth.js creates/updates `User`, `Account`, and `Session` rows via Prisma.
+4. Before the session is persisted, the `signIn` callback in `auth.ts` consults `ALLOWED_GITHUB_LOGINS` (parsed by `lib/auth/allowlist.ts`). Non-allow-listed accounts are denied and redirected back to `/login?error=…`.
+5. The `session` callback enriches the client session with `id`, `githubLogin`, and `role` so that UI components and server actions can read who is signed in.
+
+### Public exceptions
+- `/{locale}/login` — the sign-in page itself.
+- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session).
+- `/api/webhook/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session (see `lib/utils/n8n-auth`).
+- `/api/health` — uptime probes.
+
+### Data model
+Auth tables live alongside the domain tables in `prisma/schema.prisma`:
+- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet` for future RBAC.
+- `Account`, `Session`, `VerificationToken` — standard Auth.js shape.
+
+### Audit trail
+`TriageAuditLog.performedBy` is written from the authenticated session (via `performedByFor` in `lib/auth/session.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.

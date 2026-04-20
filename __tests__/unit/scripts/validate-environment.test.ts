@@ -17,9 +17,21 @@ describe('validate-environment checks', () => {
   describe('required variables', () => {
     it('passes when all required variables are set', () => {
       vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
+      vi.stubEnv('AUTH_SECRET', 'test-secret');
+      vi.stubEnv('AUTH_GITHUB_ID', 'test-id');
+      vi.stubEnv('AUTH_GITHUB_SECRET', 'test-secret');
+      vi.stubEnv('ALLOWED_GITHUB_LOGINS', 'tester');
       const result = checkEnvironment();
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it('fails when auth vars are missing outside demo mode', () => {
+      vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
+      vi.stubEnv('DEMO_MODE', 'false');
+      const result = checkEnvironment();
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(expect.stringContaining('AUTH_SECRET'));
     });
 
     it('fails when DATABASE_URL is missing', () => {
