@@ -182,3 +182,22 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - `POST /api/staff { name }` creates a vet; duplicate email returns 409.
 - `POST /api/staff/assign { target: 'appointment', appointmentId, staffId, primary: true }` unflags other primaries for that appointment.
 - `POST /api/staff/assign { target: 'routeRun', routeRunId, staffId, isLead: true }` writes `RouteRun.leadStaffId`.
+
+---
+
+## Phase 11 — VetUp Dataset Export
+
+### Scope
+- Provide a clean CSV export of the EquiSmile dataset that can be ingested by VetUp (or any patient-centric PMS). Column schema is kept in `VETUP_PATIENT_COLUMNS` so it's a one-file change when the client confirms VetUp's actual headers.
+
+### Deliverables
+- `lib/services/csv.service.ts` — RFC 4180 encoder (CRLF, quote-escaping, null → empty, Date → ISO-8601).
+- `lib/services/vetup-export.service.ts` — three profiles: `patient` (horse-centric with denormalised owner + yard), `customers`, `yards`.
+- `GET /api/export/vetup?profile=patient|customers|yards` — streams CSV with `Content-Disposition: attachment`.
+- Customers page gains three download buttons (VetUp, Customers, Yards).
+- 13 unit tests (10 CSV encoder + 3 export service).
+
+### Verification
+- `curl /api/export/vetup?profile=patient` returns a CSV with the VetUp-patient header and one row per horse.
+- Fields with commas or double quotes are correctly RFC-4180 quoted/escaped.
+- Null fields render as empty (no literal "null" string).

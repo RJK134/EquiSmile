@@ -86,9 +86,33 @@ export default function CustomersPage() {
             title={t('title')}
             subtitle={t('subtitle')}
             action={
-              <Button onClick={() => setShowModal(true)} size="sm">
-                {t('newCustomer')}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="/api/export/vetup?profile=patient"
+                  className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-surface"
+                  download
+                  title={t('exportVetupHelp')}
+                >
+                  {t('exportVetup')}
+                </a>
+                <a
+                  href="/api/export/vetup?profile=customers"
+                  className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-surface"
+                  download
+                >
+                  {t('exportCustomers')}
+                </a>
+                <a
+                  href="/api/export/vetup?profile=yards"
+                  className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-surface"
+                  download
+                >
+                  {t('exportYards')}
+                </a>
+                <Button onClick={() => setShowModal(true)} size="sm">
+                  {t('newCustomer')}
+                </Button>
+              </div>
             }
           />
 
