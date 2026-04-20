@@ -61,8 +61,12 @@ function buildCsp(): string {
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "form-action 'self'",
-    "upgrade-insecure-requests",
   ];
+
+  if (process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
+    directives.push('upgrade-insecure-requests');
+  }
+
   return directives.join('; ');
 }
 

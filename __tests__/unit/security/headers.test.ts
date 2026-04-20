@@ -57,6 +57,17 @@ describe('applySecurityHeaders', () => {
     expect(dev.headers.get('Strict-Transport-Security')).toBeNull();
   });
 
+  it('includes upgrade-insecure-requests in production CSP', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DEMO_MODE', 'false');
+    expect(__internals.buildCsp()).toContain('upgrade-insecure-requests');
+  });
+
+  it('omits upgrade-insecure-requests in development CSP', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    expect(__internals.buildCsp()).not.toContain('upgrade-insecure-requests');
+  });
+
   it('CSP blocks form submission off-site', () => {
     expect(__internals.buildCsp()).toContain("form-action 'self'");
   });
