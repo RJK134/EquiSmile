@@ -250,3 +250,11 @@ Auth tables live alongside the domain tables in `prisma/schema.prisma`:
 
 ### Audit trail
 `TriageAuditLog.performedBy` is written from the authenticated session (via `performedByFor` in `lib/auth/session.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
+
+### Security hardening (Phase 14 PR A)
+
+- **Constant-time allow-list** — `lib/auth/allowlist.ts` uses `crypto.timingSafeEqual` and walks the full list for every candidate (no short-circuit) so matching latency does not leak the position of a hit.
+- **Open-redirect defence** — `lib/auth/redirect.ts` (`isSafeCallbackUrl` / `safeCallbackUrl`) is the single gate for every caller-supplied return URL. Applied in `middleware.ts`, the `auth.ts` `redirect` callback, and the locale login page. Rejects absolute URLs, protocol-relative URLs (`//evil`), percent-encoded variants, `javascript:`/`data:` schemes, traversal (`..`), header-injection characters (CR/LF/NUL), and values >2 KB.
+- **Secure cookies** — Auth.js config emits `__Secure-` / `__Host-` prefixes, `HttpOnly`, `SameSite=Lax`, `Secure` in production (`useSecureCookies`). 30-day `session.maxAge` with 24-hour `updateAge`.
+- **`trustHost`** — only enabled when `AUTH_URL` is explicitly configured; prevents Host-header spoofing in front of a reverse proxy.
+- **Security headers** — `lib/security/headers.ts` applies CSP, HSTS (production only), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, COOP/CORP on every middleware-gated response. API responses use `default-src 'none'; frame-ancestors 'none'` (non-browseable); HTML uses a pragmatic CSP that permits Next.js inline hydration, PWA service worker, Google Maps, and Anthropic vision calls while blocking `object-src`, `frame-ancestors`, and cross-site `form-action`.

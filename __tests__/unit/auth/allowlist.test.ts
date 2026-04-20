@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAllowed, parseAllowlist } from '@/lib/auth/allowlist';
+import { isAllowed, parseAllowlist, __internals } from '@/lib/auth/allowlist';
 
 describe('parseAllowlist', () => {
   it('returns an empty array for undefined or empty input', () => {
@@ -14,6 +14,25 @@ describe('parseAllowlist', () => {
 
   it('drops empty entries', () => {
     expect(parseAllowlist('alice,,,bob,')).toEqual(['alice', 'bob']);
+  });
+});
+
+describe('constantTimeEquals', () => {
+  it('returns true for equal strings', () => {
+    expect(__internals.constantTimeEquals('rjk134', 'rjk134')).toBe(true);
+  });
+
+  it('returns false for different-length strings without throwing', () => {
+    expect(__internals.constantTimeEquals('rjk134', 'rjk1345')).toBe(false);
+  });
+
+  it('returns false for same-length different strings', () => {
+    expect(__internals.constantTimeEquals('rjk134', 'rjk135')).toBe(false);
+  });
+
+  it('handles unicode safely', () => {
+    expect(__internals.constantTimeEquals('café', 'café')).toBe(true);
+    expect(__internals.constantTimeEquals('café', 'cafe')).toBe(false);
   });
 });
 
@@ -39,5 +58,10 @@ describe('isAllowed', () => {
   it('handles null/undefined subject fields', () => {
     expect(isAllowed(list, { githubLogin: null, email: null })).toBe(false);
     expect(isAllowed(list, {})).toBe(false);
+  });
+
+  it('matches the final entry in a longer list (no short-circuit regression)', () => {
+    const big = ['aaa', 'bbb', 'ccc', 'rjk134'];
+    expect(isAllowed(big, { githubLogin: 'rjk134' })).toBe(true);
   });
 });

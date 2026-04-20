@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { auth } from '@/auth';
 import { getProviderAvailability } from '@/lib/auth/providers';
+import { safeCallbackUrl } from '@/lib/auth/redirect';
 import { redirect } from 'next/navigation';
 
 interface LoginPageProps {
@@ -14,9 +15,12 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
   const [{ locale }, { error, callbackUrl, verify }] = await Promise.all([params, searchParams]);
   const t = await getTranslations({ locale, namespace: 'auth' });
 
+  // Only accept same-origin relative callback paths.
+  const safeCallback = safeCallbackUrl(callbackUrl, `/${locale}`);
+
   const session = await auth();
   if (session?.user) {
-    redirect(callbackUrl ?? `/${locale}`);
+    redirect(safeCallback);
   }
 
   const providers = getProviderAvailability();
@@ -45,7 +49,7 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
           </div>
         )}
         <SignInButton
-          callbackUrl={callbackUrl ?? `/${locale}`}
+          callbackUrl={safeCallback}
           githubEnabled={providers.github}
           emailEnabled={providers.email}
         />
