@@ -221,3 +221,24 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - `GET /api/attachments/<id>` streams the original bytes inline.
 - `POST /api/horses/<id>/clinical { kind:'prescription', medicineName, dosage }` returns 201 ACTIVE row; `PATCH /api/prescriptions/<id> { status:'CANCELLED', cancelledReason }` sets status + cancelledAt.
 - 16 unit tests (8 attachment, 8 clinical-record).
+
+---
+
+## Phase 13 — Vision Pipeline (Claude)
+
+### Scope
+- Analyse uploaded PDF dental charts and clinical images with Claude (Opus 4.7), producing structured findings + prescriptions that land directly in the Phase 12 clinical models. Acts as decision support — the vet reviews everything before acceptance.
+
+### Deliverables
+- `lib/integrations/anthropic.client.ts` — singleton SDK client; throws if `ANTHROPIC_API_KEY` unset; model override via `EQUISMILE_VISION_MODEL`.
+- `lib/services/vision-analysis.service.ts` — builds vision message (document block for PDFs, image block for JPEG/PNG/WebP/GIF), calls Claude with adaptive thinking + `output_config.format: json_schema` using a strict Zod schema (generalNotes, findings[], prescriptions[], confidence). System prompt is cache-control marked. Validates response locally before persisting.
+- Post-processing writes one `DentalChart` (linked to the source attachment) with all findings + any explicitly-recorded prescriptions, attributed to the calling staff member.
+- API: `POST /api/attachments/[id]/analyse` — returns `{ dentalChartId, findingIds[], prescriptionIds[], result }`; returns 503 if `ANTHROPIC_API_KEY` is missing.
+- `.env.example`: `ANTHROPIC_API_KEY` + optional `EQUISMILE_VISION_MODEL`.
+- 14 unit tests (schema validation, extract/fallback/JSON error paths, service-level attachment lookup, persist=true vs false, PDF-vs-image block selection, staff attribution, cache_control placement).
+
+### Verification
+- `POST /api/attachments/<id>/analyse` with an equine dental PDF: returns 201 with findings[] and prescriptions[] populated; new DentalChart row linked via attachmentId.
+- Without `ANTHROPIC_API_KEY`: 503 "Vision analysis unavailable".
+- Corrupt/off-topic PDF: model returns `confidence: "low"`, empty findings, explanatory generalNotes — no findings/prescriptions written beyond the chart row.
+- System prompt cached: `usage.cache_read_input_tokens > 0` on the second analyse call in a 5-minute window.
