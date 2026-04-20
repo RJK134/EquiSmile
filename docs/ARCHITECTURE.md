@@ -223,19 +223,24 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for full production deployment guide.
 
 ## Authentication
 
-EquiSmile is an internal operations app — access is gated by GitHub sign-in via **Auth.js v5** (`next-auth@5`) with the `@auth/prisma-adapter`.
+EquiSmile is an internal operations app — access is gated behind sign-in via **Auth.js v5** (`next-auth@5`) with the `@auth/prisma-adapter`. Two providers are supported and can be enabled independently:
+
+1. **GitHub OAuth** — enabled when `AUTH_GITHUB_ID` and `AUTH_GITHUB_SECRET` are set. Best for vets with an existing GitHub account.
+2. **Email magic-link** — enabled when `AUTH_EMAIL_ENABLED=true` and `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` are set. A one-time sign-in link is emailed (15-minute expiry). Best for teammates who don't have GitHub accounts.
+
+At least one provider must be configured outside demo mode (enforced by `lib/utils/env-check.ts`).
 
 ### Flow
 1. All locale routes and most `/api/*` endpoints are protected by `middleware.ts`, which wraps the existing `next-intl` middleware. Unauthenticated requests are redirected to `/{locale}/login`.
-2. The login page at `app/[locale]/login/page.tsx` exposes a single "Sign in with GitHub" button that calls `signIn('github')`.
-3. GitHub OAuth returns the user to `/api/auth/callback/github`. Auth.js creates/updates `User`, `Account`, and `Session` rows via Prisma.
-4. Before the session is persisted, the `signIn` callback in `auth.ts` consults `ALLOWED_GITHUB_LOGINS` (parsed by `lib/auth/allowlist.ts`). Non-allow-listed accounts are denied and redirected back to `/login?error=…`.
+2. The login page at `app/[locale]/login/page.tsx` surfaces whichever providers are configured (GitHub button, email form, or both).
+3. The chosen provider returns the user to `/api/auth/callback/<provider>`. Auth.js creates/updates `User`, `Account`/`Session`/`VerificationToken` rows via Prisma.
+4. Before the session is persisted, the `signIn` callback in `auth.ts` consults `ALLOWED_GITHUB_LOGINS` (parsed by `lib/auth/allowlist.ts`). Matching is case-insensitive against GitHub login **or** email, so the same allow-list works for both providers.
 5. The `session` callback enriches the client session with `id`, `githubLogin`, and `role` so that UI components and server actions can read who is signed in.
 
 ### Public exceptions
-- `/{locale}/login` — the sign-in page itself.
-- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session).
-- `/api/webhook/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session (see `lib/utils/n8n-auth`).
+- `/login` and `/{locale}/login` — the sign-in page itself (bare path covers Auth.js error redirects that lack a locale).
+- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request).
+- `/api/webhooks/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session (see `lib/utils/n8n-auth`).
 - `/api/health` — uptime probes.
 
 ### Data model

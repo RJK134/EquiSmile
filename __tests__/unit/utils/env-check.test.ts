@@ -17,7 +17,14 @@ describe('checkEnvironment', () => {
     vi.stubEnv('ALLOWED_GITHUB_LOGINS', 'tester');
   }
 
-  it('should pass when DATABASE_URL and auth vars are set', () => {
+  function stubEmailProvider() {
+    vi.stubEnv('AUTH_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_HOST', 'smtp.example.com');
+    vi.stubEnv('SMTP_USER', 'user@example.com');
+    vi.stubEnv('SMTP_PASSWORD', 'secret');
+  }
+
+  it('should pass when DATABASE_URL and GitHub auth are set', () => {
     vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
     stubAuth();
     const result = checkEnvironment();
@@ -46,6 +53,39 @@ describe('checkEnvironment', () => {
     vi.stubEnv('DEMO_MODE', 'true');
     const result = checkEnvironment();
     expect(result.valid).toBe(true);
+  });
+
+  it('should fail when no auth provider is configured (no GitHub, no Email)', () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
+    vi.stubEnv('AUTH_SECRET', 'test-secret');
+    vi.stubEnv('ALLOWED_GITHUB_LOGINS', 'tester');
+    const result = checkEnvironment();
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes('At least one auth provider')),
+    ).toBe(true);
+  });
+
+  it('should pass when only Email magic-link provider is configured', () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
+    vi.stubEnv('AUTH_SECRET', 'test-secret');
+    vi.stubEnv('ALLOWED_GITHUB_LOGINS', 'vet@example.com');
+    stubEmailProvider();
+    const result = checkEnvironment();
+    expect(result.valid).toBe(true);
+  });
+
+  it('should fail when AUTH_EMAIL_ENABLED=true but SMTP is incomplete', () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
+    stubAuth();
+    vi.stubEnv('AUTH_EMAIL_ENABLED', 'true');
+    vi.stubEnv('SMTP_HOST', 'smtp.example.com');
+    // SMTP_USER and SMTP_PASSWORD missing
+    const result = checkEnvironment();
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes('AUTH_EMAIL_ENABLED=true but SMTP')),
+    ).toBe(true);
   });
 
   it('should warn on partially configured WhatsApp', () => {

@@ -8,8 +8,16 @@
     "loginSubtitle": "Application interne — accès réservé au personnel.",
     "signInWithGithub": "Se connecter avec GitHub",
     "signOut": "Se déconnecter",
-    "notAuthorised": "Ce compte GitHub n'est pas autorisé à accéder à EquiSmile. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
-    "signingIn": "Connexion en cours…"
+    "notAuthorised": "Ce compte n'est pas autorisé à accéder à EquiSmile. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+    "signingIn": "Connexion en cours…",
+    "or": "ou",
+    "emailLabel": "Adresse e-mail",
+    "emailPlaceholder": "vous@exemple.com",
+    "sendMagicLink": "M'envoyer un lien de connexion",
+    "sendingMagicLink": "Envoi en cours…",
+    "checkInbox": "Consultez votre boîte de réception pour le lien de connexion. Il est valable pendant 15 minutes.",
+    "emailRequired": "Veuillez saisir une adresse e-mail valide.",
+    "linkSendFailed": "Impossible d'envoyer le lien de connexion. Veuillez réessayer."
   },
   "nav": {
     "dashboard": "Tableau de bord",
