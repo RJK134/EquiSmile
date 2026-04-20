@@ -114,3 +114,19 @@
 - Multi-stage production Dockerfile
 - CI/CD enhancements (Docker build, security audit)
 - Final documentation update
+
+---
+
+## Retrospective Audit (2026-04-20)
+
+Following the release of `rc/v1.0.0`, a retrospective verification pass was run against every phase's master prompt.
+
+- **Plan:** [PHASE_VERIFICATION_PLAN.md](./PHASE_VERIFICATION_PLAN.md)
+- **Findings:** [V1_AUDIT_FINDINGS.md](./V1_AUDIT_FINDINGS.md)
+- **AMBER items logged:** [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) — 13 active AMBERs, 1 closed in-audit, 1 retracted, 1 resolved by PR #17
+
+**Summary:** All 10 phases (0–9) verdict GREEN with AMBER log. Zero RED findings. Non-negotiable checks all pass (lint, typecheck, test, prisma validate, build). In-audit fix applied to `__tests__/unit/infra/demo-startup.test.ts` to guard Windows exec-bit assertions.
+
+**State drift:** The audit was anchored at `fbafbd9`. During publication, PRs #13–#17 landed Phase 12 work on `main` (current HEAD `3e295ba`). AMBER-03 (seed counts) was resolved by PR #17's seed split; remaining AMBERs re-verified against the diff and stand.
+
+Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER-02), Phase 6 data-model richness (AMBER-08 through AMBER-13), and idempotency store externalisation (AMBER-14). See the findings file for the per-deliverable evidence tables.
