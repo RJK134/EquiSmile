@@ -5,6 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 
 import { prisma } from '@/lib/prisma';
 import { isAllowed, parseAllowlist } from '@/lib/auth/allowlist';
+import { getProviderAvailability } from '@/lib/auth/providers';
 
 declare module 'next-auth' {
   interface Session {
@@ -22,13 +23,15 @@ declare module 'next-auth' {
 }
 
 function buildProviders(): NextAuthConfig['providers'] {
+  const env = process.env;
+  const providerAvailability = getProviderAvailability(env);
   const providers: NextAuthConfig['providers'] = [];
 
-  if (process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
+  if (providerAvailability.github) {
     providers.push(
       GitHub({
-        clientId: process.env.AUTH_GITHUB_ID,
-        clientSecret: process.env.AUTH_GITHUB_SECRET,
+        clientId: env.AUTH_GITHUB_ID,
+        clientSecret: env.AUTH_GITHUB_SECRET,
         profile(profile) {
           return {
             id: String(profile.id),
@@ -43,24 +46,18 @@ function buildProviders(): NextAuthConfig['providers'] {
     );
   }
 
-  const emailEnabled =
-    process.env.AUTH_EMAIL_ENABLED === 'true' &&
-    !!process.env.SMTP_HOST &&
-    !!process.env.SMTP_USER &&
-    !!process.env.SMTP_PASSWORD;
-
-  if (emailEnabled) {
+  if (providerAvailability.email) {
     providers.push(
       Nodemailer({
         server: {
-          host: process.env.SMTP_HOST,
-          port: Number(process.env.SMTP_PORT ?? 587),
+          host: env.SMTP_HOST,
+          port: Number(env.SMTP_PORT ?? 587),
           auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASSWORD,
+            user: env.SMTP_USER,
+            pass: env.SMTP_PASSWORD,
           },
         },
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        from: env.SMTP_FROM || env.SMTP_USER,
         maxAge: 15 * 60, // magic-link valid for 15 minutes
       }),
     );
