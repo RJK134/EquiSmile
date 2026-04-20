@@ -242,3 +242,23 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Without `ANTHROPIC_API_KEY`: 503 "Vision analysis unavailable".
 - Corrupt/off-topic PDF: model returns `confidence: "low"`, empty findings, explanatory generalNotes — no findings/prescriptions written beyond the chart row.
 - System prompt cached: `usage.cache_read_input_tokens > 0` on the second analyse call in a 5-minute window.
+
+---
+
+## Phase 13 — Postgres Idempotency Store (AMBER-14)
+
+### Scope
+- Replace the in-memory `processedKeys: Set<string>` in `lib/utils/retry.ts` with a Postgres-backed store so idempotency markers survive restarts and are shared across instances.
+
+### Deliverables
+- Prisma: `IdempotencyKey { key @id, scope, createdAt, expiresAt? }` with indexes on `scope` and `expiresAt`. Additive migration.
+- `lib/services/idempotency.service.ts`: `hasProcessed(key)`, `markProcessed(key, scope, ttlMs?)` (upsert-based, concurrency-safe), `pruneExpired(now)`.
+- `lib/utils/retry.ts`: `hasBeenProcessed` / `markAsProcessed` / `clearProcessedKeys` are now async and delegate to the service. Default TTL 30 days.
+- Call sites (`lib/services/whatsapp.service.ts`) updated with `await`.
+- `docs/KNOWN_ISSUES.md` AMBER-14 marked resolved.
+- 8 new idempotency-service tests; existing `retry.test.ts` idempotency suite converted to async + uses an in-memory mock of the service.
+
+### Verification
+- Restart the app between two sends with the same idempotency key → second call still detects the dupe (was previously lost).
+- `POST /api/health` shows the new table in `prisma migrate status`.
+- Expired keys are pruned automatically on first `hasProcessed` read (self-healing).

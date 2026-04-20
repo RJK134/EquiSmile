@@ -499,6 +499,23 @@ model RouteRunAssistant {
 }
 
 // ---------------------------------------------------------------------------
+// Idempotency keys — phase 13 (AMBER-14 remediation).
+// Persists "I've already processed this key" markers across restarts and
+// multiple app instances. Replaces the in-memory Set previously held in
+// lib/utils/retry.ts. Rows older than `expiresAt` are safe to prune.
+// ---------------------------------------------------------------------------
+
+model IdempotencyKey {
+  key         String   @id
+  scope       String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+
+  @@index([scope])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
 // Clinical records — phase 12.
 //
 // A Horse is a patient. Clinical records accumulate over a horse's life:

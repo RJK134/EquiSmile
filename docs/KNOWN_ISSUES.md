@@ -30,7 +30,7 @@ Filed during the [Phase Verification Plan](./PHASE_VERIFICATION_PLAN.md) audit. 
 | AMBER-11 | 6 | Medium | No `AppointmentResponse` model — inbound replies flow through generic EnquiryMessage | Customer "confirmed/cancelled/reschedule" replies not directly linked to the appointment. Add for v1.1 |
 | AMBER-12 | 6 | Low | No `ReminderSchedule` queue — reminders fired from inline `reminderSentAt24h/2h` fields via polled endpoint | Works for current scale; add if cancellations/retries of queued reminders become a need |
 | AMBER-13 | 6 | Low | No `AppointmentStatusHistory` table — status changes tracked via `updatedAt` only | Add if audit trail is required for regulator/insurance/customer-dispute scenarios |
-| AMBER-14 | 7 | Medium | Idempotency key store is in-memory (`processedKeys: Set<string>`) — lost on restart and not shared across instances | Move to Redis or Postgres-backed idempotency table before horizontal scaling |
+| ~~AMBER-14~~ | ~~7~~ | ~~Medium~~ | ~~Idempotency key store is in-memory (`processedKeys: Set<string>`) — lost on restart and not shared across instances~~ | **Resolved by phase 13** — `IdempotencyKey` Prisma model + `lib/services/idempotency.service.ts` (Postgres-backed). `hasBeenProcessed`/`markAsProcessed` are now async. Survives restarts, shared across instances, 30-day TTL with `pruneExpired()` cron. |
 | AMBER-15 | 7 | Low | No dead-letter queue for permanent failures after `maxRetries` | n8n layer provides secondary retry; add a `FailedOperation` table for persistent quarantine if observability gaps emerge |
 | ~~AMBER-16~~ | ~~7~~ | ~~Low~~ | ~~No direct unit test for retry.ts~~ | **Retracted** — `__tests__/unit/utils/retry.test.ts` already exists with full coverage |
 
