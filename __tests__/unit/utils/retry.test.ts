@@ -23,7 +23,17 @@ vi.mock('@/lib/services/idempotency.service', () => {
         const expiresAt = typeof ttlMs === 'number' ? new Date(Date.now() + ttlMs) : null;
         store.set(key, { scope, expiresAt });
       },
-      async pruneExpired() {
+      async pruneExpired(now: Date = new Date()) {
+        let count = 0;
+        for (const [key, row] of store.entries()) {
+          if (row.expiresAt && row.expiresAt < now) {
+            store.delete(key);
+            count++;
+          }
+        }
+        return count;
+      },
+      async clearAll() {
         const count = store.size;
         store.clear();
         return count;
@@ -41,6 +51,7 @@ import {
   markAsProcessed,
   clearProcessedKeys,
 } from '@/lib/utils/retry';
+import { idempotencyService } from '@/lib/services/idempotency.service';
 
 describe('withRetry', () => {
   it('should return result on first successful attempt', async () => {
@@ -178,5 +189,12 @@ describe('Idempotency', () => {
     await clearProcessedKeys();
     expect(await hasBeenProcessed('key1')).toBe(false);
     expect(await hasBeenProcessed('key2')).toBe(false);
+  });
+
+  it('should clear keys without an expiry', async () => {
+    await idempotencyService.markProcessed('forever-key', 'test');
+    expect(await hasBeenProcessed('forever-key')).toBe(true);
+    await clearProcessedKeys();
+    expect(await hasBeenProcessed('forever-key')).toBe(false);
   });
 });

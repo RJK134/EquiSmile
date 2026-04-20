@@ -252,8 +252,8 @@ export async function markAsProcessed(
 }
 
 export async function clearProcessedKeys(): Promise<void> {
-  // Useful for tests; prunes every row regardless of expiry.
-  await idempotencyService.pruneExpired(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+  // Useful for tests; deletes every row regardless of expiry.
+  await idempotencyService.clearAll();
 }
 
 // ---------------------------------------------------------------------------

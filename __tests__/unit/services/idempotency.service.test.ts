@@ -100,4 +100,13 @@ describe('idempotencyService', () => {
       });
     });
   });
+
+  describe('clearAll', () => {
+    it('deletes every row regardless of expiry and returns the count', async () => {
+      (prisma.idempotencyKey.deleteMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 3 });
+      const count = await idempotencyService.clearAll();
+      expect(count).toBe(3);
+      expect(prisma.idempotencyKey.deleteMany).toHaveBeenCalledWith({});
+    });
+  });
 });

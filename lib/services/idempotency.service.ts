@@ -37,4 +37,9 @@ export const idempotencyService = {
     });
     return result.count;
   },
+
+  async clearAll(): Promise<number> {
+    const result = await prisma.idempotencyKey.deleteMany({});
+    return result.count;
+  },
 };

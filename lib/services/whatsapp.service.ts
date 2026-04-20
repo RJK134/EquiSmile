@@ -20,6 +20,21 @@ interface WhatsAppApiResponse {
   error?: { message: string; type: string; code: number };
 }
 
+async function hasProcessedKey(
+  idempotencyKey: string,
+  logContext: Record<string, string>,
+): Promise<boolean> {
+  try {
+    return await hasBeenProcessed(idempotencyKey);
+  } catch (error) {
+    console.error('[WhatsApp] Idempotency check failed; continuing send', {
+      ...logContext,
+      error,
+    });
+    return false;
+  }
+}
+
 /**
  * WhatsApp outbound service using Meta Cloud API.
  * Includes retry with exponential backoff, circuit breaker, and idempotency.
@@ -44,7 +59,14 @@ export const whatsappService = {
 
     // Idempotency: prevent duplicate sends on retry
     const idempotencyKey = generateIdempotencyKey('wa-text', `${to}:${enquiryId || 'none'}:${Date.now()}`);
-    if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
+    if (
+      enquiryId &&
+      (await hasProcessedKey(idempotencyKey, {
+        to,
+        enquiryId,
+        scope: 'wa-text',
+      }))
+    ) {
       console.warn('[WhatsApp] Duplicate send prevented', { to, enquiryId });
       return { messageId: '', success: true };
     }
@@ -126,7 +148,15 @@ export const whatsappService = {
     }
 
     const idempotencyKey = generateIdempotencyKey('wa-tpl', `${to}:${templateName}:${enquiryId || 'none'}:${Date.now()}`);
-    if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
+    if (
+      enquiryId &&
+      (await hasProcessedKey(idempotencyKey, {
+        to,
+        enquiryId,
+        templateName,
+        scope: 'wa-tpl',
+      }))
+    ) {
       console.warn('[WhatsApp] Duplicate template send prevented', { to, templateName });
       return { messageId: '', success: true };
     }
