@@ -121,6 +121,39 @@ enum StaffRole {
   NURSE
 }
 
+enum AttachmentKind {
+  DENTAL_CHART_PDF
+  DENTAL_IMAGE
+  XRAY_IMAGE
+  OTHER_IMAGE
+  OTHER
+}
+
+enum FindingCategory {
+  HOOK
+  WAVE
+  RAMP
+  DIASTEMA
+  EOTRH
+  FRACTURE
+  CARIES
+  WEAR
+  MISSING
+  OTHER
+}
+
+enum FindingSeverity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum PrescriptionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -187,6 +220,11 @@ model Horse {
 
   customer    Customer @relation(fields: [customerId], references: [id])
   primaryYard Yard?    @relation(fields: [primaryYardId], references: [id])
+
+  attachments    HorseAttachment[]
+  dentalCharts   DentalChart[]
+  findings       ClinicalFinding[]
+  prescriptions  Prescription[]
 
   @@index([customerId])
   @@index([primaryYardId])
@@ -264,6 +302,7 @@ model VisitRequest {
   auditLogs      TriageAuditLog[]
   routeRunStops  RouteRunStop[]
   appointments   Appointment[]
+  prescriptions  Prescription[]
 
   @@index([customerId])
   @@index([planningStatus])
@@ -372,6 +411,7 @@ model Appointment {
   routeRun     RouteRun?     @relation(fields: [routeRunId], references: [id])
   visitOutcome VisitOutcome?
   assignments  AppointmentAssignment[]
+  prescriptions Prescription[]
 
   @@index([visitRequestId])
   @@index([status])
@@ -415,6 +455,10 @@ model Staff {
   appointmentAssignments AppointmentAssignment[]
   routeRunsLed          RouteRun[]             @relation("RouteRunLead")
   routeRunAssistance    RouteRunAssistant[]
+  attachmentsUploaded   HorseAttachment[]
+  dentalChartsRecorded  DentalChart[]
+  findingsCreated       ClinicalFinding[]
+  prescriptionsWritten  Prescription[]
 
   @@index([role])
   @@index([active])
@@ -452,6 +496,114 @@ model RouteRunAssistant {
 
   @@unique([routeRunId, staffId])
   @@index([staffId])
+}
+
+// ---------------------------------------------------------------------------
+// Clinical records — phase 12.
+//
+// A Horse is a patient. Clinical records accumulate over a horse's life:
+//   - HorseAttachment: uploaded files (PDF dental charts, clinical photos,
+//     X-rays). Storage path is kept relative so backends (local FS/S3) are
+//     swappable.
+//   - DentalChart: a snapshot at a moment in time, usually linked to an
+//     Appointment. Holds the general notes; individual tooth-level entries
+//     live on ClinicalFinding.
+//   - ClinicalFinding: one row per issue on one tooth (or region). Tooth
+//     IDs use the Triadan system as free text (e.g. "106" for upper-left
+//     first molar) so it stays flexible.
+//   - Prescription: medications/treatments with dosage, duration, and
+//     withdrawal period.
+// ---------------------------------------------------------------------------
+
+model HorseAttachment {
+  id           String          @id @default(uuid())
+  horseId      String
+  kind         AttachmentKind  @default(OTHER)
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String          // relative path inside ATTACHMENT_STORAGE_DIR
+  description  String?
+  uploadedById String?
+  uploadedAt   DateTime        @default(now())
+
+  horse        Horse               @relation(fields: [horseId], references: [id], onDelete: Cascade)
+  uploadedBy   Staff?              @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  dentalChart  DentalChart?        @relation("DentalChartAttachment")
+  findings     ClinicalFinding[]
+
+  @@index([horseId])
+  @@index([kind])
+  @@index([uploadedAt])
+}
+
+model DentalChart {
+  id            String   @id @default(uuid())
+  horseId       String
+  appointmentId String?
+  recordedById  String?
+  recordedAt    DateTime @default(now())
+  generalNotes  String?
+  attachmentId  String?  @unique
+
+  horse       Horse             @relation(fields: [horseId], references: [id], onDelete: Cascade)
+  recordedBy  Staff?            @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  attachment  HorseAttachment?  @relation("DentalChartAttachment", fields: [attachmentId], references: [id], onDelete: SetNull)
+  findings    ClinicalFinding[]
+
+  @@index([horseId])
+  @@index([recordedAt])
+}
+
+model ClinicalFinding {
+  id            String          @id @default(uuid())
+  horseId       String
+  dentalChartId String?
+  findingDate   DateTime        @default(now())
+  toothId       String?         // Triadan code, free text
+  category      FindingCategory @default(OTHER)
+  severity      FindingSeverity @default(MILD)
+  description   String
+  attachmentId  String?
+  createdById   String?
+  createdAt     DateTime        @default(now())
+
+  horse       Horse            @relation(fields: [horseId], references: [id], onDelete: Cascade)
+  dentalChart DentalChart?     @relation(fields: [dentalChartId], references: [id], onDelete: SetNull)
+  attachment  HorseAttachment? @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  createdBy   Staff?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([horseId])
+  @@index([dentalChartId])
+  @@index([category])
+  @@index([findingDate])
+}
+
+model Prescription {
+  id                    String             @id @default(uuid())
+  horseId               String
+  visitRequestId        String?
+  appointmentId         String?
+  prescribedAt          DateTime           @default(now())
+  prescribedById        String?
+  medicineName          String
+  dosage                String             // free text, e.g. "10 mg/kg PO BID"
+  durationDays          Int?
+  withdrawalPeriodDays  Int?
+  instructions          String?
+  status                PrescriptionStatus @default(ACTIVE)
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  cancelledReason       String?
+
+  horse        Horse         @relation(fields: [horseId], references: [id], onDelete: Cascade)
+  prescribedBy Staff?        @relation(fields: [prescribedById], references: [id], onDelete: SetNull)
+  visitRequest VisitRequest? @relation(fields: [visitRequestId], references: [id], onDelete: SetNull)
+  appointment  Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([horseId])
+  @@index([status])
+  @@index([prescribedAt])
 }
 
 // ---------------------------------------------------------------------------

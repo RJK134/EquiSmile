@@ -57,3 +57,6 @@ docker-compose.override.yml
 
 # claude
 .claude/
+
+# Clinical attachment storage (Phase 12)
+data/attachments/

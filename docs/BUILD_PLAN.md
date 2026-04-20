@@ -201,3 +201,23 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - `curl /api/export/vetup?profile=patient` returns a CSV with the VetUp-patient header and one row per horse.
 - Fields with commas or double quotes are correctly RFC-4180 quoted/escaped.
 - Null fields render as empty (no literal "null" string).
+
+---
+
+## Phase 12 — Clinical Records
+
+### Scope
+- Per-horse clinical history: PDF/image attachments, dental charts, tooth-level findings, prescriptions. Sets up the data model that the Phase 13 vision pipeline will populate.
+
+### Deliverables
+- Prisma: `HorseAttachment`, `DentalChart`, `ClinicalFinding`, `Prescription` models + 4 new enums (AttachmentKind / FindingCategory / FindingSeverity / PrescriptionStatus). Additive migration.
+- `lib/services/attachment.service.ts` — upload/list/read-bytes/delete; relative path kept in DB so storage backend (FS/S3) is swappable; 25 MB limit; allow-list of image+PDF mimes.
+- `lib/services/clinical-record.service.ts` — CRUD for dental charts, findings, prescriptions; trims inputs, validates duration/withdrawal non-negative, mutates `status` + timestamp atoms on transitions.
+- API: `GET|POST /api/horses/[id]/attachments`, `GET|DELETE /api/attachments/[id]`, `GET|POST /api/horses/[id]/clinical`, `PATCH /api/prescriptions/[id]`.
+- `.env.example` adds `ATTACHMENT_STORAGE_DIR`; `.gitignore` excludes `data/attachments/`.
+
+### Verification
+- `curl -F file=@chart.pdf /api/horses/<id>/attachments` → row inserted, bytes on disk under `$ATTACHMENT_STORAGE_DIR/<horseId>/…`.
+- `GET /api/attachments/<id>` streams the original bytes inline.
+- `POST /api/horses/<id>/clinical { kind:'prescription', medicineName, dosage }` returns 201 ACTIVE row; `PATCH /api/prescriptions/<id> { status:'CANCELLED', cancelledReason }` sets status + cancelledAt.
+- 16 unit tests (8 attachment, 8 clinical-record).
