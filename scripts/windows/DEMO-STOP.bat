@@ -4,6 +4,8 @@ echo  Stopping EquiSmile Demo...
 echo  -------------------------------------------------------
 echo.
 
+cd /d D:\Projects\Equismile\EquiSmile
+
 REM Kill Node.js processes for the dev server
 taskkill /f /im node.exe 2>nul
 echo  App server stopped.

@@ -19,7 +19,7 @@ From a Windows Command Prompt or PowerShell in the repo root:
 scripts\windows\DEMO.bat
 ```
 
-The scripts `cd` to the client's hardcoded install path (`D:\Projects\Equismile\EquiSmile`). If you install elsewhere, edit the `cd /d` line at the top of each file.
+The launchers switch to the client's hardcoded install path (`D:\Projects\Equismile\EquiSmile`). If you install elsewhere, edit the `cd /d` line in the `.bat` files and the `Set-Location` line in `FIX-AND-LAUNCH.ps1`.
 
 ## Non-Windows users
 
