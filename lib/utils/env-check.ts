@@ -14,12 +14,11 @@ interface EnvCheckResult {
 const REQUIRED_VARS = ['DATABASE_URL'] as const;
 
 // Auth vars are required in non-demo mode (the app requires sign-in to access any UI).
-const AUTH_REQUIRED_VARS = [
-  'AUTH_SECRET',
-  'AUTH_GITHUB_ID',
-  'AUTH_GITHUB_SECRET',
-  'ALLOWED_GITHUB_LOGINS',
-] as const;
+// AUTH_SECRET + ALLOWED_GITHUB_LOGINS are always required; at least one provider
+// (GitHub or Email magic-link) must be configured.
+const AUTH_REQUIRED_VARS = ['AUTH_SECRET', 'ALLOWED_GITHUB_LOGINS'] as const;
+const AUTH_GITHUB_VARS = ['AUTH_GITHUB_ID', 'AUTH_GITHUB_SECRET'] as const;
+const AUTH_EMAIL_SMTP_VARS = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'] as const;
 
 const OPTIONAL_GROUPS: Array<{ label: string; vars: string[] }> = [
   {
@@ -72,6 +71,23 @@ export function checkEnvironment(): EnvCheckResult {
       if (!process.env[key]) {
         errors.push(`Missing required auth env var: ${key}`);
       }
+    }
+
+    const githubConfigured = AUTH_GITHUB_VARS.every((k) => !!process.env[k]);
+    const emailEnabled = process.env.AUTH_EMAIL_ENABLED === 'true';
+    const smtpConfigured = AUTH_EMAIL_SMTP_VARS.every((k) => !!process.env[k]);
+    const emailProviderReady = emailEnabled && smtpConfigured;
+
+    if (!githubConfigured && !emailProviderReady) {
+      errors.push(
+        'At least one auth provider must be configured: set AUTH_GITHUB_ID + AUTH_GITHUB_SECRET, or set AUTH_EMAIL_ENABLED=true with SMTP_HOST + SMTP_USER + SMTP_PASSWORD.',
+      );
+    }
+
+    if (emailEnabled && !smtpConfigured) {
+      errors.push(
+        'AUTH_EMAIL_ENABLED=true but SMTP is not fully configured (need SMTP_HOST, SMTP_USER, SMTP_PASSWORD).',
+      );
     }
   }
 

@@ -8,8 +8,16 @@
     "loginSubtitle": "Internal operations app — staff access only.",
     "signInWithGithub": "Sign in with GitHub",
     "signOut": "Sign out",
-    "notAuthorised": "This GitHub account is not authorised to access EquiSmile. Contact an administrator if you believe this is a mistake.",
-    "signingIn": "Signing in…"
+    "notAuthorised": "This account is not authorised to access EquiSmile. Contact an administrator if you believe this is a mistake.",
+    "signingIn": "Signing in…",
+    "or": "or",
+    "emailLabel": "Email address",
+    "emailPlaceholder": "you@example.com",
+    "sendMagicLink": "Email me a sign-in link",
+    "sendingMagicLink": "Sending…",
+    "checkInbox": "Check your inbox for a sign-in link. The link is valid for 15 minutes.",
+    "emailRequired": "Please enter a valid email address.",
+    "linkSendFailed": "We couldn't send the sign-in link. Please try again."
   },
   "nav": {
     "dashboard": "Dashboard",

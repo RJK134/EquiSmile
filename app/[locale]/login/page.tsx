@@ -2,21 +2,24 @@ import { getTranslations } from 'next-intl/server';
 
 import { SignInButton } from '@/components/auth/SignInButton';
 import { auth } from '@/auth';
+import { getProviderAvailability } from '@/lib/auth/providers';
 import { redirect } from 'next/navigation';
 
 interface LoginPageProps {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ error?: string; callbackUrl?: string }>;
+  searchParams: Promise<{ error?: string; callbackUrl?: string; verify?: string }>;
 }
 
 export default async function LoginPage({ params, searchParams }: LoginPageProps) {
-  const [{ locale }, { error, callbackUrl }] = await Promise.all([params, searchParams]);
+  const [{ locale }, { error, callbackUrl, verify }] = await Promise.all([params, searchParams]);
   const t = await getTranslations({ locale, namespace: 'auth' });
 
   const session = await auth();
   if (session?.user) {
     redirect(callbackUrl ?? `/${locale}`);
   }
+
+  const providers = getProviderAvailability();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
@@ -33,7 +36,19 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
             {t('notAuthorised')}
           </div>
         )}
-        <SignInButton callbackUrl={callbackUrl ?? `/${locale}`} />
+        {verify && (
+          <div
+            role="status"
+            className="mb-4 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-900"
+          >
+            {t('checkInbox')}
+          </div>
+        )}
+        <SignInButton
+          callbackUrl={callbackUrl ?? `/${locale}`}
+          githubEnabled={providers.github}
+          emailEnabled={providers.email}
+        />
       </div>
     </main>
   );
