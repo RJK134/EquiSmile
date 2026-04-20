@@ -178,6 +178,23 @@ describe('visionAnalysisService.analyseAttachment', () => {
     ).rejects.toThrow(/Unsupported mimeType/);
   });
 
+  it('rejects HEIC images before calling Anthropic', async () => {
+    (attachmentService.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'a1',
+      horseId: 'h1',
+      mimeType: 'image/heic',
+      storagePath: 'x',
+    });
+    (attachmentService.loadBytes as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Uint8Array([1, 2, 3]),
+    );
+
+    await expect(
+      visionAnalysisService.analyseAttachment({ attachmentId: 'a1' }),
+    ).rejects.toThrow(/Unsupported image mimeType/);
+    expect(messagesCreateMock).not.toHaveBeenCalled();
+  });
+
   it('persists a DentalChart + findings + prescriptions when persist=true', async () => {
     (attachmentService.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'a1',
@@ -219,6 +236,7 @@ describe('visionAnalysisService.analyseAttachment', () => {
     const callArgs = messagesCreateMock.mock.calls[0][0];
     expect(callArgs.system[0].cache_control).toEqual({ type: 'ephemeral' });
     expect(callArgs.model).toBe('claude-opus-4-7');
+    expect(callArgs.max_tokens).toBe(16000);
     expect(callArgs.thinking).toEqual({ type: 'adaptive' });
   });
 

@@ -100,6 +100,10 @@ Your job is to extract structured findings from a dental chart PDF or a clinical
 
 You are a decision-support tool. The vet will review and accept/reject your output — never fabricate. When uncertain, prefer emitting fewer findings over emitting wrong ones.`;
 
+const SUPPORTED_IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+
+type SupportedImageMediaType = (typeof SUPPORTED_IMAGE_MEDIA_TYPES)[number];
+
 interface AnalyseAttachmentOptions {
   attachmentId: string;
   /** If true, the analysis result is also persisted as a DentalChart + findings/prescriptions linked to the horse. Default: true. */
@@ -117,6 +121,10 @@ interface AnalyseAttachmentOutput {
   prescriptionIds: string[];
 }
 
+function isSupportedImageMediaType(mimeType: string): mimeType is SupportedImageMediaType {
+  return (SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(mimeType);
+}
+
 function mimeToBlock(mimeType: string, base64: string): Anthropic.ContentBlockParam {
   if (mimeType === 'application/pdf') {
     return {
@@ -125,16 +133,12 @@ function mimeToBlock(mimeType: string, base64: string): Anthropic.ContentBlockPa
     } as Anthropic.ContentBlockParam;
   }
   if (mimeType.startsWith('image/')) {
-    // Anthropic Vision supports image/jpeg, image/png, image/gif, image/webp.
-    // Normalise HEIC/HEIF callers to the closest supported mime the input actually is.
-    const mediaType = (
-      ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)
-        ? mimeType
-        : 'image/jpeg'
-    ) as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    if (!isSupportedImageMediaType(mimeType)) {
+      throw new Error(`Unsupported image mimeType for vision analysis: ${mimeType}`);
+    }
     return {
       type: 'image',
-      source: { type: 'base64', media_type: mediaType, data: base64 },
+      source: { type: 'base64', media_type: mimeType, data: base64 },
     };
   }
   throw new Error(`Unsupported mimeType for vision analysis: ${mimeType}`);
@@ -165,7 +169,7 @@ export const visionAnalysisService = {
 
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 4000,
+      max_tokens: 16000,
       thinking: { type: 'adaptive' },
       system: [
         {
