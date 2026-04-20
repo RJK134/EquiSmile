@@ -117,7 +117,7 @@ function RoutePolyline({ stops, homeBase }: { stops: RouteStop[]; homeBase?: Rou
     const polyline = new google.maps.Polyline({
       path,
       geodesic: true,
-      strokeColor: '#1e40af',
+      strokeColor: '#9b214d',
       strokeOpacity: 0.8,
       strokeWeight: 3,
     });
