@@ -326,3 +326,29 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - A `readonly` cannot `POST /api/staff` (403) but can `GET /api/customers`.
 - A `vet` cannot `GET /api/export/vetup` (admin-only).
 - Every admin export, attachment delete/download, clinical mutation, prescription status change, and vision-analysis invocation lands in `SecurityAuditLog`.
+
+---
+
+## Phase 14 — Security Hardening (PR C: Webhook HMAC + Rate limiting + Log redaction)
+
+### Scope
+- Harden public-path webhook auth, cap abuse-prone routes with a rate limiter, and introduce a log-redaction utility so secrets can't leak via structured logs.
+
+### Deliverables
+- `lib/utils/signature.ts` — new `constantTimeStringEquals` helper; new `verifyWhatsAppVerifyToken` that uses it so the GET-challenge verify token can't be probed by timing.
+- `app/api/webhooks/whatsapp/route.ts` — `GET` swaps `===` for constant-time compare; `POST` rate-limited per client IP (300/min) before parsing body.
+- `app/api/webhooks/email/route.ts` — `POST` rate-limited per client IP (200/min) before signature check.
+- `lib/utils/rate-limit.ts` — in-memory sliding-window limiter, `rateLimiter({windowMs, max, now, maxKeys})` + `rateLimitedResponse` helper + `clientKeyFromRequest`. Per-key LRU-bounded to 10,000 keys.
+- Wired into: `POST /api/attachments/[id]/analyse` (20/hour per user — caps Claude Opus 4.7 spend) and `GET /api/export/vetup` (10/hour per admin — discourages automated exfil).
+- `lib/utils/log-redact.ts` — `redact(value)` walks any object, replaces values of sensitive keys (authorization, api_key, cookie, password, signature, etc.) with `[redacted]`; also redacts `Bearer …` and `sk-…` string values regardless of key.
+- Tests: 11 rate-limit + 10 log-redact + 6 new signature tests. Net 722 passing across 77 files.
+
+### Verification
+- Spamming `POST /api/webhooks/whatsapp` 301 times in a minute from one IP returns 429 with `Retry-After`.
+- `GET /api/export/vetup?profile=patient` 11 times from the same admin returns 429.
+- `redact({authorization: 'Bearer sk-xxx'})` returns `{authorization: '[redacted]'}`.
+- WhatsApp GET verification with a same-length wrong token no longer short-circuits compared to a matching token (no timing oracle).
+
+### Limits / follow-ups
+- The rate limiter is in-memory per Node instance. Horizontal scaling needs a Redis (or Postgres — same pattern as `IdempotencyKey`) backend.
+- The `log-redact` utility is available but not yet automatically wired into every `console.log`; adopt on a per-call basis as call sites are reviewed.

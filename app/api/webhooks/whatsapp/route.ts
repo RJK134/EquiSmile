@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { verifyWhatsAppSignature } from '@/lib/utils/signature';
+import { verifyWhatsAppSignature, verifyWhatsAppVerifyToken } from '@/lib/utils/signature';
 import { normalisePhone } from '@/lib/utils/phone';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
+import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+
+// Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
+// order-of-magnitude headroom that still catches a misconfigured
+// retry storm or a spoofed edge.
+const whatsappWebhookLimiter = rateLimiter({ windowMs: 60_000, max: 300 });
 
 // ---------------------------------------------------------------------------
 // GET — Webhook verification (Meta sends this during setup)
@@ -17,7 +23,7 @@ export async function GET(request: NextRequest) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && verifyWhatsAppVerifyToken(token, env.WHATSAPP_VERIFY_TOKEN)) {
     console.log('[WhatsApp] Webhook verified');
     return new NextResponse(challenge, { status: 200 });
   }
@@ -65,6 +71,11 @@ interface WhatsAppPayload {
 }
 
 export async function POST(request: NextRequest) {
+  // Per-IP rate limit first — cheap and stops obvious abuse before we
+  // parse a potentially-large body.
+  const decision = whatsappWebhookLimiter.check(clientKeyFromRequest(request, 'wa-wh'));
+  if (!decision.allowed) return rateLimitedResponse(decision);
+
   // Read raw body for signature verification
   const rawBody = await request.text();
 

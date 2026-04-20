@@ -1,6 +1,30 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 /**
+ * Constant-time string equality. `timingSafeEqual` requires equal-length
+ * buffers; we gate on length first (acceptable leak for verify tokens).
+ */
+export function constantTimeStringEquals(a: string, b: string): boolean {
+  const ba = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
+
+/**
+ * Verify the WhatsApp webhook setup challenge. Meta sends `hub.verify_token`
+ * during GET webhook verification; compare against the configured secret
+ * in constant time so an attacker can't probe it character-by-character.
+ */
+export function verifyWhatsAppVerifyToken(
+  received: string | null,
+  expected: string | undefined,
+): boolean {
+  if (!received || !expected) return false;
+  return constantTimeStringEquals(received, expected);
+}
+
+/**
  * Verify a Meta WhatsApp Cloud API webhook signature.
  * Meta sends the signature in the `X-Hub-Signature-256` header as `sha256=<hex>`.
  */
