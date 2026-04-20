@@ -145,4 +145,18 @@ describe('withRole', () => {
     expect(handler).not.toHaveBeenCalled();
     expect((result as { status: number }).status).toBe(403);
   });
+
+  it('returns handled app errors from the wrapped handler', async () => {
+    authMock.mockResolvedValue({
+      user: { id: 'u1', email: null, githubLogin: 'admin', role: 'admin' },
+    });
+    const wrapped = withRole(ROLES.VET, async () => {
+      throw new Error('boom');
+    });
+
+    const result = (await wrapped()) as Response;
+
+    expect(result.status).toBe(500);
+    await expect(result.json()).resolves.toEqual({ error: 'boom' });
+  });
 });

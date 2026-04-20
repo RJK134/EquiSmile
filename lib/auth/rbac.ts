@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { auth } from '@/auth';
-import { errorResponse } from '@/lib/api-utils';
+import { errorResponse, handleApiError } from '@/lib/api-utils';
 
 /**
  * Phase 14 PR B — role-based access control.
@@ -138,7 +138,7 @@ export function withRole<Args extends unknown[], R>(
       if (error instanceof AuthzError) {
         return authzErrorResponse(error);
       }
-      throw error;
+      return handleApiError(error);
     }
   };
 }

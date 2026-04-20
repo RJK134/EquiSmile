@@ -39,12 +39,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const description = form.get('description');
-    const formStaffId = form.get('uploadedById');
-    // Trust the session for attribution; fall back to the form value only
-    // when the subject did not propagate one (never trust unauth'd input
-    // to set the uploader identity).
-    const uploadedById =
-      typeof formStaffId === 'string' && formStaffId.length > 0 ? formStaffId : subject.id;
+    // Always attribute uploads to the authenticated subject.
+    const uploadedById = subject.id;
 
     const attachment = await attachmentService.upload({
       horseId: id,
