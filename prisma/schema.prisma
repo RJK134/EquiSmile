@@ -115,6 +115,12 @@ enum InvoiceStatus {
   PAID
 }
 
+enum StaffRole {
+  VET
+  ADMIN
+  NURSE
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -313,13 +319,17 @@ model RouteRun {
   totalHorses         Int?
   optimizationScore   Float?
   notes               String?
+  leadStaffId         String?
   createdAt           DateTime       @default(now())
 
   stops        RouteRunStop[]
   appointments Appointment[]
+  leadStaff    Staff?              @relation("RouteRunLead", fields: [leadStaffId], references: [id], onDelete: SetNull)
+  assistants   RouteRunAssistant[]
 
   @@index([runDate])
   @@index([status])
+  @@index([leadStaffId])
 }
 
 model RouteRunStop {
@@ -361,6 +371,7 @@ model Appointment {
   visitRequest VisitRequest  @relation(fields: [visitRequestId], references: [id])
   routeRun     RouteRun?     @relation(fields: [routeRunId], references: [id])
   visitOutcome VisitOutcome?
+  assignments  AppointmentAssignment[]
 
   @@index([visitRequestId])
   @@index([status])
@@ -381,6 +392,69 @@ model VisitOutcome {
 }
 
 // ---------------------------------------------------------------------------
+// Staff — operators (vets, nurses, admin). Separate from the Auth.js User
+// model so domain assignments stay decoupled from authentication plumbing.
+// A Staff row MAY link to an Auth User via userId (optional 1:1) so that
+// signing-in auto-attributes domain actions when desired.
+// ---------------------------------------------------------------------------
+
+model Staff {
+  id        String    @id @default(uuid())
+  name      String
+  email     String?   @unique
+  phone     String?
+  role      StaffRole @default(VET)
+  colour    String?   // hex, used for calendar pills (e.g. "#9b214d")
+  active    Boolean   @default(true)
+  notes     String?
+  userId    String?   @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user                  User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  appointmentAssignments AppointmentAssignment[]
+  routeRunsLed          RouteRun[]             @relation("RouteRunLead")
+  routeRunAssistance    RouteRunAssistant[]
+
+  @@index([role])
+  @@index([active])
+}
+
+// Assignment of a Staff member to an Appointment. `primary` flag marks the
+// lead vet for the visit. Multiple rows support joint rounds (e.g. lead +
+// assistant, or two vets sharing the visit).
+model AppointmentAssignment {
+  id            String   @id @default(uuid())
+  appointmentId String
+  staffId       String
+  primary       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  staff       Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentId, staffId])
+  @@index([staffId])
+  @@index([appointmentId])
+}
+
+// Join for joint route runs — lead is stored on RouteRun.leadStaffId; this
+// table records additional vets/nurses coming along for part or all of the
+// run.
+model RouteRunAssistant {
+  id         String   @id @default(uuid())
+  routeRunId String
+  staffId    String
+  createdAt  DateTime @default(now())
+
+  routeRun RouteRun @relation(fields: [routeRunId], references: [id], onDelete: Cascade)
+  staff    Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([routeRunId, staffId])
+  @@index([staffId])
+}
+
+// ---------------------------------------------------------------------------
 // Auth.js (NextAuth v5) models — internal operator sign-in via GitHub OAuth.
 // These are separate from the domain models above and drive app access only.
 // ---------------------------------------------------------------------------
@@ -398,6 +472,7 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  staff    Staff?
 }
 
 model Account {

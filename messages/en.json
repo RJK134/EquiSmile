@@ -28,8 +28,47 @@
     "planning": "Planning",
     "yards": "Yards",
     "horses": "Horses",
+    "staff": "Staff",
     "completed": "Completed",
     "more": "More"
+  },
+  "staff": {
+    "title": "Staff",
+    "subtitle": "Vets, nurses and admin — assign them to visits and routes",
+    "empty": "No staff yet. Add your first vet to enable per-visit assignment.",
+    "newStaff": "Add Staff",
+    "email": "Email",
+    "phone": "Phone",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "role": {
+      "vet": "Vet",
+      "admin": "Admin",
+      "nurse": "Nurse"
+    },
+    "form": {
+      "title": "Add Staff",
+      "name": "Name",
+      "role": "Role",
+      "email": "Email",
+      "phone": "Phone",
+      "colour": "Calendar colour",
+      "colourHelp": "Hex code used to identify this vet on the route map and calendar (e.g. #9b214d).",
+      "notes": "Notes"
+    },
+    "assignment": {
+      "primary": "Primary vet",
+      "secondary": "Joint",
+      "assistant": "Assistant",
+      "lead": "Lead vet",
+      "assignVet": "Assign vet",
+      "noneAssigned": "No vet assigned",
+      "selectVet": "Select a vet"
+    },
+    "calendarFilter": {
+      "label": "Filter by vet",
+      "all": "All vets"
+    }
   },
   "dashboard": {
     "title": "Dashboard",

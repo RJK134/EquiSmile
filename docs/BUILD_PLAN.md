@@ -158,3 +158,27 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Allow-listed GitHub account signs in successfully; non-allow-listed account is denied with the `notAuthorised` banner.
 - `/api/webhooks/whatsapp` still accepts n8n calls with `N8N_API_KEY` alone (no session).
 - Triage override creates audit rows with `performedBy` set to the signed-in user, not `"admin"`.
+
+---
+
+## Phase 10 — Staff Model & Per-Vet Assignments
+
+### Scope
+- Support a 2+ vet practice by introducing a Staff model separate from the Auth User, so domain assignments are decoupled from auth plumbing.
+- Track appointment ownership (primary vet + joint assignments) and route-run leadership (lead + assistants) so "rounds with both vets" is explicit, not convention.
+
+### Deliverables
+- Prisma: `Staff` model, `AppointmentAssignment` join, `RouteRunAssistant` join, `RouteRun.leadStaffId` FK. Additive migration only.
+- Repository/service: `staff.repository.ts`, `staff.service.ts` (list/create/update/deactivate + assignToAppointment/assignToRouteRun + appointmentsForCalendar).
+- API: `GET|POST /api/staff`, `GET|PATCH|DELETE /api/staff/[id]`, `POST|DELETE /api/staff/assign` (target=appointment|routeRun).
+- UI: `/{locale}/staff` management page (list + create modal + toggle active).
+- Validations: `lib/validations/staff.schema.ts` (zod).
+- i18n: EN + FR strings for Staff page, roles, assignment labels.
+- Seed: demo-staff-rachel (lead vet, maroon), demo-staff-second (visiting vet, blue), demo-staff-nurse (green).
+- Tests: 10 service unit tests (create/duplicate email/assignment with primary flag/route-run lead+assistant/calendar filter).
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate` all pass.
+- `POST /api/staff { name }` creates a vet; duplicate email returns 409.
+- `POST /api/staff/assign { target: 'appointment', appointmentId, staffId, primary: true }` unflags other primaries for that appointment.
+- `POST /api/staff/assign { target: 'routeRun', routeRunId, staffId, isLead: true }` writes `RouteRun.leadStaffId`.

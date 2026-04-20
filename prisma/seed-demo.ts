@@ -5,6 +5,52 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding demo database (Swiss equine vet)...\n');
 
+  // ─── Staff (2 vets + 1 nurse) ────────────────────────────────────────────
+
+  await prisma.staff.upsert({
+    where: { email: 'rachel@equismile.example' },
+    update: {},
+    create: {
+      id: 'demo-staff-rachel',
+      name: 'Dr. Rachel Kemp',
+      email: 'rachel@equismile.example',
+      phone: '+41799100001',
+      role: 'VET',
+      colour: '#9b214d',
+      notes: 'Lead equine dental vet — founder.',
+    },
+  });
+  console.log('  Staff: Dr. Rachel Kemp (lead vet)');
+
+  await prisma.staff.upsert({
+    where: { email: 'second.vet@equismile.example' },
+    update: {},
+    create: {
+      id: 'demo-staff-second',
+      name: 'Dr. Alex Moreau',
+      email: 'second.vet@equismile.example',
+      phone: '+41799100002',
+      role: 'VET',
+      colour: '#1e40af',
+      notes: 'Visiting vet — alternates rounds with Rachel.',
+    },
+  });
+  console.log('  Staff: Dr. Alex Moreau (visiting vet)');
+
+  await prisma.staff.upsert({
+    where: { email: 'nurse@equismile.example' },
+    update: {},
+    create: {
+      id: 'demo-staff-nurse',
+      name: 'Léa Bertrand',
+      email: 'nurse@equismile.example',
+      role: 'NURSE',
+      colour: '#16a34a',
+      notes: 'Veterinary nurse — joins joint rounds.',
+    },
+  });
+  console.log('  Staff: Léa Bertrand (nurse)');
+
   // ─── Customers (8: 4 FR, 4 EN) ──────────────────────────────────────────
 
   const marieDupont = await prisma.customer.upsert({
