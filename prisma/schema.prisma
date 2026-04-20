@@ -516,6 +516,57 @@ model IdempotencyKey {
 }
 
 // ---------------------------------------------------------------------------
+// Security audit log — Phase 14 PR B.
+//
+// Append-only record of security-relevant events: sign-in denials, exports
+// of customer data, attachment deletion, clinical record mutations, role
+// changes, and any other sensitive action that would matter during an
+// incident response or a regulator audit.
+//
+// The `actor` column stores the best-available identifier (githubLogin,
+// email, or user id); if the event happened without a session (e.g. a
+// background job) it records `system`. We deliberately do NOT store
+// session tokens, IP addresses, or request bodies — just who did what,
+// when, and against which target.
+// ---------------------------------------------------------------------------
+
+enum SecurityAuditEvent {
+  SIGN_IN_DENIED
+  ROLE_CHANGED
+  EXPORT_DATASET
+  ATTACHMENT_DELETED
+  ATTACHMENT_DOWNLOADED
+  CLINICAL_RECORD_CREATED
+  CLINICAL_RECORD_UPDATED
+  CLINICAL_RECORD_DELETED
+  PRESCRIPTION_STATUS_CHANGED
+  VISION_ANALYSIS_INVOKED
+  STAFF_CREATED
+  STAFF_UPDATED
+  STAFF_DEACTIVATED
+  CUSTOMER_DELETED
+  YARD_DELETED
+  HORSE_DELETED
+  OTHER
+}
+
+model SecurityAuditLog {
+  id         String             @id @default(uuid())
+  event      SecurityAuditEvent
+  actor      String
+  actorRole  String?
+  targetType String?  // e.g. "Attachment", "Customer", "Staff"
+  targetId   String?
+  detail     String?  // short free-text summary; MUST NOT contain secrets
+  createdAt  DateTime           @default(now())
+
+  @@index([event])
+  @@index([actor])
+  @@index([createdAt])
+  @@index([targetType, targetId])
+}
+
+// ---------------------------------------------------------------------------
 // Clinical records — phase 12.
 //
 // A Horse is a patient. Clinical records accumulate over a horse's life:

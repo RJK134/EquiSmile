@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { clinicalRecordService } from '@/lib/services/clinical-record.service';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
+import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 
 const createFindingSchema = z.object({
   kind: z.literal('finding'),
@@ -47,6 +49,7 @@ const createPrescriptionSchema = z.object({
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    await requireRole(ROLES.NURSE);
     const { id } = await context.params;
     const [dentalCharts, findings, prescriptions] = await Promise.all([
       clinicalRecordService.listDentalCharts(id),
@@ -55,12 +58,14 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     ]);
     return successResponse({ dentalCharts, findings, prescriptions });
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const subject = await requireRole(ROLES.VET);
     const { id } = await context.params;
     const body = await request.json();
 
@@ -68,22 +73,44 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       case 'dentalChart': {
         const payload = createDentalChartSchema.parse(body);
         const chart = await clinicalRecordService.createDentalChart({ ...payload, horseId: id });
+        await securityAuditService.record({
+          event: 'CLINICAL_RECORD_CREATED',
+          actor: subject,
+          targetType: 'DentalChart',
+          targetId: chart.id,
+          detail: `horseId=${id}`,
+        });
         return successResponse(chart, 201);
       }
       case 'finding': {
         const payload = createFindingSchema.parse(body);
         const finding = await clinicalRecordService.createFinding({ ...payload, horseId: id });
+        await securityAuditService.record({
+          event: 'CLINICAL_RECORD_CREATED',
+          actor: subject,
+          targetType: 'ClinicalFinding',
+          targetId: finding.id,
+          detail: `horseId=${id}; category=${finding.category}; severity=${finding.severity}`,
+        });
         return successResponse(finding, 201);
       }
       case 'prescription': {
         const payload = createPrescriptionSchema.parse(body);
         const rx = await clinicalRecordService.createPrescription({ ...payload, horseId: id });
+        await securityAuditService.record({
+          event: 'CLINICAL_RECORD_CREATED',
+          actor: subject,
+          targetType: 'Prescription',
+          targetId: rx.id,
+          detail: `horseId=${id}; medicineName=${rx.medicineName}`,
+        });
         return successResponse(rx, 201);
       }
       default:
         return errorResponse("body.kind must be 'dentalChart', 'finding', or 'prescription'", 400);
     }
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }

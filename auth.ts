@@ -6,6 +6,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import { isAllowed, parseAllowlist } from '@/lib/auth/allowlist';
 import { safeCallbackUrl } from '@/lib/auth/redirect';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 
 declare module 'next-auth' {
   interface Session {
@@ -142,6 +143,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Deliberately generic log — no user identifiers in production.
         console.warn('[auth] sign-in denied by allow-list', {
           provider: account?.provider ?? 'unknown',
+        });
+        // Append to the security audit log. The actor label is coarse
+        // (provider-only) so the log is useful for spotting brute-force
+        // bursts without becoming a collection of denied-user emails.
+        await securityAuditService.record({
+          event: 'SIGN_IN_DENIED',
+          actor: { actorLabel: `denied-via:${account?.provider ?? 'unknown'}` },
+          detail: `provider=${account?.provider ?? 'unknown'}`,
         });
       }
       return allowed;
