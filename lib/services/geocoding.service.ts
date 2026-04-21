@@ -215,6 +215,7 @@ export const geocodingService = {
    * Update a yard with externally-provided geocode results (from n8n).
    *
    * Optional `geocodeMetadata` captures AMBER-06 provenance fields — source (who
+   * Optional `geocodeMetadata` captures AMBER-06 provenance fields — source (who
    * geocoded), precision (Google's location_type or equivalent), and
    * the formatted address. These let operators audit stale/low-quality
    * coordinates without having to re-run the geocoder.

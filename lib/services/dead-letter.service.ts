@@ -24,7 +24,6 @@ export interface EnqueueFailureInput {
 
 const MAX_PAYLOAD_LENGTH = 8_000;
 const MAX_ERROR_LENGTH = 2_000;
-
 export const deadLetterService = {
   async enqueue(input: EnqueueFailureInput): Promise<void> {
     const payloadJson = JSON.stringify(redact(input.payload));
