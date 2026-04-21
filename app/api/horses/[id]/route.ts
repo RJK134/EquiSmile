@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 /**
  * Deleting a horse cascades attachments/findings/charts/prescriptions,
- * so it's treated as a clinical-record mutation — VET+ plus an audit
+ * so it's treated as a clinical-record mutation — VET-only plus an audit
  * entry for traceability.
  */
 export async function DELETE(_request: NextRequest, context: RouteContext) {

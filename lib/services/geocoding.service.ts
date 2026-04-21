@@ -214,7 +214,7 @@ export const geocodingService = {
   /**
    * Update a yard with externally-provided geocode results (from n8n).
    *
-   * Optional `meta` captures AMBER-06 provenance fields — source (who
+   * Optional `geocodeMetadata` captures AMBER-06 provenance fields — source (who
    * geocoded), precision (Google's location_type or equivalent), and
    * the formatted address. These let operators audit stale/low-quality
    * coordinates without having to re-run the geocoder.
@@ -223,7 +223,7 @@ export const geocodingService = {
     yardId: string,
     latitude: number,
     longitude: number,
-    meta?: {
+    geocodeMetadata?: {
       source?: string | null;
       precision?: string | null;
       formattedAddress?: string | null;
@@ -243,9 +243,9 @@ export const geocodingService = {
         geocodedAt: new Date(),
         // Default to 'n8n' when the caller doesn't specify a source —
         // this method is exposed through the n8n callback.
-        geocodeSource: meta?.source ?? 'n8n',
-        geocodePrecision: meta?.precision ?? null,
-        formattedAddress: meta?.formattedAddress ?? null,
+        geocodeSource: geocodeMetadata?.source ?? 'n8n',
+        geocodePrecision: geocodeMetadata?.precision ?? null,
+        formattedAddress: geocodeMetadata?.formattedAddress ?? null,
       },
     });
 
