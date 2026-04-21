@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireActorWithRole } from '@/lib/auth/api';
 import { isDemoMode } from '@/lib/demo/demo-mode';
 import { googleMapsClient } from '@/lib/integrations/google-maps.client';
 import { whatsappClient } from '@/lib/integrations/whatsapp.client';
@@ -7,6 +8,7 @@ import { smtpClient } from '@/lib/integrations/smtp.client';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  await requireActorWithRole(['admin']);
   return NextResponse.json({
     demoMode: isDemoMode(),
     integrations: {

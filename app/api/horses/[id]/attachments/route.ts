@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { requireActorWithRole } from '@/lib/auth/api';
+import { requireActorWithRole, requireActorWithStaffRole } from '@/lib/auth/api';
 import { attachmentService, ATTACHMENT_LIMITS } from '@/lib/services/attachment.service';
 import { securityAuditService } from '@/lib/services/security-audit.service';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
@@ -17,7 +17,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireActorWithRole(['admin', 'vet', 'nurse']);
+    const actor = await requireActorWithStaffRole(['admin', 'vet', 'nurse']);
     const { id } = await context.params;
 
     const contentType = request.headers.get('content-type') || '';

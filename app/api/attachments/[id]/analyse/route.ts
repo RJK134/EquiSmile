@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { requireActorWithRole } from '@/lib/auth/api';
+import { requireActorWithStaffRole } from '@/lib/auth/api';
 import { visionAnalysisService } from '@/lib/services/vision-analysis.service';
 import { securityAuditService } from '@/lib/services/security-audit.service';
 import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
@@ -16,7 +16,7 @@ import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils'
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     enforceRequestRateLimit(request, 'attachment-analyse', 20, 60_000);
-    const actor = await requireActorWithRole(['admin', 'vet']);
+    const actor = await requireActorWithStaffRole(['admin', 'vet']);
     const { id } = await context.params;
 
     const body = await safeJson(request);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { verifyWhatsAppSignature } from '@/lib/utils/signature';
+import { constantTimeEqualsUtf8 } from '@/lib/utils/constant-time';
 import { normalisePhone } from '@/lib/utils/phone';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token && constantTimeEqualsUtf8(token, env.WHATSAPP_VERIFY_TOKEN)) {
     logger.info('WhatsApp webhook verified');
     return new NextResponse(challenge, { status: 200 });
   }

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { requireActorWithRole } from '@/lib/auth/api';
+import { requireActorWithRole, requireActorWithStaffRole } from '@/lib/auth/api';
 import { clinicalRecordService } from '@/lib/services/clinical-record.service';
 import { securityAuditService } from '@/lib/services/security-audit.service';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
@@ -64,7 +64,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireActorWithRole(['admin', 'vet']);
+    const actor = await requireActorWithStaffRole(['admin', 'vet']);
     const { id } = await context.params;
     const body = await request.json();
 

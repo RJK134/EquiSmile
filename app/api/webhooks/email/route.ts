@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { verifyN8nApiKey } from '@/lib/utils/signature';
 import { normaliseEmail } from '@/lib/utils/email';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
 import { logger } from '@/lib/utils/logger';
+import { assertN8nRequest } from '@/lib/utils/n8n-auth';
+import { handleApiError } from '@/lib/api-utils';
 
 // ---------------------------------------------------------------------------
 // Validation schema for email intake payload
@@ -32,18 +32,10 @@ type EmailPayload = z.infer<typeof emailPayloadSchema>;
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-  enforceRequestRateLimit(request, 'webhook-email', 60, 60_000);
-  // Authenticate with n8n API key
-  const authHeader = request.headers.get('authorization');
-  if (!env.N8N_API_KEY) {
-    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
-  }
-  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   let payload: EmailPayload;
   try {
+    enforceRequestRateLimit(request, 'webhook-email', 60, 60_000);
+    assertN8nRequest(request);
     const body = await request.json();
     payload = emailPayloadSchema.parse(body);
   } catch (error) {
@@ -53,7 +45,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return handleApiError(error);
   }
 
   // Deduplicate by external message ID

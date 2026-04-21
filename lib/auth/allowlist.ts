@@ -1,3 +1,5 @@
+import { constantTimeEqualsUtf8 } from '@/lib/utils/constant-time';
+
 export function parseAllowlist(raw: string | undefined): string[] {
   if (!raw) return [];
   return raw
@@ -16,5 +18,7 @@ export function isAllowed(allowlist: string[], subject: AllowlistSubject): boole
   const candidates = [subject.githubLogin, subject.email]
     .filter((value): value is string => typeof value === 'string' && value.length > 0)
     .map((value) => value.toLowerCase());
-  return candidates.some((candidate) => allowlist.includes(candidate));
+  return candidates.some((candidate) =>
+    allowlist.some((entry) => constantTimeEqualsUtf8(entry, candidate)),
+  );
 }

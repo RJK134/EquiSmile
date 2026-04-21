@@ -22,6 +22,23 @@ function isApiPath(pathname: string): boolean {
   return pathname.startsWith('/api/');
 }
 
+function safeCallbackPath(pathname: string, search: string): string | null {
+  if (!pathname.startsWith('/') || pathname.startsWith('//')) {
+    return null;
+  }
+  const decodedSearch = (() => {
+    try {
+      return decodeURIComponent(search);
+    } catch {
+      return search;
+    }
+  })();
+  if (decodedSearch.includes('://') || decodedSearch.includes('javascript:') || decodedSearch.includes('//')) {
+    return null;
+  }
+  return `${pathname}${search}`;
+}
+
 function applySecurityHeaders(response: NextResponse | Response): NextResponse | Response {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
@@ -69,7 +86,10 @@ export default async function middleware(request: NextRequest) {
     const locale = localeMatch ? localeMatch[1] : routing.defaultLocale;
     const loginUrl = new URL(`/${locale}/login`, request.url);
     if (pathname !== '/') {
-      loginUrl.searchParams.set('callbackUrl', `${pathname}${request.nextUrl.search}`);
+      const callbackPath = safeCallbackPath(pathname, request.nextUrl.search);
+      if (callbackPath) {
+        loginUrl.searchParams.set('callbackUrl', callbackPath);
+      }
     }
     return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }

@@ -59,3 +59,11 @@ export async function requireActorWithRole(allowedRoles: readonly AppRole[]): Pr
 export async function requireAuthenticatedActor(): Promise<AuthenticatedActor> {
   return getAuthenticatedActor();
 }
+
+export async function requireActorWithStaffRole(allowedRoles: readonly AppRole[]): Promise<AuthenticatedActor> {
+  const actor = await requireActorWithRole(allowedRoles);
+  if (!actor.staffId) {
+    throw new ApiError(403, 'Active staff link required');
+  }
+  return actor;
+}

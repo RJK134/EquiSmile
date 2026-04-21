@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { requireActorWithRole } from '@/lib/auth/api';
+import { requireActorWithStaffRole } from '@/lib/auth/api';
 import { clinicalRecordService } from '@/lib/services/clinical-record.service';
 import { securityAuditService } from '@/lib/services/security-audit.service';
 import { successResponse, handleApiError } from '@/lib/api-utils';
@@ -12,7 +12,7 @@ const patchSchema = z.object({
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireActorWithRole(['admin', 'vet']);
+    const actor = await requireActorWithStaffRole(['admin', 'vet']);
     const { id } = await context.params;
     const body = await request.json();
     const payload = patchSchema.parse(body);
