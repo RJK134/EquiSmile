@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { whatsappService } from '@/lib/services/whatsapp.service';
 import { emailService } from '@/lib/services/email.service';
+
+const limiter = rateLimiter({ windowMs: 60_000, max: 60 });
 
 const requestInfoSchema = z.object({
   enquiryId: z.string().uuid(),
@@ -31,10 +34,15 @@ const INFO_PROMPTS_FR: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-req-info'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
 
   try {
     const body = await request.json();

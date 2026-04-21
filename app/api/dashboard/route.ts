@@ -5,11 +5,13 @@ import { triageTaskRepository } from '@/lib/repositories/triage-task.repository'
 import { visitRequestRepository } from '@/lib/repositories/visit-request.repository';
 import { appointmentRepository } from '@/lib/repositories/appointment.repository';
 import { successResponse, handleApiError } from '@/lib/api-utils';
+import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    await requireRole(ROLES.READONLY);
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart);
@@ -133,6 +135,7 @@ export async function GET() {
       },
     });
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }

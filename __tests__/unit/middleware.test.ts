@@ -37,6 +37,30 @@ describe('middleware', () => {
     expect(intlMiddlewareMock).not.toHaveBeenCalled();
   });
 
+  it('keeps /api/n8n/* public — session-less n8n callbacks (API-key enforced in handler)', async () => {
+    const response = await middleware(
+      new NextRequest('http://localhost:3000/api/n8n/triage-result'),
+    );
+    expect(response.status).toBe(200);
+    expect(authMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps /api/reminders/check public — session-less n8n cron (API-key enforced in handler)', async () => {
+    const response = await middleware(
+      new NextRequest('http://localhost:3000/api/reminders/check'),
+    );
+    expect(response.status).toBe(200);
+    expect(authMock).not.toHaveBeenCalled();
+  });
+
+  it('does NOT make sibling /api/reminders/* paths public — only the /check route is listed', async () => {
+    const response = await middleware(
+      new NextRequest('http://localhost:3000/api/reminders/otheraction'),
+    );
+    expect(response.status).toBe(401);
+    expect(authMock).toHaveBeenCalledOnce();
+  });
+
   it('applies security headers on every response', async () => {
     authMock.mockResolvedValue({ user: { id: 'u1' } });
     const response = await middleware(new NextRequest('http://localhost:3000/en/dashboard'));

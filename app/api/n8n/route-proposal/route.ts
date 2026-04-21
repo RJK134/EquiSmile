@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
-import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { routeRunRepository } from '@/lib/repositories/route-run.repository';
+
+const limiter = rateLimiter({ windowMs: 60_000, max: 60 });
 
 const routeProposalSchema = z.object({
   routeRunId: z.string().uuid().optional(),
@@ -21,10 +24,15 @@ const routeProposalSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-route'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
 
   try {
     const body = await request.json();

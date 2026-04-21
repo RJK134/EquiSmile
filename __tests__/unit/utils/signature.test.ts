@@ -5,6 +5,7 @@ import {
   verifyN8nApiKey,
   verifyWhatsAppVerifyToken,
   constantTimeStringEquals,
+  requireN8nApiKey,
 } from '@/lib/utils/signature';
 
 describe('verifyWhatsAppSignature', () => {
@@ -81,6 +82,51 @@ describe('verifyWhatsAppVerifyToken', () => {
     expect(verifyWhatsAppVerifyToken(null, 'expected')).toBe(false);
     expect(verifyWhatsAppVerifyToken('received', undefined)).toBe(false);
     expect(verifyWhatsAppVerifyToken('', 'expected')).toBe(false);
+  });
+});
+
+describe('requireN8nApiKey (fail-closed gate)', () => {
+  it('accepts anonymously in demo mode even with no key configured', () => {
+    const r = requireN8nApiKey({ authHeader: null, expectedKey: '', demoMode: true });
+    expect(r.ok).toBe(true);
+  });
+
+  it('fails closed in production when no key is configured (500)', async () => {
+    const r = requireN8nApiKey({ authHeader: 'Bearer anything', expectedKey: '', demoMode: false });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.response.status).toBe(500);
+      const body = await r.response.json();
+      // Generic message; must not disclose config state.
+      expect(body.error).toContain('misconfiguration');
+    }
+  });
+
+  it('returns 401 when key is configured but header is wrong', async () => {
+    const r = requireN8nApiKey({ authHeader: 'Bearer wrong', expectedKey: 'good-key', demoMode: false });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.response.status).toBe(401);
+  });
+
+  it('returns 401 when key is configured but no header is sent', async () => {
+    const r = requireN8nApiKey({ authHeader: null, expectedKey: 'good-key', demoMode: false });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.response.status).toBe(401);
+  });
+
+  it('accepts a matching Bearer key even outside demo mode', () => {
+    const r = requireN8nApiKey({
+      authHeader: 'Bearer good-key',
+      expectedKey: 'good-key',
+      demoMode: false,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('still enforces the key in demo mode when one is configured', async () => {
+    const r = requireN8nApiKey({ authHeader: 'Bearer wrong', expectedKey: 'good-key', demoMode: true });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.response.status).toBe(401);
   });
 });
 

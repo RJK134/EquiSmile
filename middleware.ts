@@ -5,16 +5,55 @@ import { auth } from '@/auth';
 import { routing } from './i18n/routing';
 import { safeCallbackUrl } from '@/lib/auth/redirect';
 import { applySecurityHeaders } from '@/lib/security/headers';
+import {
+  clientKeyFromRequest,
+  rateLimitedResponse,
+  rateLimiter,
+} from '@/lib/utils/rate-limit';
 
 const intlMiddleware = createMiddleware(routing);
 
+/**
+ * Session-less public paths.
+ *
+ *  - `/login` and `/:locale/login` — unauthenticated sign-in UI.
+ *  - `/api/auth/*` — Auth.js internal endpoints (sign-in, callback, csrf,
+ *    session polling). Auth.js enforces its own CSRF/PKCE/state.
+ *  - `/api/webhooks/*` — inbound WhatsApp + email, server-to-server; each
+ *    route enforces its own HMAC/API-key check in the handler.
+ *  - `/api/n8n/*` — n8n automation callbacks (triage-result, geocode-result,
+ *    route-proposal, trigger/*). n8n has no browser session; each route
+ *    calls `requireN8nApiKey` which FAIL-CLOSES in production when
+ *    `N8N_API_KEY` is unset.
+ *  - `/api/reminders/check` — n8n-scheduled cron. Same story as above.
+ *  - `/api/health` — for uptime monitoring.
+ *
+ * Every other API route goes through the session check below.
+ */
 const PUBLIC_PATH_PATTERNS = [
   /^\/login(\/.*)?$/,
   /^\/[a-z]{2}\/login(\/.*)?$/,
   /^\/api\/auth(\/.*)?$/,
   /^\/api\/webhooks(\/.*)?$/,
+  /^\/api\/n8n(\/.*)?$/,
+  /^\/api\/reminders\/check$/,
   /^\/api\/health(\/.*)?$/,
 ];
+
+/**
+ * Rate limiter for Auth.js callback paths (magic-link verify, OAuth code
+ * exchange). Brute-forcing a magic-link token would need ~2^128 guesses,
+ * but there is no reason to allow anyone more than a handful of callback
+ * hits per minute per IP — each one does DB work and email-provider
+ * lookups. Set a generous but bounded cap.
+ *
+ * NB: `rateLimiter` state is in-process. Behind a single-instance deploy
+ * this is fine; at scale, upgrade to Redis alongside the existing
+ * idempotency service.
+ */
+const authCallbackLimiter = rateLimiter({ windowMs: 60_000, max: 30 });
+
+const AUTH_CALLBACK_PATTERN = /^\/api\/auth\/(callback|signin|verify-request|session)(\/.*)?$/;
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
@@ -26,6 +65,17 @@ function isApiPath(pathname: string): boolean {
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Rate-limit the Auth.js callback/verify/signin/session routes before
+  // any further processing, so a burst cannot cheaply burn DB work.
+  // `/api/auth/session` is polled by the client; keep the cap high
+  // enough not to interfere with a normal tab.
+  if (AUTH_CALLBACK_PATTERN.test(pathname)) {
+    const decision = authCallbackLimiter.check(clientKeyFromRequest(request, 'auth'));
+    if (!decision.allowed) {
+      return applySecurityHeaders(rateLimitedResponse(decision), { pathname });
+    }
+  }
 
   if (isPublicPath(pathname)) {
     const response = isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);

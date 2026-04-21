@@ -1,5 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const requireRoleMock = vi.hoisted(() => vi.fn());
+
+// next-auth's bootstrap reaches into `next/server` via a path the vitest
+// SSR resolver can't walk; stub the module graph.
+vi.mock('@/auth', () => ({
+  auth: vi.fn(),
+  handlers: {},
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+vi.mock('@/lib/auth/rbac', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/auth/rbac')>('@/lib/auth/rbac');
+  return { ...actual, requireRole: requireRoleMock };
+});
+
 const mockPlanningService = {
   getDashboardStats: vi.fn(),
 };
@@ -59,6 +75,9 @@ vi.mock('@/lib/prisma', () => ({
 describe('GET /api/dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requireRoleMock.mockResolvedValue({
+      id: 'u1', email: 'a@b.c', githubLogin: null, role: 'readonly', actorLabel: 'a@b.c',
+    });
   });
 
   it('returns aggregated dashboard data', async () => {

@@ -17,6 +17,15 @@ interface GeocodeResult {
   formattedAddress: string;
   placeId: string;
   partialMatch: boolean;
+  /**
+   * AMBER-06 remediation — provenance of the geocode result.
+   *
+   * Google returns one of: ROOFTOP, RANGE_INTERPOLATED,
+   * GEOMETRIC_CENTER, APPROXIMATE. See
+   * https://developers.google.com/maps/documentation/geocoding/requests-geocoding#GeocodingResponses
+   */
+  precision: string | null;
+  source: 'google' | 'n8n' | 'manual';
 }
 
 interface GeocodeApiResponse {
@@ -24,6 +33,7 @@ interface GeocodeApiResponse {
   results: Array<{
     geometry: {
       location: { lat: number; lng: number };
+      location_type?: string;
     };
     formatted_address: string;
     place_id: string;
@@ -99,6 +109,8 @@ export const geocodingService = {
       formattedAddress: result.formatted_address,
       placeId: result.place_id,
       partialMatch,
+      precision: result.geometry.location_type ?? null,
+      source: 'google',
     };
   },
 
@@ -136,6 +148,9 @@ export const geocodingService = {
           longitude: result.longitude,
           geocodeFailed: false,
           geocodedAt: new Date(),
+          geocodeSource: result.source,
+          geocodePrecision: result.precision,
+          formattedAddress: result.formattedAddress,
         },
       });
 
@@ -198,11 +213,21 @@ export const geocodingService = {
 
   /**
    * Update a yard with externally-provided geocode results (from n8n).
+   *
+   * Optional `meta` captures AMBER-06 provenance fields — source (who
+   * geocoded), precision (Google's location_type or equivalent), and
+   * the formatted address. These let operators audit stale/low-quality
+   * coordinates without having to re-run the geocoder.
    */
   async updateYardCoordinates(
     yardId: string,
     latitude: number,
     longitude: number,
+    meta?: {
+      source?: string | null;
+      precision?: string | null;
+      formattedAddress?: string | null;
+    },
   ): Promise<{ success: boolean; error?: string }> {
     const yard = await prisma.yard.findUnique({ where: { id: yardId } });
     if (!yard) {
@@ -216,6 +241,11 @@ export const geocodingService = {
         longitude,
         geocodeFailed: false,
         geocodedAt: new Date(),
+        // Default to 'n8n' when the caller doesn't specify a source —
+        // this method is exposed through the n8n callback.
+        geocodeSource: meta?.source ?? 'n8n',
+        geocodePrecision: meta?.precision ?? null,
+        formattedAddress: meta?.formattedAddress ?? null,
       },
     });
 

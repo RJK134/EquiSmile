@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
-import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { whatsappService } from '@/lib/services/whatsapp.service';
 
 const sendWhatsAppSchema = z.object({
@@ -13,11 +14,20 @@ const sendWhatsAppSchema = z.object({
   templateParams: z.array(z.string()).optional(),
 });
 
+// Outbound WhatsApp is billable. Cap per-IP to catch runaway loops
+// before they burn Meta credits.
+const limiter = rateLimiter({ windowMs: 60_000, max: 60 });
+
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-wa'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
 
   try {
     const body = await request.json();

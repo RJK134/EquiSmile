@@ -49,10 +49,14 @@ Complete all items before go-live. Run `npm run validate-env` to verify automate
 
 - [ ] Default passwords changed (database, n8n)
 - [ ] API keys rotated from UAT to production values
-- [ ] WhatsApp webhook signature verification enabled
+- [ ] WhatsApp webhook signature verification enabled (`WHATSAPP_APP_SECRET` set)
+- [ ] **`N8N_API_KEY` is set** — without it, `/api/webhooks/email`, `/api/n8n/*`, and `/api/reminders/check` fail-close with HTTP 500 outside demo mode
 - [ ] n8n basic auth credentials are strong
 - [ ] `.env` file permissions restricted (600)
 - [ ] No secrets committed to repository
+- [ ] `ALLOWED_GITHUB_LOGINS` populated with the minimal vet/admin entries — **empty list denies every sign-in**
+- [ ] At least one staff row has `role = admin` and is linked to an Auth.js user via `Staff.userId` (required for exports, role changes, and customer/yard/horse deletions)
+- [ ] Security-sensitive operations (exports, attachment download/delete, clinical record mutations, role changes, customer/yard/horse deletions, vision-analysis invocations) verified to appear in `SecurityAuditLog` during staging smoke tests
 
 ## Backup & Recovery
 
