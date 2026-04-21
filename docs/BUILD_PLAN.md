@@ -133,6 +133,30 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 
 ---
 
+## Post-audit hardening slice — 2026-04-21
+
+### Scope
+- Fail closed on webhook / n8n integration authentication.
+- Add practical RBAC for sensitive data and admin-only operations.
+- Add security headers, lightweight rate limiting, and structured security audit logging.
+- Close the standalone `/visit-requests` UI gap and store geocoding source / precision / formatted address metadata.
+
+### Deliverables
+- `lib/auth/api.ts`, `lib/http-errors.ts`, `lib/security/rate-limit.ts`, `lib/services/security-audit.service.ts`
+- RBAC + audit log wiring on exports, staff, customers, yards, horses, attachments, clinical APIs, appointments, demo/setup
+- `SecurityAuditLog` Prisma model + migration
+- Yard geocode metadata fields (`formattedAddress`, `geocodeSource`, `geocodePrecision`, `geocodePlaceId`)
+- `/{locale}/visit-requests` page and nav entry
+- Docs updates across ARCHITECTURE / KNOWN_ISSUES / PRODUCTION_READINESS / SETUP
+
+### Verification
+- `npm run lint`, `npm run typecheck`, `npm run test`, `npx prisma validate`, and `npm run build` pass with a valid `DATABASE_URL`.
+- Admin-only endpoints (`/api/staff`, `/api/export/vetup`, `/api/demo/*`, `/api/setup`) reject non-admin callers.
+- n8n/email webhook routes return `503` when `N8N_API_KEY` is unset and `401` when it is incorrect.
+- Security-sensitive mutations emit `SecurityAuditLog` rows.
+
+---
+
 ## Phase 9 — Authentication (GitHub OAuth)
 
 ### Scope

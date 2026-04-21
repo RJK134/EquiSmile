@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { env } from '@/lib/env';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
 import { emailService } from '@/lib/services/email.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
+import { logger } from '@/lib/utils/logger';
 
 const sendEmailSchema = z.object({
   to: z.string().email(),
@@ -14,8 +16,12 @@ const sendEmailSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  enforceRequestRateLimit(request, 'n8n-send-email', 40, 60_000);
   const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
+  if (!env.N8N_API_KEY) {
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
+  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -23,7 +29,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = sendEmailSchema.parse(body);
 
-    console.log('[n8n] Send email triggered', { to: payload.to, subject: payload.subject });
+    logger.info('n8n send email triggered', { to: payload.to, subject: payload.subject });
 
     const result = await emailService.sendEmail({
       to: payload.to,

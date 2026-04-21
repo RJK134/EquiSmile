@@ -235,18 +235,49 @@ At least one provider must be configured outside demo mode (enforced by `lib/uti
 2. The login page at `app/[locale]/login/page.tsx` surfaces whichever providers are configured (GitHub button, email form, or both).
 3. The chosen provider returns the user to `/api/auth/callback/<provider>`. Auth.js creates/updates `User`, `Account`/`Session`/`VerificationToken` rows via Prisma.
 4. Before the session is persisted, the `signIn` callback in `auth.ts` consults `ALLOWED_GITHUB_LOGINS` (parsed by `lib/auth/allowlist.ts`). Matching is case-insensitive against GitHub login **or** email, so the same allow-list works for both providers.
-5. The `session` callback enriches the client session with `id`, `githubLogin`, and `role` so that UI components and server actions can read who is signed in.
+5. Auth.js uses secure cookies in production and a same-origin `redirect` callback to reject open redirects.
+6. The `session` callback enriches the client session with `id`, `githubLogin`, `role`, and `staffId`. When an active `Staff` record matches the signed-in user (via `userId` or lower-cased email), the staff role wins so runtime RBAC follows the operational staff roster instead of stale auth metadata.
 
 ### Public exceptions
 - `/login` and `/{locale}/login` — the sign-in page itself (bare path covers Auth.js error redirects that lack a locale).
 - `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request).
-- `/api/webhooks/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session (see `lib/utils/n8n-auth`).
+- `/api/webhooks/*` — Meta/n8n server-to-server webhooks. WhatsApp uses Meta signature verification; email intake requires a valid `N8N_API_KEY`.
 - `/api/health` — uptime probes.
 
 ### Data model
 Auth tables live alongside the domain tables in `prisma/schema.prisma`:
-- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet` for future RBAC.
+- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet`.
 - `Account`, `Session`, `VerificationToken` — standard Auth.js shape.
+- `Staff` — operational roster. Sensitive API authorisation is role-based (`admin`, `vet`, `nurse`) and can resolve the current actor from a linked/ matching active staff row.
+
+### RBAC
+- `admin` — staff management, demo/setup controls, destructive deletes, VetUp export.
+- `vet` — clinical writes, confirmations, cancellations, route booking, attachment analysis.
+- `nurse` — read-only access to customers/yards/horses/clinical records and attachment downloads.
+- Sensitive mutations additionally write `SecurityAuditLog` rows with actor, entity, outcome, and JSON details.
 
 ### Audit trail
 `TriageAuditLog.performedBy` is written from the authenticated session (via `performedByFor` in `lib/auth/session.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
+`SecurityAuditLog` records security-relevant actions outside triage (exports, attachment operations, clinical writes, staff changes, demo/setup actions, appointment mutations).
+
+## Security controls
+
+- `middleware.ts` sets CSP, HSTS (production), frame, referrer, permissions, and opener headers on all app/API responses.
+- `lib/security/rate-limit.ts` applies lightweight application-side throttling to webhook, n8n, export, and vision-analysis endpoints.
+- n8n-triggered endpoints now fail closed if `N8N_API_KEY` is missing instead of silently bypassing authentication.
+
+## Vocabulary reconciliation
+
+### Phase 4 triage vocabulary
+The implementation splits the prompt's coarse dispositions into three focused enums:
+
+| Prompt concept | Runtime representation |
+|---|---|
+| Newly received / parsing | `TriageStatus.NEW` → `TriageStatus.PARSED` |
+| Needs follow-up information | `TriageStatus.NEEDS_INFO`, plus `TriageTaskType.ASK_*` |
+| Urgent human review | `TriageTaskType.URGENT_REVIEW`, usually alongside `UrgencyLevel.URGENT` |
+| Ready for planning / pool | `PlanningStatus.READY_FOR_REVIEW` or `PlanningStatus.PLANNING_POOL` |
+| Proposed / booked / completed / cancelled | `PlanningStatus.PROPOSED`, `BOOKED`, `COMPLETED`, `CANCELLED` |
+
+### Route proposal terminology
+The delivery uses `RouteRun` / `RouteRunStop` as the persisted names for the prompt's `RouteProposal` / `RouteStop`. The shapes are equivalent: a route run is the proposal document, and route run stops are the ordered stop records.

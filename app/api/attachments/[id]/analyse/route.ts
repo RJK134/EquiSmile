@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server';
+import { requireActorWithRole } from '@/lib/auth/api';
 import { visionAnalysisService } from '@/lib/services/vision-analysis.service';
+import { securityAuditService } from '@/lib/services/security-audit.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 
 /**
@@ -12,10 +15,11 @@ import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils'
  */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    enforceRequestRateLimit(request, 'attachment-analyse', 20, 60_000);
+    const actor = await requireActorWithRole(['admin', 'vet']);
     const { id } = await context.params;
 
     const body = await safeJson(request);
-    const staffId = typeof body.staffId === 'string' ? body.staffId : null;
     const persist = body.persist === false ? false : true;
 
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -27,8 +31,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const output = await visionAnalysisService.analyseAttachment({
       attachmentId: id,
-      staffId,
+      staffId: actor.staffId,
       persist,
+    });
+    await securityAuditService.log({
+      action: 'attachment.analyse',
+      entityType: 'horse-attachment',
+      entityId: id,
+      actor,
+      details: { persist },
     });
     return successResponse(output, 201);
   } catch (error) {

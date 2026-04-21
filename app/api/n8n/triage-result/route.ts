@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
+import { logger } from '@/lib/utils/logger';
 
 const triageResultSchema = z.object({
   enquiryId: z.string().uuid(),
@@ -13,8 +15,12 @@ const triageResultSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  enforceRequestRateLimit(request, 'n8n-triage-result', 60, 60_000);
   const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
+  if (!env.N8N_API_KEY) {
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
+  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -22,7 +28,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = triageResultSchema.parse(body);
 
-    console.log('[n8n] Triage result received', {
+    logger.info('n8n triage result received', {
       enquiryId: payload.enquiryId,
       visitRequestId: payload.visitRequestId,
       requestType: payload.requestType,

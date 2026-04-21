@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server';
+import { requireActorWithRole } from '@/lib/auth/api';
 import { vetupExportService } from '@/lib/services/vetup-export.service';
+import { securityAuditService } from '@/lib/services/security-audit.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
 import { handleApiError, errorResponse } from '@/lib/api-utils';
 
 function filename(base: string): string {
@@ -14,6 +17,8 @@ function filename(base: string): string {
  */
 export async function GET(request: NextRequest) {
   try {
+    enforceRequestRateLimit(request, 'export-vetup', 10, 60_000);
+    const actor = await requireActorWithRole(['admin']);
     const profile = request.nextUrl.searchParams.get('profile') ?? 'patient';
 
     let csv: string;
@@ -34,6 +39,13 @@ export async function GET(request: NextRequest) {
       default:
         return errorResponse(`Unknown profile '${profile}' (expected: patient, customers, yards)`, 400);
     }
+
+    await securityAuditService.log({
+      action: 'export.vetup',
+      entityType: 'vetup-export',
+      actor,
+      details: { profile },
+    });
 
     return new Response(csv, {
       status: 200,

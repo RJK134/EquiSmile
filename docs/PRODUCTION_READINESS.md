@@ -26,8 +26,8 @@ Complete all items before go-live. Run `npm run validate-env` to verify automate
 - [ ] `npm run validate-env` reports READY
 - [ ] PWA manifest URLs updated for production domain (`NEXT_PUBLIC_APP_URL`)
 - [ ] CORS configured for production domain
-- [ ] Rate limiting configured (reverse proxy or middleware)
-- [ ] Security headers configured (CSP, HSTS, X-Frame-Options)
+- [ ] Rate limiting configured (middleware is present; confirm production thresholds and any reverse-proxy complement)
+- [ ] Security headers configured (CSP, HSTS, X-Frame-Options) and verified on live responses
 
 ## External Services
 
@@ -50,7 +50,9 @@ Complete all items before go-live. Run `npm run validate-env` to verify automate
 - [ ] Default passwords changed (database, n8n)
 - [ ] API keys rotated from UAT to production values
 - [ ] WhatsApp webhook signature verification enabled
+- [ ] `N8N_API_KEY` set for all n8n/email webhook traffic (routes now fail closed without it)
 - [ ] n8n basic auth credentials are strong
+- [ ] At least one `admin` user / active admin `Staff` record exists for exports, demo controls, and staff management
 - [ ] `.env` file permissions restricted (600)
 - [ ] No secrets committed to repository
 

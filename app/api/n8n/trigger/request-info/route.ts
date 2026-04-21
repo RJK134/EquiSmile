@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
 import { whatsappService } from '@/lib/services/whatsapp.service';
 import { emailService } from '@/lib/services/email.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
+import { logger } from '@/lib/utils/logger';
 
 const requestInfoSchema = z.object({
   enquiryId: z.string().uuid(),
@@ -31,8 +33,12 @@ const INFO_PROMPTS_FR: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
+  enforceRequestRateLimit(request, 'n8n-request-info', 30, 60_000);
   const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
+  if (!env.N8N_API_KEY) {
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
+  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
       }, { status: 422 });
     }
 
-    console.log('[n8n] Request info sent', {
+    logger.info('n8n request info sent', {
       enquiryId: payload.enquiryId,
       channel,
       missingFields: payload.missingFields,

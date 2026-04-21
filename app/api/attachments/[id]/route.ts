@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server';
+import { requireActorWithRole } from '@/lib/auth/api';
 import { attachmentService } from '@/lib/services/attachment.service';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 import { errorResponse, handleApiError, successResponse } from '@/lib/api-utils';
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    await requireActorWithRole(['admin', 'vet', 'nurse']);
     const { id } = await context.params;
     const attachment = await attachmentService.findById(id);
     if (!attachment) return errorResponse('Attachment not found', 404);
@@ -26,8 +29,17 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
 export async function DELETE(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const actor = await requireActorWithRole(['admin', 'vet']);
     const { id } = await context.params;
+    const existing = await attachmentService.findById(id);
     await attachmentService.delete(id);
+    await securityAuditService.log({
+      action: 'attachment.delete',
+      entityType: 'horse-attachment',
+      entityId: id,
+      actor,
+      details: existing ? { horseId: existing.horseId, filename: existing.filename } : { missing: true },
+    });
     return successResponse({ ok: true });
   } catch (error) {
     return handleApiError(error);

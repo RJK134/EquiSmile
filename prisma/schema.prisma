@@ -188,6 +188,10 @@ model Yard {
   postcode      String
   latitude       Float?
   longitude      Float?
+  formattedAddress String?
+  geocodeSource    String?
+  geocodePrecision String?
+  geocodePlaceId   String?
   geocodeFailed  Boolean  @default(false)
   geocodedAt     DateTime?
   accessNotes    String?
@@ -204,6 +208,24 @@ model Yard {
   @@index([customerId])
   @@index([postcode])
   @@index([areaLabel])
+}
+
+model SecurityAuditLog {
+  id          String   @id @default(uuid())
+  action      String
+  entityType  String
+  entityId    String?
+  actorUserId String?
+  actorStaffId String?
+  actorRole   String?
+  outcome     String   @default("SUCCESS")
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
 }
 
 model Horse {

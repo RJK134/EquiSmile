@@ -65,6 +65,8 @@ Access to EquiSmile is gated by a GitHub sign-in with an allow-list (internal st
 
 `ALLOWED_GITHUB_LOGINS` is a comma-separated list of GitHub usernames and/or email addresses. Matching is case-insensitive. If empty, all sign-ins are denied.
 
+Sensitive admin operations (staff management, VetUp export, demo/setup controls) require the signed-in user to resolve to an `admin` role. In practice, keep an active `Staff` record for each operator and ensure at least one admin account exists before production cut-over.
+
 ### 4. Start Infrastructure
 
 ```bash
@@ -75,6 +77,10 @@ docker compose ps  # verify healthy
 This starts:
 - **PostgreSQL 16** on port 5432 (health-checked with `pg_isready`)
 - **n8n** on port 5678 (waits for PostgreSQL to be healthy)
+
+### 5. Internal integration key
+
+Set a strong `N8N_API_KEY` in every non-demo environment. `/api/webhooks/email` and `/api/n8n/*` now fail closed when the key is missing or invalid.
 
 To stop all services:
 

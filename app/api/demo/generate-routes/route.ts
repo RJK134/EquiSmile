@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { requireActorWithRole } from '@/lib/auth/api';
 import { requireDemoMode, demoLog } from '@/lib/demo/demo-mode';
 import { prisma } from '@/lib/prisma';
 import { simulateRouteOptimization, HOME_BASE, type RouteWaypoint } from '@/lib/demo/maps-simulator';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
+  const actor = await requireActorWithRole(['admin']);
   const guard = requireDemoMode();
   if (!guard.allowed) {
     return NextResponse.json({ error: guard.reason }, { status: 403 });
@@ -78,6 +81,14 @@ export async function POST() {
       optimizationScore: 0.85,
       notes: `[DEMO] Auto-generated route with ${waypoints.length} stops.`,
     },
+  });
+
+  await securityAuditService.log({
+    action: 'demo.generate-routes',
+    entityType: 'route-run',
+    entityId: routeRun.id,
+    actor,
+    details: { totalStops: waypoints.length },
   });
 
   return NextResponse.json({

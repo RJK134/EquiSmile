@@ -17,6 +17,23 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {},
 }));
 
+vi.mock('@/lib/auth/api', () => ({
+  requireActorWithRole: vi.fn().mockResolvedValue({
+    userId: 'user-1',
+    staffId: 'staff-1',
+    role: 'admin',
+    email: 'admin@example.com',
+    githubLogin: 'admin',
+    performedBy: 'admin',
+  }),
+}));
+
+vi.mock('@/lib/services/security-audit.service', () => ({
+  securityAuditService: {
+    log: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 describe('GET /api/customers', () => {
   beforeEach(() => {
     vi.clearAllMocks();

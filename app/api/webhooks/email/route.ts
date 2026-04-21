@@ -7,6 +7,8 @@ import { normaliseEmail } from '@/lib/utils/email';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
+import { logger } from '@/lib/utils/logger';
 
 // ---------------------------------------------------------------------------
 // Validation schema for email intake payload
@@ -30,9 +32,13 @@ type EmailPayload = z.infer<typeof emailPayloadSchema>;
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
+  enforceRequestRateLimit(request, 'webhook-email', 60, 60_000);
   // Authenticate with n8n API key
   const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
+  if (!env.N8N_API_KEY) {
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
+  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -82,7 +88,7 @@ export async function POST(request: NextRequest) {
       },
     });
     isNewCustomer = true;
-    console.log('[Email] Created new customer', { customerId: customer.id, email });
+    logger.info('Email webhook created customer', { customerId: customer.id, email });
   }
 
   // Derive thread key from In-Reply-To or Message-ID
@@ -141,16 +147,18 @@ export async function POST(request: NextRequest) {
       visitRequest.id,
       payload.textBody,
     );
-    console.log('[Email] Auto-triage completed', {
+    logger.info('Email auto-triage completed', {
       enquiryId: enquiry.id,
       urgency: triageResult.urgency,
       confidence: triageResult.confidence,
     });
   } catch (triageErr) {
-    console.error('[Email] Auto-triage failed, enquiry still created', triageErr);
+    logger.error('Email auto-triage failed', triageErr, {
+      enquiryId: enquiry.id,
+    });
   }
 
-  console.log('[Email] Enquiry created', {
+  logger.info('Email enquiry created', {
     enquiryId: enquiry.id,
     customerId: customer.id,
     isNewCustomer,

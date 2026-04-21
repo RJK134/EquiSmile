@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { env } from '@/lib/env';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
 import { whatsappService } from '@/lib/services/whatsapp.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
+import { logger } from '@/lib/utils/logger';
 
 const sendWhatsAppSchema = z.object({
   to: z.string().min(1),
@@ -14,8 +16,12 @@ const sendWhatsAppSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  enforceRequestRateLimit(request, 'n8n-send-whatsapp', 40, 60_000);
   const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
+  if (!env.N8N_API_KEY) {
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
+  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -23,7 +29,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = sendWhatsAppSchema.parse(body);
 
-    console.log('[n8n] Send WhatsApp triggered', { to: payload.to, enquiryId: payload.enquiryId });
+    logger.info('n8n send WhatsApp triggered', { to: payload.to, enquiryId: payload.enquiryId });
 
     let result;
     if (payload.templateName) {

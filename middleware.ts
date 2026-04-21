@@ -22,33 +22,63 @@ function isApiPath(pathname: string): boolean {
   return pathname.startsWith('/api/');
 }
 
+function applySecurityHeaders(response: NextResponse | Response): NextResponse | Response {
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-DNS-Prefetch-Control', 'off');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  response.headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "connect-src 'self' https:",
+      'upgrade-insecure-requests',
+    ].join('; '),
+  );
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  return response;
+}
+
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
-    return isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);
+    const response = isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);
+    return applySecurityHeaders(response);
   }
 
   const session = await auth();
 
   if (!session?.user) {
     if (isApiPath(pathname)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return applySecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
     }
     const localeMatch = pathname.match(/^\/([a-z]{2})(\/|$)/);
     const locale = localeMatch ? localeMatch[1] : routing.defaultLocale;
     const loginUrl = new URL(`/${locale}/login`, request.url);
     if (pathname !== '/') {
-      loginUrl.searchParams.set('callbackUrl', pathname);
+      loginUrl.searchParams.set('callbackUrl', `${pathname}${request.nextUrl.search}`);
     }
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   if (isApiPath(pathname)) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
-  return intlMiddleware(request);
+  return applySecurityHeaders(intlMiddleware(request));
 }
 
 export const config = {

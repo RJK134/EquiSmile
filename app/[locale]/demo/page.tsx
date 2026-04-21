@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -27,31 +28,58 @@ interface ActionResult {
 }
 
 export default function DemoPage() {
-  const [status, setStatus] = useState<DemoStatus | null>(null);
+  const { data: session, status: authStatus } = useSession();
+  const [demoStatus, setDemoStatus] = useState<DemoStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionResults, setActionResults] = useState<ActionResult[]>([]);
   const [running, setRunning] = useState<string | null>(null);
 
   const fetchStatus = useCallback(async () => {
+    if (authStatus !== 'authenticated' || session?.user?.role !== 'admin') {
+      setDemoStatus(null);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch('/api/demo/status');
       if (res.status === 403) {
-        setStatus(null);
+        setDemoStatus(null);
         setLoading(false);
         return;
       }
       const data = await res.json();
-      setStatus(data);
+      setDemoStatus(data);
     } catch {
-      setStatus(null);
+      setDemoStatus(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authStatus, session?.user?.role]);
 
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  if (authStatus === 'authenticated' && session?.user?.role !== 'admin') {
+    return (
+      <div className="flex h-full flex-col">
+        <SkipToContent />
+        <Header />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar />
+          <main id="main-content" className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
+            <Card>
+              <h1 className="text-lg font-bold text-danger">Access denied</h1>
+              <p className="mt-2 text-sm text-muted">
+                Only administrators can access demo controls.
+              </p>
+            </Card>
+          </main>
+        </div>
+        <MobileNav />
+      </div>
+    );
+  }
 
   const runAction = async (action: string, url: string, body?: Record<string, unknown>) => {
     setRunning(action);
@@ -110,7 +138,7 @@ export default function DemoPage() {
     );
   }
 
-  if (!status || !status.demoMode) {
+  if (!demoStatus || !demoStatus.demoMode) {
     return (
       <div className="flex h-full flex-col">
         <SkipToContent />
@@ -155,7 +183,7 @@ export default function DemoPage() {
           <Card className="mb-4">
             <h2 className="mb-2 text-sm font-semibold">Integration Status / État des intégrations</h2>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {Object.entries(status.integrations).map(([name, mode]) => (
+              {Object.entries(demoStatus.integrations).map(([name, mode]) => (
                 <div key={name} className="rounded border border-border p-2 text-center">
                   <p className="text-xs font-medium text-muted">{name}</p>
                   <p className={`text-sm font-bold ${mode === 'demo' ? 'text-amber-600' : 'text-green-600'}`}>
@@ -170,7 +198,7 @@ export default function DemoPage() {
           <Card className="mb-4">
             <h2 className="mb-2 text-sm font-semibold">Data Counts / Données</h2>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
-              {Object.entries(status.counts).map(([name, count]) => (
+              {Object.entries(demoStatus.counts).map(([name, count]) => (
                 <div key={name} className="rounded border border-border p-2 text-center">
                   <p className="text-xs text-muted">{name}</p>
                   <p className="text-lg font-bold">{count}</p>

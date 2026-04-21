@@ -5,6 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 
 import { prisma } from '@/lib/prisma';
 import { isAllowed, parseAllowlist } from '@/lib/auth/allowlist';
+import { normaliseAppRole } from '@/lib/auth/roles';
 
 declare module 'next-auth' {
   interface Session {
@@ -12,6 +13,7 @@ declare module 'next-auth' {
       id: string;
       githubLogin?: string | null;
       role?: string | null;
+      staffId?: string | null;
     } & DefaultSession['user'];
   }
 
@@ -73,6 +75,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'database' },
   providers: buildProviders(),
+  trustHost: true,
+  useSecureCookies: process.env.NODE_ENV === 'production',
   pages: {
     signIn: '/login',
     error: '/login',
@@ -87,11 +91,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           : user.githubLogin ?? null;
       return isAllowed(allowlist, { githubLogin, email: user.email });
     },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
+
+      try {
+        const target = new URL(url);
+        if (target.origin === baseUrl) {
+          return target.toString();
+        }
+      } catch {
+        return baseUrl;
+      }
+
+      return baseUrl;
+    },
     async session({ session, user }) {
       if (session.user) {
+        const staff = user.email
+          ? await prisma.staff.findFirst({
+              where: {
+                active: true,
+                OR: [{ userId: user.id }, { email: user.email.toLowerCase() }],
+              },
+              select: { id: true, role: true },
+            })
+          : await prisma.staff.findFirst({
+              where: { active: true, userId: user.id },
+              select: { id: true, role: true },
+            });
+
         session.user.id = user.id;
         session.user.githubLogin = user.githubLogin ?? null;
-        session.user.role = user.role ?? null;
+        session.user.role = staff?.role ? normaliseAppRole(staff.role) : normaliseAppRole(user.role);
+        session.user.staffId = staff?.id ?? null;
       }
       return session;
     },

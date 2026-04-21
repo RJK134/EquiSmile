@@ -17,17 +17,19 @@ interface GeocodeResult {
   formattedAddress: string;
   placeId: string;
   partialMatch: boolean;
+  precision: string | null;
 }
 
 interface GeocodeApiResponse {
   status: string;
-  results: Array<{
-    geometry: {
-      location: { lat: number; lng: number };
-    };
-    formatted_address: string;
-    place_id: string;
-    partial_match?: boolean;
+    results: Array<{
+      geometry: {
+        location: { lat: number; lng: number };
+        location_type?: string;
+      };
+      formatted_address: string;
+      place_id: string;
+      partial_match?: boolean;
   }>;
   error_message?: string;
 }
@@ -99,6 +101,7 @@ export const geocodingService = {
       formattedAddress: result.formatted_address,
       placeId: result.place_id,
       partialMatch,
+      precision: result.geometry.location_type ?? (partialMatch ? 'PARTIAL' : null),
     };
   },
 
@@ -129,15 +132,19 @@ export const geocodingService = {
         return { success: false, error: 'No results found for address' };
       }
 
-      await prisma.yard.update({
-        where: { id: yardId },
-        data: {
-          latitude: result.latitude,
-          longitude: result.longitude,
-          geocodeFailed: false,
-          geocodedAt: new Date(),
-        },
-      });
+        await prisma.yard.update({
+          where: { id: yardId },
+          data: {
+            latitude: result.latitude,
+            longitude: result.longitude,
+            formattedAddress: result.formattedAddress,
+            geocodeSource: 'google',
+            geocodePrecision: result.precision ?? (result.partialMatch ? 'PARTIAL' : 'ROOFTOP'),
+            geocodePlaceId: result.placeId,
+            geocodeFailed: false,
+            geocodedAt: new Date(),
+          },
+        });
 
       return { success: true };
     } catch (error) {
@@ -203,6 +210,12 @@ export const geocodingService = {
     yardId: string,
     latitude: number,
     longitude: number,
+    metadata?: {
+      formattedAddress?: string | null;
+      placeId?: string | null;
+      source?: string | null;
+      precision?: string | null;
+    },
   ): Promise<{ success: boolean; error?: string }> {
     const yard = await prisma.yard.findUnique({ where: { id: yardId } });
     if (!yard) {
@@ -214,6 +227,10 @@ export const geocodingService = {
       data: {
         latitude,
         longitude,
+        formattedAddress: metadata?.formattedAddress ?? null,
+        geocodeSource: metadata?.source ?? 'n8n',
+        geocodePrecision: metadata?.precision ?? null,
+        geocodePlaceId: metadata?.placeId ?? null,
         geocodeFailed: false,
         geocodedAt: new Date(),
       },

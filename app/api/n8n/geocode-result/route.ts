@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { env } from '@/lib/env';
 import { verifyN8nApiKey } from '@/lib/utils/signature';
 import { geocodingService } from '@/lib/services/geocoding.service';
+import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
 
 const geocodeResultSchema = z.object({
   yardId: z.string().uuid(),
@@ -10,11 +11,17 @@ const geocodeResultSchema = z.object({
   longitude: z.number(),
   formattedAddress: z.string().optional(),
   placeId: z.string().optional(),
+  precision: z.string().optional(),
+  source: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
+  enforceRequestRateLimit(request, 'n8n-geocode-result', 60, 60_000);
   const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
+  if (!env.N8N_API_KEY) {
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
+  }
+  if (!verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -26,6 +33,12 @@ export async function POST(request: NextRequest) {
       payload.yardId,
       payload.latitude,
       payload.longitude,
+      {
+        formattedAddress: payload.formattedAddress,
+        placeId: payload.placeId,
+        precision: payload.precision,
+        source: payload.source ?? 'n8n',
+      },
     );
 
     if (!result.success) {

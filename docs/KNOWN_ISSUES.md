@@ -20,10 +20,10 @@ Filed during the [Phase Verification Plan](./PHASE_VERIFICATION_PLAN.md) audit. 
 | ~~AMBER-01~~ | ~~7~~ | ~~Low~~ | ~~Demo-startup exec-bit test fails on Windows~~ | **Closed in-audit** — guarded 3 exec-bit tests with `itPosix` helper in `__tests__/unit/infra/demo-startup.test.ts`; POSIX CI still enforces |
 | ~~AMBER-02~~ | ~~1~~ | ~~Low~~ | ~~Brand colour is `#1e40af` (blue) in manifest/layout/globals.css instead of `#9b214d` (maroon) specified in PHASE_1_MASTER_PROMPT § 1.2 and shown in Logo.png~~ | **Resolved** — aligned all four code sites (globals.css, manifest.ts, layout.tsx, RouteMap.tsx) to the spec maroon `#9b214d`. Added `--color-primary-light` (`#c23b6c`) and `--color-primary-dark` (`#6f1738`) tints. |
 | ~~AMBER-03~~ | ~~2~~ | ~~Low~~ | ~~Seed counts below Phase 2 target (5c/8y/15h/10e/5vr vs 8/6/20/12/10)~~ | **Resolved by PR #17 (Phase 12d)** — `seed.ts` split into production (minimal) + `seed-demo.ts` (8c/8y/20h/12e) |
-| AMBER-04 | 2 | Low | No dedicated `/visit-requests` route — data surfaced via `/enquiries/[id]` and `/planning` | Accept as UX consolidation, or add list route if operators need a standalone queue |
-| AMBER-05 | 4 | Low | Triage dispositions split across `TriageStatus` (4) + `PlanningStatus` (8) + `TriageTaskType` (5) rather than the 7 specific dispositions listed in PHASE_4_MASTER_PROMPT § 4.1 | Add mapping table in `docs/ARCHITECTURE.md` to reconcile vocabulary |
-| AMBER-06 | 5 | Low | Geocoding fields on Yard lack `source`, `precision`, `formattedAddress` specified in PHASE_5_MASTER_PROMPT § 5.1 | Source is implicitly Google; precision inferable; formatted address derivable. Extend additively if required |
-| AMBER-07 | 5 | Low | `RouteRun`/`RouteRunStop` used instead of master prompt's `RouteProposal`/`RouteStop` | Functional shape identical. Document terminology in `docs/ARCHITECTURE.md` |
+| ~~AMBER-04~~ | ~~2~~ | ~~Low~~ | ~~No dedicated `/visit-requests` route — data surfaced via `/enquiries/[id]` and `/planning`~~ | **Resolved** — added `/{locale}/visit-requests` standalone queue and navigation entry. |
+| ~~AMBER-05~~ | ~~4~~ | ~~Low~~ | ~~Triage dispositions split across `TriageStatus` (4) + `PlanningStatus` (8) + `TriageTaskType` (5) rather than the 7 specific dispositions listed in PHASE_4_MASTER_PROMPT § 4.1~~ | **Resolved in docs** — `docs/ARCHITECTURE.md` now contains a prompt-to-runtime vocabulary mapping table. |
+| ~~AMBER-06~~ | ~~5~~ | ~~Low~~ | ~~Geocoding fields on Yard lack `source`, `precision`, `formattedAddress` specified in PHASE_5_MASTER_PROMPT § 5.1~~ | **Resolved** — Yard now stores `formattedAddress`, `geocodeSource`, `geocodePrecision`, and `geocodePlaceId`. |
+| ~~AMBER-07~~ | ~~5~~ | ~~Low~~ | ~~`RouteRun`/`RouteRunStop` used instead of master prompt's `RouteProposal`/`RouteStop`~~ | **Resolved in docs** — architecture docs now explain the terminology equivalence. |
 | AMBER-08 | 6 | Medium | Single `AppointmentStatus` enum instead of separate Booking/Confirmation/Reminder status enums per `PHASE_6_DATA_MODEL.md` | Sufficient for single-vet operation. Revisit in v1.1 if operational granularity is needed |
 | AMBER-09 | 6 | Low | No explicit `AppointmentHorse` link table; horses inferred from VisitRequest relation | Adequate if per-appointment horse metadata (order, per-horse duration) is not tracked |
 | AMBER-10 | 6 | Medium | No `ConfirmationDispatch` event log — only latest `confirmationSentAt`/`confirmationChannel` on Appointment | Lose audit of multiple send attempts. Add for v1.1 if dispatch history is operationally important |
@@ -39,6 +39,10 @@ Filed during the [Phase Verification Plan](./PHASE_VERIFICATION_PLAN.md) audit. 
 | ID | Phase | Description | Resolution |
 |----|-------|-------------|------------|
 | KI-002 | 6 | Reminder scheduling had no built-in cron | Added `n8n/07-reminder-scheduling.json` — n8n workflow triggers `GET /api/reminders/check` every 15 minutes |
+| AMBER-04 | 2 | No dedicated `/visit-requests` route | Added `app/[locale]/visit-requests/page.tsx` and sidebar link |
+| AMBER-05 | 4 | Triage vocabulary mismatch | Added mapping table in `docs/ARCHITECTURE.md` |
+| AMBER-06 | 5 | Geocoding metadata missing on Yard | Added metadata columns + service wiring in 2026-04-21 hardening slice |
+| AMBER-07 | 5 | Route proposal terminology mismatch | Documented `RouteRun` ↔ `RouteProposal` equivalence in `docs/ARCHITECTURE.md` |
 
 ## Conventions
 
