@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { env } from '@/lib/env';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { geocodingService } from '@/lib/services/geocoding.service';
-import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
-import { assertN8nRequest } from '@/lib/utils/n8n-auth';
-import { handleApiError } from '@/lib/api-utils';
 
 const geocodeResultSchema = z.object({
   yardId: z.string().uuid(),
@@ -11,14 +11,24 @@ const geocodeResultSchema = z.object({
   longitude: z.number(),
   formattedAddress: z.string().optional(),
   placeId: z.string().optional(),
-  precision: z.string().optional(),
   source: z.string().optional(),
+  precision: z.string().optional(),
 });
 
+const limiter = rateLimiter({ windowMs: 60_000, max: 120 });
+
 export async function POST(request: NextRequest) {
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-geo'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
+
   try {
-    enforceRequestRateLimit(request, 'n8n-geocode-result', 60, 60_000);
-    assertN8nRequest(request);
     const body = await request.json();
     const payload = geocodeResultSchema.parse(body);
 
@@ -27,10 +37,9 @@ export async function POST(request: NextRequest) {
       payload.latitude,
       payload.longitude,
       {
-        formattedAddress: payload.formattedAddress,
-        placeId: payload.placeId,
+        source: payload.source,
         precision: payload.precision,
-        source: payload.source ?? 'n8n',
+        formattedAddress: payload.formattedAddress,
       },
     );
 
@@ -47,6 +56,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
     }
-    return handleApiError(error);
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 }

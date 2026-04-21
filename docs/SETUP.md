@@ -65,8 +65,6 @@ Access to EquiSmile is gated by a GitHub sign-in with an allow-list (internal st
 
 `ALLOWED_GITHUB_LOGINS` is a comma-separated list of GitHub usernames and/or email addresses. Matching is case-insensitive. If empty, all sign-ins are denied.
 
-Sensitive admin operations (staff management, VetUp export, demo/setup controls) require the signed-in user to resolve to an `admin` role. In practice, keep an active `Staff` record for each operator and ensure at least one admin account exists before production cut-over.
-
 ### 4. Start Infrastructure
 
 ```bash
@@ -77,10 +75,6 @@ docker compose ps  # verify healthy
 This starts:
 - **PostgreSQL 16** on port 5432 (health-checked with `pg_isready`)
 - **n8n** on port 5678 (waits for PostgreSQL to be healthy)
-
-### 5. Internal integration key
-
-Set a strong `N8N_API_KEY` in every non-demo environment. `/api/webhooks/email` and `/api/n8n/*` now fail closed when the key is missing or invalid.
 
 To stop all services:
 
@@ -222,3 +216,28 @@ npm run db:migrate
 npm run validate-env
 ```
 Fix any reported issues. Required: `DATABASE_URL`. Optional services show warnings but do not block startup.
+
+### n8n / email webhook / reminder cron return HTTP 500
+
+If `/api/webhooks/email`, `/api/n8n/*`, or `/api/reminders/check` returns
+
+```
+{"error":"Server misconfiguration: N8N_API_KEY is required"}
+```
+
+then `N8N_API_KEY` is unset and `DEMO_MODE=true` is not configured. These routes are session-less (n8n talks to them server-to-server) and **fail-close in production** to prevent anonymous writes. Set `N8N_API_KEY` to a long random value in `.env`, restart the app, and configure the same value in the n8n credential used by the outbound HTTP nodes.
+
+### A signed-in user gets HTTP 403 on a sensitive action
+
+EquiSmile enforces role-based access control — see `lib/auth/rbac.ts`. Ranks:
+`admin > vet > nurse > readonly`. An account with a blank or unknown role is
+normalised to `readonly`.
+
+| Action | Minimum role |
+|---|---|
+| Read customers/horses/yards/enquiries/visit-requests/dashboards | readonly |
+| Create/edit customers/horses/yards/enquiries/visit-requests | nurse |
+| Generate route proposals, override triage decisions, upload clinical attachments, change prescription status | vet |
+| Delete a customer or yard, assign staff roles, run bulk VetUp export, deactivate a staff row | admin |
+
+To promote yourself from the default `readonly` role, have an admin update `User.role` (or `Staff.role` if linked), or manually edit the DB during bootstrap.

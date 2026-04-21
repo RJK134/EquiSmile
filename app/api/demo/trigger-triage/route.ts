@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireActorWithRole } from '@/lib/auth/api';
 import { requireDemoMode, demoLog } from '@/lib/demo/demo-mode';
 import { prisma } from '@/lib/prisma';
-import { securityAuditService } from '@/lib/services/security-audit.service';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
-  const actor = await requireActorWithRole(['admin']);
   const guard = requireDemoMode();
   if (!guard.allowed) {
     return NextResponse.json({ error: guard.reason }, { status: 403 });
@@ -41,13 +38,6 @@ export async function POST() {
       newStatus: nextStatus,
     });
   }
-
-  await securityAuditService.log({
-    action: 'demo.trigger-triage',
-    entityType: 'demo',
-    actor,
-    details: { processed: results.length },
-  });
 
   return NextResponse.json({
     success: true,

@@ -3,16 +3,57 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { auth } from '@/auth';
 import { routing } from './i18n/routing';
+import { safeCallbackUrl } from '@/lib/auth/redirect';
+import { applySecurityHeaders } from '@/lib/security/headers';
+import {
+  clientKeyFromRequest,
+  rateLimitedResponse,
+  rateLimiter,
+} from '@/lib/utils/rate-limit';
 
 const intlMiddleware = createMiddleware(routing);
 
+/**
+ * Session-less public paths.
+ *
+ *  - `/login` and `/:locale/login` — unauthenticated sign-in UI.
+ *  - `/api/auth/*` — Auth.js internal endpoints (sign-in, callback, csrf,
+ *    session polling). Auth.js enforces its own CSRF/PKCE/state.
+ *  - `/api/webhooks/*` — inbound WhatsApp + email, server-to-server; each
+ *    route enforces its own HMAC/API-key check in the handler.
+ *  - `/api/n8n/*` — n8n automation callbacks (triage-result, geocode-result,
+ *    route-proposal, trigger/*). n8n has no browser session; each route
+ *    calls `requireN8nApiKey` which FAIL-CLOSES in production when
+ *    `N8N_API_KEY` is unset.
+ *  - `/api/reminders/check` — n8n-scheduled cron. Same story as above.
+ *  - `/api/health` — for uptime monitoring.
+ *
+ * Every other API route goes through the session check below.
+ */
 const PUBLIC_PATH_PATTERNS = [
   /^\/login(\/.*)?$/,
   /^\/[a-z]{2}\/login(\/.*)?$/,
   /^\/api\/auth(\/.*)?$/,
   /^\/api\/webhooks(\/.*)?$/,
+  /^\/api\/n8n(\/.*)?$/,
+  /^\/api\/reminders\/check$/,
   /^\/api\/health(\/.*)?$/,
 ];
+
+/**
+ * Rate limiter for Auth.js callback paths (magic-link verify, OAuth code
+ * exchange). Brute-forcing a magic-link token would need ~2^128 guesses,
+ * but there is no reason to allow anyone more than a handful of callback
+ * hits per minute per IP — each one does DB work and email-provider
+ * lookups. Set a generous but bounded cap.
+ *
+ * NB: `rateLimiter` state is in-process. Behind a single-instance deploy
+ * this is fine; at scale, upgrade to Redis alongside the existing
+ * idempotency service.
+ */
+const authCallbackLimiter = rateLimiter({ windowMs: 60_000, max: 30 });
+
+const AUTH_CALLBACK_PATTERN = /^\/api\/auth\/(callback|signin|verify-request|session)(\/.*)?$/;
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
@@ -22,83 +63,50 @@ function isApiPath(pathname: string): boolean {
   return pathname.startsWith('/api/');
 }
 
-function safeCallbackPath(pathname: string, search: string): string | null {
-  if (!pathname.startsWith('/') || pathname.startsWith('//')) {
-    return null;
-  }
-  const decodedSearch = (() => {
-    try {
-      return decodeURIComponent(search);
-    } catch {
-      return search;
-    }
-  })();
-  if (decodedSearch.includes('://') || decodedSearch.includes('javascript:') || decodedSearch.includes('//')) {
-    return null;
-  }
-  return `${pathname}${search}`;
-}
-
-function applySecurityHeaders(response: NextResponse | Response): NextResponse | Response {
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('X-DNS-Prefetch-Control', 'off');
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-  response.headers.set(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-      "object-src 'none'",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
-      "style-src 'self' 'unsafe-inline'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "connect-src 'self' https:",
-      'upgrade-insecure-requests',
-    ].join('; '),
-  );
-  if (process.env.NODE_ENV === 'production') {
-    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-  return response;
-}
-
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Rate-limit the Auth.js callback/verify/signin/session routes before
+  // any further processing, so a burst cannot cheaply burn DB work.
+  // `/api/auth/session` is polled by the client; keep the cap high
+  // enough not to interfere with a normal tab.
+  if (AUTH_CALLBACK_PATTERN.test(pathname)) {
+    const decision = authCallbackLimiter.check(clientKeyFromRequest(request, 'auth'));
+    if (!decision.allowed) {
+      return applySecurityHeaders(rateLimitedResponse(decision), { pathname });
+    }
+  }
+
   if (isPublicPath(pathname)) {
     const response = isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);
-    return applySecurityHeaders(response);
+    return applySecurityHeaders(response, { pathname });
   }
 
   const session = await auth();
 
   if (!session?.user) {
     if (isApiPath(pathname)) {
-      return applySecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+      return applySecurityHeaders(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        { pathname },
+      );
     }
     const localeMatch = pathname.match(/^\/([a-z]{2})(\/|$)/);
     const locale = localeMatch ? localeMatch[1] : routing.defaultLocale;
     const loginUrl = new URL(`/${locale}/login`, request.url);
     if (pathname !== '/') {
-      const callbackPath = safeCallbackPath(pathname, request.nextUrl.search);
-      if (callbackPath) {
-        loginUrl.searchParams.set('callbackUrl', callbackPath);
-      }
+      // Only attach safe same-origin paths; guards against open-redirect
+      // via crafted /?callbackUrl=... on the sign-out page.
+      loginUrl.searchParams.set('callbackUrl', safeCallbackUrl(pathname, '/'));
     }
-    return applySecurityHeaders(NextResponse.redirect(loginUrl));
+    return applySecurityHeaders(NextResponse.redirect(loginUrl), { pathname });
   }
 
   if (isApiPath(pathname)) {
-    return applySecurityHeaders(NextResponse.next());
+    return applySecurityHeaders(NextResponse.next(), { pathname });
   }
 
-  return applySecurityHeaders(intlMiddleware(request));
+  return applySecurityHeaders(intlMiddleware(request), { pathname });
 }
 
 export const config = {

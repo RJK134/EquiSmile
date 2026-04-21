@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
+import { requireN8nApiKey } from '@/lib/utils/signature';
 import { normaliseEmail } from '@/lib/utils/email';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
-import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
-import { logger } from '@/lib/utils/logger';
-import { assertN8nRequest } from '@/lib/utils/n8n-auth';
-import { handleApiError } from '@/lib/api-utils';
+import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+
+// n8n typically batches a handful of emails per minute; cap generously
+// at 200/min per IP to catch misconfigured loops.
+const emailWebhookLimiter = rateLimiter({ windowMs: 60_000, max: 200 });
 
 // ---------------------------------------------------------------------------
 // Validation schema for email intake payload
@@ -32,10 +35,23 @@ type EmailPayload = z.infer<typeof emailPayloadSchema>;
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
+  // Per-IP rate limit first so burst abuse doesn't burn CPU on
+  // signature/parse work.
+  const decision = emailWebhookLimiter.check(clientKeyFromRequest(request, 'email-wh'));
+  if (!decision.allowed) return rateLimitedResponse(decision);
+
+  // Authenticate with n8n API key — FAIL CLOSED in production if no key
+  // is configured (otherwise this endpoint would accept anonymous email
+  // payloads that create customers + enquiries and trigger auto-triage).
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
+
   let payload: EmailPayload;
   try {
-    enforceRequestRateLimit(request, 'webhook-email', 60, 60_000);
-    assertN8nRequest(request);
     const body = await request.json();
     payload = emailPayloadSchema.parse(body);
   } catch (error) {
@@ -45,7 +61,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    return handleApiError(error);
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   // Deduplicate by external message ID
@@ -80,7 +96,7 @@ export async function POST(request: NextRequest) {
       },
     });
     isNewCustomer = true;
-    logger.info('Email webhook created customer', { customerId: customer.id, email });
+    console.log('[Email] Created new customer', { customerId: customer.id, email });
   }
 
   // Derive thread key from In-Reply-To or Message-ID
@@ -139,18 +155,16 @@ export async function POST(request: NextRequest) {
       visitRequest.id,
       payload.textBody,
     );
-    logger.info('Email auto-triage completed', {
+    console.log('[Email] Auto-triage completed', {
       enquiryId: enquiry.id,
       urgency: triageResult.urgency,
       confidence: triageResult.confidence,
     });
   } catch (triageErr) {
-    logger.error('Email auto-triage failed', triageErr, {
-      enquiryId: enquiry.id,
-    });
+    console.error('[Email] Auto-triage failed, enquiry still created', triageErr);
   }
 
-  logger.info('Email enquiry created', {
+  console.log('[Email] Enquiry created', {
     enquiryId: enquiry.id,
     customerId: customer.id,
     isNewCustomer,

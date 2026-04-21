@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { requireActorWithStaffRole } from '@/lib/auth/api';
 import { clinicalRecordService } from '@/lib/services/clinical-record.service';
-import { securityAuditService } from '@/lib/services/security-audit.service';
 import { successResponse, handleApiError } from '@/lib/api-utils';
+import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 
 const patchSchema = z.object({
   status: z.enum(['ACTIVE', 'COMPLETED', 'CANCELLED']),
@@ -12,7 +12,7 @@ const patchSchema = z.object({
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const actor = await requireActorWithStaffRole(['admin', 'vet']);
+    const subject = await requireRole(ROLES.VET);
     const { id } = await context.params;
     const body = await request.json();
     const payload = patchSchema.parse(body);
@@ -21,15 +21,16 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       payload.status,
       payload.cancelledReason,
     );
-    await securityAuditService.log({
-      action: 'clinical.prescription.update-status',
-      entityType: 'prescription',
-      entityId: id,
-      actor,
-      details: { status: payload.status },
+    await securityAuditService.record({
+      event: 'PRESCRIPTION_STATUS_CHANGED',
+      actor: subject,
+      targetType: 'Prescription',
+      targetId: id,
+      detail: `status=${payload.status}`,
     });
     return successResponse(updated);
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }

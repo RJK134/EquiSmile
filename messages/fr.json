@@ -60,11 +60,11 @@
   "nav": {
     "dashboard": "Tableau de bord",
     "enquiries": "Demandes",
-    "visitRequests": "Demandes de visite",
     "customers": "Clients",
     "routeRuns": "Itinéraires",
     "appointments": "Rendez-vous",
     "planning": "Planification",
+    "visitRequests": "Demandes de visite",
     "yards": "Écuries",
     "horses": "Chevaux",
     "staff": "Personnel",
@@ -150,15 +150,6 @@
       "notes": "Notes",
       "submit": "Créer la demande"
     }
-  },
-  "visitRequestsPage": {
-    "title": "Demandes de visite",
-    "subtitle": "File dédiée pour toutes les demandes de visite entre triage et planification",
-    "empty": "Aucune demande de visite pour les filtres actuels.",
-    "idLabel": "Demande {id}",
-    "horseCount": "{count} cheval/chevaux",
-    "tasksOpen": "{count} tâche(s) de triage",
-    "preferredDays": "Jours souhaités : {days}"
   },
   "customers": {
     "title": "Clients",
@@ -298,6 +289,14 @@
     "auditHistory": "Historique d'audit",
     "noAuditHistory": "Aucun historique de remplacement.",
     "taskCount": "{count} tâches"
+  },
+  "visitRequests": {
+    "title": "Demandes de visite",
+    "subtitle": "Toutes les demandes triées dans le pipeline de planification",
+    "empty": "Aucune demande de visite ne correspond aux filtres.",
+    "allStatuses": "Tous les statuts",
+    "allUrgencies": "Toutes les urgences",
+    "open": "Ouvrir"
   },
   "planning": {
     "title": "Pool de planification",

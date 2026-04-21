@@ -131,9 +131,8 @@ export interface SimulatedSendResult {
 
 export async function simulateSendMessage(
   to: string,
-  text: string,
+  _text: string,
 ): Promise<SimulatedSendResult> {
-  void text;
   const messageId = nextMessageId();
 
   demoLog('Simulating outbound WhatsApp message', { to, messageId });

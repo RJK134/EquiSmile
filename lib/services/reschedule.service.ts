@@ -86,11 +86,26 @@ export const rescheduleService = {
       }
 
       // 1. Cancel the appointment
+      const priorStatus = appointment.status;
       await tx.appointment.update({
         where: { id: appointmentId },
         data: {
           status: 'CANCELLED',
           cancellationReason: reason ?? null,
+        },
+      });
+      // AMBER-13 — status history row for the transition.
+      await tx.appointmentStatusHistory.create({
+        data: {
+          appointmentId,
+          fromStatus: priorStatus,
+          toStatus: 'CANCELLED',
+          // Callers don't currently thread an actor through the cancel
+          // path. The domain wrapper (API route handler) should supply
+          // a real actor when it adopts this service; for now fall back
+          // to 'system'.
+          changedBy: 'system',
+          reason: reason ?? null,
         },
       });
 
@@ -256,9 +271,18 @@ export const rescheduleService = {
       throw new Error(`Cannot mark as no-show: appointment is ${appointment.status}`);
     }
 
+    const priorStatus = appointment.status;
     await prisma.appointment.update({
       where: { id: appointmentId },
       data: { status: 'NO_SHOW' },
+    });
+    await prisma.appointmentStatusHistory.create({
+      data: {
+        appointmentId,
+        fromStatus: priorStatus,
+        toStatus: 'NO_SHOW',
+        changedBy: 'system',
+      },
     });
   },
 };

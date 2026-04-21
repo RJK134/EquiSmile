@@ -235,49 +235,137 @@ At least one provider must be configured outside demo mode (enforced by `lib/uti
 2. The login page at `app/[locale]/login/page.tsx` surfaces whichever providers are configured (GitHub button, email form, or both).
 3. The chosen provider returns the user to `/api/auth/callback/<provider>`. Auth.js creates/updates `User`, `Account`/`Session`/`VerificationToken` rows via Prisma.
 4. Before the session is persisted, the `signIn` callback in `auth.ts` consults `ALLOWED_GITHUB_LOGINS` (parsed by `lib/auth/allowlist.ts`). Matching is case-insensitive against GitHub login **or** email, so the same allow-list works for both providers.
-5. Auth.js uses secure cookies in production and a same-origin `redirect` callback to reject open redirects.
-6. The `session` callback enriches the client session with `id`, `githubLogin`, `role`, and `staffId`. When an active `Staff` record matches the signed-in user (via `userId` or lower-cased email), the staff role wins so runtime RBAC follows the operational staff roster instead of stale auth metadata.
+5. The `session` callback enriches the client session with `id`, `githubLogin`, and `role` so that UI components and server actions can read who is signed in.
 
 ### Public exceptions
 - `/login` and `/{locale}/login` — the sign-in page itself (bare path covers Auth.js error redirects that lack a locale).
-- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request).
-- `/api/webhooks/*` — Meta/n8n server-to-server webhooks. WhatsApp uses Meta signature verification; email intake requires a valid `N8N_API_KEY`.
+- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request). Protected by a per-IP rate limiter in `middleware.ts` (30 requests / minute) so the magic-link / OAuth callback path can't be cheaply abused.
+- `/api/webhooks/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session via `lib/utils/signature.ts#requireN8nApiKey`. **Fail-closed in production**: returns HTTP 500 if `N8N_API_KEY` is unset and `DEMO_MODE` is off.
+- `/api/n8n/*` — n8n callbacks (triage-result, geocode-result, route-proposal, trigger/*). Same fail-closed API-key gate as above; each route also has its own per-IP rate limit (60–300 req/min).
+- `/api/reminders/check` — n8n-scheduled cron endpoint. Same API-key gate + rate limit.
 - `/api/health` — uptime probes.
 
 ### Data model
 Auth tables live alongside the domain tables in `prisma/schema.prisma`:
-- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet`.
+- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet`. Used as the input to RBAC (see below).
 - `Account`, `Session`, `VerificationToken` — standard Auth.js shape.
-- `Staff` — operational roster. Sensitive API authorisation is role-based (`admin`, `vet`, `nurse`) and can resolve the current actor from a linked/ matching active staff row.
 
-### RBAC
-- `admin` — staff management, demo/setup controls, destructive deletes, VetUp export.
-- `vet` — clinical writes, confirmations, cancellations, route booking, attachment analysis.
-- `nurse` — read-only access to customers/yards/horses/clinical records and attachment downloads.
-- Sensitive mutations additionally write `SecurityAuditLog` rows with actor, entity, outcome, and JSON details.
+### RBAC (lib/auth/rbac.ts)
+
+`requireAuth()` and `requireRole(required: Role)` are the single gate for every sensitive route handler. Deny-by-default: an unknown/blank role normalises to `readonly` and satisfies nothing above it. Ranks: `admin > vet > nurse > readonly`.
+
+Applied to (non-exhaustive): customers / horses / yards / enquiries / visit-requests (GET=readonly, POST/PATCH=nurse, DELETE=admin where applicable), horse attachments + clinical records (view=nurse, mutate=vet), prescriptions (status change=vet), staff (read=readonly, mutate/deactivate=admin), VetUp export (admin), vision analysis (vet), route-planning generate/geocode (vet), route-proposals list (readonly), triage-tasks (read=readonly, mutate=nurse), triage-ops override (vet — overrides clinical routing), dashboard (readonly).
+
+DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside the existing entries for attachments, clinical records, prescriptions, exports, staff mutations, and role changes.
 
 ### Audit trail
-`TriageAuditLog.performedBy` is written from the authenticated session (via `performedByFor` in `lib/auth/session.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
-`SecurityAuditLog` records security-relevant actions outside triage (exports, attachment operations, clinical writes, staff changes, demo/setup actions, appointment mutations).
+`TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
-## Security controls
+### Security hardening (Phase 14 PR A)
 
-- `middleware.ts` sets CSP, HSTS (production), frame, referrer, permissions, and opener headers on all app/API responses.
-- `lib/security/rate-limit.ts` applies lightweight application-side throttling to webhook, n8n, export, and vision-analysis endpoints.
-- n8n-triggered endpoints now fail closed if `N8N_API_KEY` is missing instead of silently bypassing authentication.
+- **Constant-time allow-list** — `lib/auth/allowlist.ts` uses `crypto.timingSafeEqual` and walks the full list for every candidate (no short-circuit) so matching latency does not leak the position of a hit.
+- **Open-redirect defence** — `lib/auth/redirect.ts` (`isSafeCallbackUrl` / `safeCallbackUrl`) is the single gate for every caller-supplied return URL. Applied in `middleware.ts`, the `auth.ts` `redirect` callback, and the locale login page. Rejects absolute URLs, protocol-relative URLs (`//evil`), percent-encoded variants, `javascript:`/`data:` schemes, traversal (`..`), header-injection characters (CR/LF/NUL), and values >2 KB.
+- **Secure cookies** — Auth.js config emits `__Secure-` / `__Host-` prefixes, `HttpOnly`, `SameSite=Lax`, `Secure` in production (`useSecureCookies`). 30-day `session.maxAge` with 24-hour `updateAge`.
+- **`trustHost`** — only enabled when `AUTH_URL` is explicitly configured; prevents Host-header spoofing in front of a reverse proxy.
+- **Security headers** — `lib/security/headers.ts` applies CSP, HSTS (production only), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, COOP/CORP on every middleware-gated response. API responses use `default-src 'none'; frame-ancestors 'none'` (non-browseable); HTML uses a pragmatic CSP that permits Next.js inline hydration, PWA service worker, Google Maps, and Anthropic vision calls while blocking `object-src`, `frame-ancestors`, and cross-site `form-action`.
 
-## Vocabulary reconciliation
+### Security hardening (Phase 14 PR E — overnight gap-closure)
 
-### Phase 4 triage vocabulary
-The implementation splits the prompt's coarse dispositions into three focused enums:
+- **Fail-closed n8n / webhook auth** — `lib/utils/signature.ts#requireN8nApiKey` replaces the previous opportunistic `if (env.N8N_API_KEY) verify()` pattern. If `N8N_API_KEY` is unset and `DEMO_MODE` is off, every n8n-authenticated route returns HTTP 500 with `{error: 'Server misconfiguration: N8N_API_KEY is required'}` rather than accepting anonymous traffic. Applied to the email webhook (`/api/webhooks/email`), all `/api/n8n/*` endpoints, and the `/api/reminders/check` cron.
+- **Per-IP rate limiting on public paths** — `middleware.ts` applies a 30 req/min cap on `/api/auth/callback|signin|verify-request|session`, and every n8n callback has its own `lib/utils/rate-limit.ts` limiter sized for the expected traffic class. `export/vetup`, `vision analyse`, and batch `geocode` already had per-user caps; those remain.
+- **RBAC on customer / horse / yard / enquiry / visit-request / appointment / dashboard / triage-ops / triage-tasks / route-planning routes** — all previously relied only on the middleware "signed-in user" gate. Now use `requireRole` with least-privilege defaults and write audit-log entries for irreversible actions (customer / yard / horse deletion).
+- **Geocoding provenance** — `Yard.geocodeSource` / `geocodePrecision` / `formattedAddress` are now populated by both the Google geocoder path and the n8n callback, closing AMBER-06 with runtime coverage (the columns had been added but were not being written consistently).
 
-| Prompt concept | Runtime representation |
+---
+
+## Domain vocabulary reconciliation (AMBER-05, 07, 08, 12)
+
+The PHASE_*_MASTER_PROMPT documents described several concepts that the
+implementation names differently. None of these are functional gaps —
+the shape is equivalent — but the mapping needs to be explicit so
+future contributors don't chase ghost features.
+
+### Triage dispositions (AMBER-05)
+
+The master prompt listed seven triage dispositions. In code they're
+split across three existing enums:
+
+| Master-prompt disposition | Implementation |
 |---|---|
-| Newly received / parsing | `TriageStatus.NEW` → `TriageStatus.PARSED` |
-| Needs follow-up information | `TriageStatus.NEEDS_INFO`, plus `TriageTaskType.ASK_*` |
-| Urgent human review | `TriageTaskType.URGENT_REVIEW`, usually alongside `UrgencyLevel.URGENT` |
-| Ready for planning / pool | `PlanningStatus.READY_FOR_REVIEW` or `PlanningStatus.PLANNING_POOL` |
-| Proposed / booked / completed / cancelled | `PlanningStatus.PROPOSED`, `BOOKED`, `COMPLETED`, `CANCELLED` |
+| New | `Enquiry.triageStatus = NEW` |
+| Parsed | `Enquiry.triageStatus = PARSED` |
+| Needs info | `Enquiry.triageStatus = NEEDS_INFO` + `VisitRequest.needsMoreInfo` |
+| Urgent review | `TriageTask.taskType = URGENT_REVIEW` (+ `UrgencyLevel = URGENT`) |
+| Manual classification | `TriageTask.taskType = MANUAL_CLASSIFICATION` |
+| Triaged | `Enquiry.triageStatus = TRIAGED` |
+| In planning pool | `VisitRequest.planningStatus = PLANNING_POOL` |
 
-### Route proposal terminology
-The delivery uses `RouteRun` / `RouteRunStop` as the persisted names for the prompt's `RouteProposal` / `RouteStop`. The shapes are equivalent: a route run is the proposal document, and route run stops are the ordered stop records.
+The split is intentional: `TriageStatus` is per-enquiry (inbound
+message lifecycle), `PlanningStatus` is per-visit-request (operational
+lifecycle), and `TriageTaskType` is the human-action queue.
+
+### RouteRun / RouteProposal (AMBER-07)
+
+The master prompt used `RouteProposal` / `RouteStop`; the schema uses
+`RouteRun` / `RouteRunStop`. Functionally identical: `RouteRun.status`
+starts at `DRAFT`, moves to `PROPOSED` when the optimiser produces a
+candidate, `APPROVED` after operator review, `BOOKED` once appointments
+are generated, `COMPLETED` when all stops are marked done.
+
+No rename planned — the current naming better reflects the lifecycle
+(a proposal BECOMES a run once it's approved).
+
+### AppointmentStatus (AMBER-08)
+
+A single `AppointmentStatus` enum (`PROPOSED | CONFIRMED | COMPLETED |
+CANCELLED | NO_SHOW`) is used instead of the three separate
+Booking/Confirmation/Reminder enums the master prompt proposed.
+
+Rationale:
+- `CONFIRMED` covers both "booking is final" and "customer has
+  confirmed" because the domain flow never persists the appointment
+  without customer agreement; a booked-but-unconfirmed state is
+  represented by `PROPOSED`.
+- Reminder state is captured by the `reminderSentAt24h` /
+  `reminderSentAt2h` timestamps on the appointment; operators care
+  when reminders went out, not a separate state machine.
+- Multi-send confirmation audit is now captured by the
+  `ConfirmationDispatch` table (AMBER-10) — the enum doesn't need to
+  encode it.
+
+### ReminderSchedule (AMBER-12)
+
+The master prompt proposed a `ReminderSchedule` queue. The
+implementation uses inline `reminderSentAt24h` / `reminderSentAt2h`
+columns on `Appointment`, fired from the `POST /api/reminders/check`
+endpoint (called every 15 minutes by `n8n/07-reminder-scheduling.json`
+— AMBER-14's cron).
+
+For a single-vet practice this is adequate: the cron is idempotent,
+the timestamps are the single source of truth, and there's no
+requirement to queue reminder cancellations independently. If the
+practice scales to several operators or per-customer reminder
+preferences, promote to a dedicated `ReminderSchedule` table; the
+existing columns can be backfilled from it.
+
+### Appointment auditability (AMBER-10, 11, 13)
+
+Resolved in Phase 14 PR D + truthfulness pass (Phase 14.1):
+- `ConfirmationDispatch` records every outbound confirmation (success
+  or failure) with channel + timestamp + optional external message id.
+- `AppointmentResponse` records inbound customer replies with kind
+  (`CONFIRMED` | `CANCELLED` | `RESCHEDULE_REQUESTED` | `OTHER`) +
+  channel + raw text + optional link back to the source
+  `EnquiryMessage`.
+- `AppointmentStatusHistory` records every `Appointment.status`
+  transition with from/to + actor + optional reason. Written inline by
+  the booking, reschedule, and visit-outcome services in the same
+  transaction as the status mutation.
+
+### Dead-letter queue (AMBER-15)
+
+Resolved in Phase 14 PR D: `FailedOperation` table + `deadLetterService`.
+Outbound send paths in `whatsappService` and `emailService` now enqueue
+on permanent failure. Operators replay via `deadLetterService.markStatus`.
+Payloads are scrubbed through `redact()` before being stored, so no
+secrets end up in the DLQ.

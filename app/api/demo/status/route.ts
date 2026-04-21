@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { requireActorWithRole } from '@/lib/auth/api';
 import { isDemoMode } from '@/lib/demo/demo-mode';
 import { prisma } from '@/lib/prisma';
 import { whatsappClient } from '@/lib/integrations/whatsapp.client';
@@ -10,7 +9,6 @@ import { n8nClient } from '@/lib/integrations/n8n.client';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  await requireActorWithRole(['admin']);
   const demoEnabled = isDemoMode();
 
   const [

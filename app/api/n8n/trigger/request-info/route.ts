@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { whatsappService } from '@/lib/services/whatsapp.service';
 import { emailService } from '@/lib/services/email.service';
-import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
-import { logger } from '@/lib/utils/logger';
-import { assertN8nRequest } from '@/lib/utils/n8n-auth';
-import { handleApiError } from '@/lib/api-utils';
+
+const limiter = rateLimiter({ windowMs: 60_000, max: 60 });
 
 const requestInfoSchema = z.object({
   enquiryId: z.string().uuid(),
@@ -33,9 +34,17 @@ const INFO_PROMPTS_FR: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-req-info'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
+
   try {
-    enforceRequestRateLimit(request, 'n8n-request-info', 30, 60_000);
-    assertN8nRequest(request);
     const body = await request.json();
     const payload = requestInfoSchema.parse(body);
 
@@ -84,7 +93,7 @@ export async function POST(request: NextRequest) {
       }, { status: 422 });
     }
 
-    logger.info('n8n request info sent', {
+    console.log('[n8n] Request info sent', {
       enquiryId: payload.enquiryId,
       channel,
       missingFields: payload.missingFields,
@@ -99,6 +108,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
     }
-    return handleApiError(error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

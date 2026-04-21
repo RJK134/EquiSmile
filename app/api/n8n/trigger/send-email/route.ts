@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { env } from '@/lib/env';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { emailService } from '@/lib/services/email.service';
-import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
-import { logger } from '@/lib/utils/logger';
-import { assertN8nRequest } from '@/lib/utils/n8n-auth';
-import { handleApiError } from '@/lib/api-utils';
 
 const sendEmailSchema = z.object({
   to: z.string().email(),
@@ -15,14 +14,24 @@ const sendEmailSchema = z.object({
   html: z.string().optional(),
 });
 
+const limiter = rateLimiter({ windowMs: 60_000, max: 60 });
+
 export async function POST(request: NextRequest) {
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-email'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
+
   try {
-    enforceRequestRateLimit(request, 'n8n-send-email', 40, 60_000);
-    assertN8nRequest(request);
     const body = await request.json();
     const payload = sendEmailSchema.parse(body);
 
-    logger.info('n8n send email triggered', { to: payload.to, subject: payload.subject });
+    console.log('[n8n] Send email triggered', { to: payload.to, subject: payload.subject });
 
     const result = await emailService.sendEmail({
       to: payload.to,
@@ -41,6 +50,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
     }
-    return handleApiError(error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }

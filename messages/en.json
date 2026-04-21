@@ -22,11 +22,11 @@
   "nav": {
     "dashboard": "Dashboard",
     "enquiries": "Enquiries",
-    "visitRequests": "Visit Requests",
     "customers": "Customers",
     "routeRuns": "Routes",
     "appointments": "Appointments",
     "planning": "Planning",
+    "visitRequests": "Visit Requests",
     "yards": "Yards",
     "horses": "Horses",
     "staff": "Staff",
@@ -150,15 +150,6 @@
       "notes": "Notes",
       "submit": "Create Enquiry"
     }
-  },
-  "visitRequestsPage": {
-    "title": "Visit Requests",
-    "subtitle": "Standalone queue for all visit requests across triage and planning",
-    "empty": "No visit requests found for the current filters.",
-    "idLabel": "Request {id}",
-    "horseCount": "{count} horse(s)",
-    "tasksOpen": "{count} triage task(s)",
-    "preferredDays": "Preferred days: {days}"
   },
   "customers": {
     "title": "Customers",
@@ -298,6 +289,14 @@
     "auditHistory": "Audit History",
     "noAuditHistory": "No override history.",
     "taskCount": "{count} tasks"
+  },
+  "visitRequests": {
+    "title": "Visit Requests",
+    "subtitle": "Every triaged request across the planning pipeline",
+    "empty": "No visit requests match the current filters.",
+    "allStatuses": "All statuses",
+    "allUrgencies": "All urgencies",
+    "open": "Open"
   },
   "planning": {
     "title": "Planning Pool",

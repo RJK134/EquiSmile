@@ -1,32 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { verifyWhatsAppSignature } from '@/lib/utils/signature';
-import { constantTimeEqualsUtf8 } from '@/lib/utils/constant-time';
+import { verifyWhatsAppSignature, verifyWhatsAppVerifyToken } from '@/lib/utils/signature';
 import { normalisePhone } from '@/lib/utils/phone';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
-import { enforceRequestRateLimit } from '@/lib/security/rate-limit';
-import { logger } from '@/lib/utils/logger';
+import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+
+// Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
+// order-of-magnitude headroom that still catches a misconfigured
+// retry storm or a spoofed edge.
+const whatsappWebhookLimiter = rateLimiter({ windowMs: 60_000, max: 300 });
 
 // ---------------------------------------------------------------------------
 // GET — Webhook verification (Meta sends this during setup)
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  enforceRequestRateLimit(request, 'webhook-whatsapp-verify', 20, 60_000);
   const searchParams = request.nextUrl.searchParams;
   const mode = searchParams.get('hub.mode');
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token && constantTimeEqualsUtf8(token, env.WHATSAPP_VERIFY_TOKEN)) {
-    logger.info('WhatsApp webhook verified');
+  if (mode === 'subscribe' && verifyWhatsAppVerifyToken(token, env.WHATSAPP_VERIFY_TOKEN)) {
+    console.log('[WhatsApp] Webhook verified');
     return new NextResponse(challenge, { status: 200 });
   }
 
-  logger.warn('WhatsApp webhook verification failed', { mode, token: token ? '***' : 'missing' });
+  console.warn('[WhatsApp] Webhook verification failed', { mode, token: token ? '***' : 'missing' });
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 }
 
@@ -69,14 +71,18 @@ interface WhatsAppPayload {
 }
 
 export async function POST(request: NextRequest) {
-  enforceRequestRateLimit(request, 'webhook-whatsapp', 60, 60_000);
+  // Per-IP rate limit first — cheap and stops obvious abuse before we
+  // parse a potentially-large body.
+  const decision = whatsappWebhookLimiter.check(clientKeyFromRequest(request, 'wa-wh'));
+  if (!decision.allowed) return rateLimitedResponse(decision);
+
   // Read raw body for signature verification
   const rawBody = await request.text();
 
   // Verify signature — fail loudly in production if app secret is missing
   const isDemo = env.DEMO_MODE === 'true';
   if (!env.WHATSAPP_APP_SECRET && !isDemo) {
-    logger.error('WhatsApp webhook misconfigured: missing app secret');
+    console.error('[WhatsApp] WHATSAPP_APP_SECRET is not set — refusing to process webhook without signature verification. Set WHATSAPP_APP_SECRET or enable DEMO_MODE.');
     return NextResponse.json(
       { error: 'Server misconfiguration: WHATSAPP_APP_SECRET is required for webhook signature verification' },
       { status: 500 },
@@ -86,7 +92,7 @@ export async function POST(request: NextRequest) {
   if (env.WHATSAPP_APP_SECRET) {
     const signature = request.headers.get('x-hub-signature-256') || '';
     if (!verifyWhatsAppSignature(rawBody, signature, env.WHATSAPP_APP_SECRET)) {
-      logger.warn('WhatsApp webhook signature verification failed');
+      console.warn('[WhatsApp] Invalid webhook signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
   }
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
   // Must respond 200 quickly — Meta requires fast acknowledgment
   // Process asynchronously but don't await
   processWebhookPayload(payload).catch((err) => {
-    logger.error('WhatsApp webhook processing failed', err);
+    console.error('[WhatsApp] Error processing webhook:', err);
   });
 
   return NextResponse.json({ status: 'ok' }, { status: 200 });
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
 
 async function processWebhookPayload(payload: WhatsAppPayload) {
   if (payload.object !== 'whatsapp_business_account') {
-    logger.info('Ignoring non-WhatsApp payload', { object: payload.object });
+    console.log('[WhatsApp] Ignoring non-WhatsApp payload', { object: payload.object });
     return;
   }
 
@@ -124,7 +130,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
       for (const message of messages) {
         // Only process text messages for now
         if (message.type !== 'text' || !message.text?.body) {
-          logger.info('Skipping non-text WhatsApp message', { type: message.type, id: message.id });
+          console.log('[WhatsApp] Skipping non-text message', { type: message.type, id: message.id });
           continue;
         }
 
@@ -134,7 +140,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         const messageText = message.text.body;
         const timestamp = new Date(parseInt(message.timestamp) * 1000);
 
-        logger.info('Processing WhatsApp message', {
+        console.log('[WhatsApp] Processing message', {
           messageId: message.id,
           from: message.from,
           senderName,
@@ -146,7 +152,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           where: { externalMessageId: message.id },
         });
         if (existing) {
-          logger.info('Skipping duplicate WhatsApp message', { messageId: message.id });
+          console.log('[WhatsApp] Duplicate message, skipping', { messageId: message.id });
           continue;
         }
 
@@ -164,11 +170,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
               preferredLanguage: 'en',
             },
           });
-          logger.info('WhatsApp webhook created customer', {
-            customerId: customer.id,
-            name: senderName,
-            mobilePhone: senderPhone,
-          });
+          console.log('[WhatsApp] Created new customer', { customerId: customer.id, name: senderName });
         }
 
         // Parse message for structured info
@@ -220,17 +222,17 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
             visitRequest.id,
             messageText,
           );
-          logger.info('WhatsApp auto-triage completed', {
+          console.log('[WhatsApp] Auto-triage completed', {
             enquiryId: enquiry.id,
             urgency: triageResult.urgency,
             confidence: triageResult.confidence,
             tasksCreated: triageResult.tasksCreated.length,
           });
         } catch (triageErr) {
-          logger.error('WhatsApp auto-triage failed', triageErr, { enquiryId: enquiry.id });
+          console.error('[WhatsApp] Auto-triage failed, enquiry still created', triageErr);
         }
 
-        logger.info('WhatsApp enquiry created', {
+        console.log('[WhatsApp] Enquiry created', {
           enquiryId: enquiry.id,
           customerId: customer.id,
           isUrgent: parsed.isUrgent,

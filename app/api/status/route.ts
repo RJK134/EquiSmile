@@ -1,14 +1,26 @@
 import { NextResponse } from 'next/server';
-import { requireActorWithRole } from '@/lib/auth/api';
 import { isDemoMode } from '@/lib/demo/demo-mode';
 import { googleMapsClient } from '@/lib/integrations/google-maps.client';
 import { whatsappClient } from '@/lib/integrations/whatsapp.client';
 import { smtpClient } from '@/lib/integrations/smtp.client';
+import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * GET /api/status
+ * Admin-only diagnostics. Exposes which integration credentials are
+ * configured (boolean, never values); still sensitive enough to gate by
+ * role so non-admin users can't enumerate the deployment configuration.
+ */
 export async function GET() {
-  await requireActorWithRole(['admin']);
+  try {
+    await requireRole(ROLES.ADMIN);
+  } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
+    throw error;
+  }
+
   return NextResponse.json({
     demoMode: isDemoMode(),
     integrations: {

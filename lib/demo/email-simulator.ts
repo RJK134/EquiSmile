@@ -110,9 +110,8 @@ export interface SimulatedSmtpResult {
 export async function simulateSmtpSend(
   to: string,
   subject: string,
-  text: string,
+  _text: string,
 ): Promise<SimulatedSmtpResult> {
-  void text;
   const messageId = nextEmailMessageId();
 
   demoLog('Simulating SMTP send', { to, subject, messageId });

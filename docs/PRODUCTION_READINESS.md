@@ -26,8 +26,8 @@ Complete all items before go-live. Run `npm run validate-env` to verify automate
 - [ ] `npm run validate-env` reports READY
 - [ ] PWA manifest URLs updated for production domain (`NEXT_PUBLIC_APP_URL`)
 - [ ] CORS configured for production domain
-- [ ] Rate limiting configured (middleware is present; confirm production thresholds and any reverse-proxy complement)
-- [ ] Security headers configured (CSP, HSTS, X-Frame-Options) and verified on live responses
+- [ ] Rate limiting configured (reverse proxy or middleware)
+- [ ] Security headers configured (CSP, HSTS, X-Frame-Options)
 
 ## External Services
 
@@ -49,12 +49,14 @@ Complete all items before go-live. Run `npm run validate-env` to verify automate
 
 - [ ] Default passwords changed (database, n8n)
 - [ ] API keys rotated from UAT to production values
-- [ ] WhatsApp webhook signature verification enabled
-- [ ] `N8N_API_KEY` set for all n8n/email webhook traffic (routes now fail closed without it)
+- [ ] WhatsApp webhook signature verification enabled (`WHATSAPP_APP_SECRET` set)
+- [ ] **`N8N_API_KEY` is set** — without it, `/api/webhooks/email`, `/api/n8n/*`, and `/api/reminders/check` fail-close with HTTP 500 outside demo mode
 - [ ] n8n basic auth credentials are strong
-- [ ] At least one `admin` user / active admin `Staff` record exists for exports, demo controls, and staff management
 - [ ] `.env` file permissions restricted (600)
 - [ ] No secrets committed to repository
+- [ ] `ALLOWED_GITHUB_LOGINS` populated with the minimal vet/admin entries — **empty list denies every sign-in**
+- [ ] At least one staff row has `role = admin` and is linked to an Auth.js user via `Staff.userId` (required for exports, role changes, and customer/yard/horse deletions)
+- [ ] Security-sensitive operations (exports, attachment download/delete, clinical record mutations, role changes, customer/yard/horse deletions, vision-analysis invocations) verified to appear in `SecurityAuditLog` during staging smoke tests
 
 ## Backup & Recovery
 

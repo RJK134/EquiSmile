@@ -1,18 +1,34 @@
 import { NextRequest } from 'next/server';
-import { requireActorWithRole } from '@/lib/auth/api';
 import { attachmentService } from '@/lib/services/attachment.service';
-import { securityAuditService } from '@/lib/services/security-audit.service';
 import { errorResponse, handleApiError, successResponse } from '@/lib/api-utils';
+import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
+import { securityAuditService } from '@/lib/services/security-audit.service';
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  let subject: Awaited<ReturnType<typeof requireRole>>;
   try {
-    await requireActorWithRole(['admin', 'vet', 'nurse']);
+    subject = await requireRole(ROLES.NURSE);
+  } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
+    return handleApiError(error);
+  }
+
+  try {
     const { id } = await context.params;
     const attachment = await attachmentService.findById(id);
     if (!attachment) return errorResponse('Attachment not found', 404);
 
     const bytes = await attachmentService.loadBytes(attachment);
     const body = new Uint8Array(bytes);
+
+    await securityAuditService.record({
+      event: 'ATTACHMENT_DOWNLOADED',
+      actor: subject,
+      targetType: 'HorseAttachment',
+      targetId: id,
+      detail: `mime=${attachment.mimeType}; bytes=${attachment.sizeBytes}`,
+    });
+
     return new Response(body, {
       status: 200,
       headers: {
@@ -28,17 +44,22 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 }
 
 export async function DELETE(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  let subject: Awaited<ReturnType<typeof requireRole>>;
   try {
-    const actor = await requireActorWithRole(['admin', 'vet']);
+    subject = await requireRole(ROLES.VET);
+  } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
+    return handleApiError(error);
+  }
+
+  try {
     const { id } = await context.params;
-    const existing = await attachmentService.findById(id);
     await attachmentService.delete(id);
-    await securityAuditService.log({
-      action: 'attachment.delete',
-      entityType: 'horse-attachment',
-      entityId: id,
-      actor,
-      details: existing ? { horseId: existing.horseId, filename: existing.filename } : { missing: true },
+    await securityAuditService.record({
+      event: 'ATTACHMENT_DELETED',
+      actor: subject,
+      targetType: 'HorseAttachment',
+      targetId: id,
     });
     return successResponse({ ok: true });
   } catch (error) {

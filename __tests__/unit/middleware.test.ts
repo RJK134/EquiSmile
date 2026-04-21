@@ -37,6 +37,48 @@ describe('middleware', () => {
     expect(intlMiddlewareMock).not.toHaveBeenCalled();
   });
 
+  it('keeps /api/n8n/* public — session-less n8n callbacks (API-key enforced in handler)', async () => {
+    const response = await middleware(
+      new NextRequest('http://localhost:3000/api/n8n/triage-result'),
+    );
+    expect(response.status).toBe(200);
+    expect(authMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps /api/reminders/check public — session-less n8n cron (API-key enforced in handler)', async () => {
+    const response = await middleware(
+      new NextRequest('http://localhost:3000/api/reminders/check'),
+    );
+    expect(response.status).toBe(200);
+    expect(authMock).not.toHaveBeenCalled();
+  });
+
+  it('does NOT make sibling /api/reminders/* paths public — only the /check route is listed', async () => {
+    const response = await middleware(
+      new NextRequest('http://localhost:3000/api/reminders/otheraction'),
+    );
+    expect(response.status).toBe(401);
+    expect(authMock).toHaveBeenCalledOnce();
+  });
+
+  it('applies security headers on every response', async () => {
+    authMock.mockResolvedValue({ user: { id: 'u1' } });
+    const response = await middleware(new NextRequest('http://localhost:3000/en/dashboard'));
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+    expect(response.headers.get('Content-Security-Policy')).toContain("object-src 'none'");
+  });
+
+  it('applies minimal API CSP on 401 responses', async () => {
+    authMock.mockResolvedValue(null);
+    const response = await middleware(new NextRequest('http://localhost:3000/api/customers'));
+    expect(response.status).toBe(401);
+    expect(response.headers.get('Content-Security-Policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
+  });
+
   it('keeps /api/webhooks/email public', async () => {
     const response = await middleware(new NextRequest('http://localhost:3000/api/webhooks/email'));
     expect(response.status).toBe(200);

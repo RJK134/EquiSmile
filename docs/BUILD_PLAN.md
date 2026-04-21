@@ -133,30 +133,6 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 
 ---
 
-## Post-audit hardening slice — 2026-04-21
-
-### Scope
-- Fail closed on webhook / n8n integration authentication.
-- Add practical RBAC for sensitive data and admin-only operations.
-- Add security headers, lightweight rate limiting, and structured security audit logging.
-- Close the standalone `/visit-requests` UI gap and store geocoding source / precision / formatted address metadata.
-
-### Deliverables
-- `lib/auth/api.ts`, `lib/http-errors.ts`, `lib/security/rate-limit.ts`, `lib/services/security-audit.service.ts`
-- RBAC + audit log wiring on exports, staff, customers, yards, horses, attachments, clinical APIs, appointments, demo/setup
-- `SecurityAuditLog` Prisma model + migration
-- Yard geocode metadata fields (`formattedAddress`, `geocodeSource`, `geocodePrecision`, `geocodePlaceId`)
-- `/{locale}/visit-requests` page and nav entry
-- Docs updates across ARCHITECTURE / KNOWN_ISSUES / PRODUCTION_READINESS / SETUP
-
-### Verification
-- `npm run lint`, `npm run typecheck`, `npm run test`, `npx prisma validate`, and `npm run build` pass with a valid `DATABASE_URL`.
-- Admin-only endpoints (`/api/staff`, `/api/export/vetup`, `/api/demo/*`, `/api/setup`) reject non-admin callers.
-- n8n/email webhook routes return `503` when `N8N_API_KEY` is unset and `401` when it is incorrect.
-- Security-sensitive mutations emit `SecurityAuditLog` rows.
-
----
-
 ## Phase 9 — Authentication (GitHub OAuth)
 
 ### Scope
@@ -167,7 +143,7 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Replace the hard-coded `performedBy = "admin"` default in `app/api/triage-ops/override/route.ts` with the signed-in user's GitHub login/email.
 
 ### Deliverables
-- `auth.ts`, `lib/auth/allowlist.ts`, `lib/auth/session.ts`
+- `auth.ts`, `lib/auth/allowlist.ts` (`lib/auth/session.ts` superseded by `lib/auth/rbac.ts` in PR E)
 - `app/api/auth/[...nextauth]/route.ts`
 - `app/[locale]/login/page.tsx`, `components/auth/{SignInButton,UserMenu,AuthSessionProvider}.tsx`
 - Prisma schema + migration for auth tables
@@ -286,3 +262,185 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Restart the app between two sends with the same idempotency key → second call still detects the dupe (was previously lost).
 - `POST /api/health` shows the new table in `prisma migrate status`.
 - Expired keys are pruned automatically on first `hasProcessed` read (self-healing).
+
+---
+
+## Phase 14 — Security Hardening (PR A: Auth + Headers)
+
+### Scope
+- Harden authentication and introduce defence-in-depth HTTP response headers.
+
+### Deliverables
+- `lib/auth/redirect.ts` — `isSafeCallbackUrl` / `safeCallbackUrl`. Rejects absolute URLs, protocol-relative URLs (`//evil`), percent-encoded variants, `javascript:`/`data:` schemes, path traversal, CR/LF/NUL injection, and oversize values. Wired into `middleware.ts`, `auth.ts` `redirect` callback, and `app/[locale]/login/page.tsx`.
+- `lib/auth/allowlist.ts` — upgraded to constant-time comparison via `crypto.timingSafeEqual` (no short-circuit walk; length-gated).
+- `auth.ts` — explicit secure cookie config (`__Secure-` / `__Host-` prefixes, `SameSite=Lax`, `HttpOnly`, `Secure` in production), 30-day session with 24-hour rotation, `trustHost` only when `AUTH_URL` is set, `useSecureCookies` in prod, `redirect` callback that enforces same-origin.
+- `lib/security/headers.ts` + middleware wiring — adds:
+  - `Content-Security-Policy` (pragmatic for HTML; strict `default-src 'none'; frame-ancestors 'none'` for API)
+  - `Strict-Transport-Security` (production only)
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy` (disables camera/mic/etc.)
+  - `Cross-Origin-Opener-Policy: same-origin`
+  - `Cross-Origin-Resource-Policy: same-origin`
+- Tests: 12 redirect tests + 8 header tests + 5 new allowlist tests + 2 new middleware tests.
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate` all pass (674 tests across 73 files).
+- Open-redirect vectors (`//evil`, `%2F%2Fevil`, `/javascript:...`, `/../admin`, CR/LF injection) are rejected by both the middleware callbackUrl attach step and the Auth.js `redirect` callback.
+- Non-allow-listed sign-in attempts are logged without identifiers; production cookies carry `__Secure-` prefix.
+
+---
+
+## Phase 14 — Security Hardening (PR B: RBAC + Audit Log)
+
+### Scope
+- Enforce least-privilege on sensitive API routes and record every security-relevant action in an append-only audit log.
+
+### Deliverables
+- `lib/auth/rbac.ts` — `ROLES` enum (`admin | vet | nurse | readonly`) + `normaliseRole` + `hasRole` + `requireAuth` + `requireRole` + `withRole` + `AuthzError`. Unknown roles default to `readonly` (deny-by-default).
+- Prisma: `SecurityAuditLog` + `SecurityAuditEvent` enum with 17 event types. Additive migration `20260420130000_phase14_security_audit`.
+- `lib/services/security-audit.service.ts`: `record(event, actor, ...)` (best-effort, never blocks the primary request), `recent({limit, event})` for admin dashboards; detail is truncated to 500 chars; no secrets.
+- Route lockdowns (with audit where appropriate):
+  - `GET/POST /api/export/vetup` → **ADMIN** + `EXPORT_DATASET` audit
+  - `POST /api/staff` → **ADMIN** + `STAFF_CREATED`
+  - `PATCH /api/staff/[id]` → **ADMIN** + `ROLE_CHANGED` | `STAFF_UPDATED`
+  - `DELETE /api/staff/[id]` → **ADMIN** + `STAFF_DEACTIVATED`
+  - `GET /api/staff` + `GET /api/staff/[id]` → **READONLY**
+  - `POST/DELETE /api/staff/assign` → **VET**
+  - `GET /api/attachments/[id]` → **NURSE** + `ATTACHMENT_DOWNLOADED`
+  - `DELETE /api/attachments/[id]` → **VET** + `ATTACHMENT_DELETED`
+  - `POST /api/attachments/[id]/analyse` → **VET** + `VISION_ANALYSIS_INVOKED`
+  - `GET /api/horses/[id]/attachments` → **NURSE**
+  - `POST /api/horses/[id]/attachments` → **VET** (uploader attribution taken from session, not form)
+  - `GET /api/horses/[id]/clinical` → **NURSE**
+  - `POST /api/horses/[id]/clinical` (dentalChart/finding/prescription) → **VET** + `CLINICAL_RECORD_CREATED`
+  - `PATCH /api/prescriptions/[id]` → **VET** + `PRESCRIPTION_STATUS_CHANGED`
+  - `GET /api/status` → **ADMIN**
+- `auth.ts` sign-in denial callback writes `SIGN_IN_DENIED` audit events with a coarse actor label (no denied-user identifiers stored).
+- `/api/setup` lint warning cleaned up as a drive-by.
+- Tests: 15 RBAC tests + 10 audit-service tests. Net 695 passing across 75 files.
+
+### Verification
+- A `nurse` cannot `POST /api/horses/<id>/clinical` or `DELETE /api/attachments/<id>` (403).
+- A `readonly` cannot `POST /api/staff` (403) but can `GET /api/customers`.
+- A `vet` cannot `GET /api/export/vetup` (admin-only).
+- Every admin export, attachment delete/download, clinical mutation, prescription status change, and vision-analysis invocation lands in `SecurityAuditLog`.
+
+---
+
+## Phase 14 — Security Hardening (PR C: Webhook HMAC + Rate limiting + Log redaction)
+
+### Scope
+- Harden public-path webhook auth, cap abuse-prone routes with a rate limiter, and introduce a log-redaction utility so secrets can't leak via structured logs.
+
+### Deliverables
+- `lib/utils/signature.ts` — new `constantTimeStringEquals` helper; new `verifyWhatsAppVerifyToken` that uses it so the GET-challenge verify token can't be probed by timing.
+- `app/api/webhooks/whatsapp/route.ts` — `GET` swaps `===` for constant-time compare; `POST` rate-limited per client IP (300/min) before parsing body.
+- `app/api/webhooks/email/route.ts` — `POST` rate-limited per client IP (200/min) before signature check.
+- `lib/utils/rate-limit.ts` — in-memory sliding-window limiter, `rateLimiter({windowMs, max, now, maxKeys})` + `rateLimitedResponse` helper + `clientKeyFromRequest`. Per-key LRU-bounded to 10,000 keys.
+- Wired into: `POST /api/attachments/[id]/analyse` (20/hour per user — caps Claude Opus 4.7 spend) and `GET /api/export/vetup` (10/hour per admin — discourages automated exfil).
+- `lib/utils/log-redact.ts` — `redact(value)` walks any object, replaces values of sensitive keys (authorization, api_key, cookie, password, signature, etc.) with `[redacted]`; also redacts `Bearer …` and `sk-…` string values regardless of key.
+- Tests: 11 rate-limit + 10 log-redact + 6 new signature tests. Net 722 passing across 77 files.
+
+### Verification
+- Spamming `POST /api/webhooks/whatsapp` 301 times in a minute from one IP returns 429 with `Retry-After`.
+- `GET /api/export/vetup?profile=patient` 11 times from the same admin returns 429.
+- `redact({authorization: 'Bearer sk-xxx'})` returns `{authorization: '[redacted]'}`.
+- WhatsApp GET verification with a same-length wrong token no longer short-circuits compared to a matching token (no timing oracle).
+
+### Limits / follow-ups
+- The rate limiter is in-memory per Node instance. Horizontal scaling needs a Redis (or Postgres — same pattern as `IdempotencyKey`) backend.
+- The `log-redact` utility is available but not yet automatically wired into every `console.log`; adopt on a per-call basis as call sites are reviewed.
+
+---
+
+## Phase 14 — Security Hardening (PR D: AMBER gap closure)
+
+### Scope
+- Resolve the functional gaps logged during the v1.0.0 retrospective audit. Split across three data-model additions, three audit-service wirings, a dead-letter queue, a visit-requests operator page, and docs reconciliation for the items that were naming/narrative gaps rather than code gaps.
+
+### Deliverables
+- Prisma additive migration `20260420140000_phase14_amber_gap_closure`:
+  - AMBER-06: `Yard` gets nullable `geocodeSource`, `geocodePrecision`, `formattedAddress`.
+  - AMBER-10: `ConfirmationDispatch { appointmentId, channel, sentAt, success, externalMessageId?, errorMessage? }`.
+  - AMBER-11: `AppointmentResponse { appointmentId, kind, channel, receivedAt, rawText?, enquiryMessageId? }` + `AppointmentResponseKind` enum.
+  - AMBER-13: `AppointmentStatusHistory { appointmentId, fromStatus?, toStatus, changedBy, reason?, changedAt }`.
+  - AMBER-15: `FailedOperation { scope, operationKey?, payload, lastError, attempts, status, createdAt, updatedAt }` + `FailedOperationStatus` enum.
+- `lib/services/appointment-audit.service.ts`: `logConfirmationDispatch`, `logResponse`, `logStatusChange` (skips no-op transitions), plus readers. Best-effort writes.
+- `lib/services/dead-letter.service.ts`: `enqueue` (runs `redact()` + caps sizes), `list({status,scope,limit})`, `markStatus`.
+- Wirings:
+  - `confirmationService.sendConfirmation` writes a `ConfirmationDispatch` row on every attempt (success or failure).
+  - `bookingService.bookRoute`, `rescheduleService.cancelAppointment` / `markNoShow`, `visitOutcomeService.completeVisit` each write `AppointmentStatusHistory` rows in the same transaction as the status mutation.
+  - `whatsappService.sendTextMessage` / `sendTemplateMessage` and `emailService.sendEmail` enqueue `FailedOperation` rows on permanent failure.
+- `app/[locale]/visit-requests/page.tsx` (AMBER-04) — list view with planning-status + urgency filters; sidebar entry + EN/FR i18n.
+- Docs: `docs/ARCHITECTURE.md` new "Domain vocabulary reconciliation" section (AMBER-05, 07, 08, 12) with explicit mapping tables; `docs/KNOWN_ISSUES.md` updated — 10 AMBERs closed.
+- `eslint.config.mjs`: `argsIgnorePattern: ^_` so `_text`-style deliberately-unused args stop tripping the linter.
+- Tests: 6 appointment-audit + 7 dead-letter = 13 new tests. Net (pre-PR D baseline 722) → see running-totals below.
+
+### AMBERs closed in PR D
+- AMBER-04 (code) — `/visit-requests` route + UI
+- AMBER-05 (docs) — triage vocabulary reconciliation
+- AMBER-06 (code) — geocoding metadata
+- AMBER-07 (docs) — RouteRun naming rationale
+- AMBER-08 (docs) — AppointmentStatus rationale
+- AMBER-10 (code) — `ConfirmationDispatch`
+- AMBER-11 (code) — `AppointmentResponse`
+- AMBER-12 (docs) — `ReminderSchedule` rationale
+- AMBER-13 (code) — `AppointmentStatusHistory`
+- AMBER-15 (code) — `FailedOperation` DLQ
+
+### Verification
+- `SELECT event, actor, targetType FROM "SecurityAuditLog"` after a full booking → cancellation cycle shows the expected trail of events AND `AppointmentStatusHistory` shows `null → PROPOSED → CANCELLED`.
+- Forcing a WhatsApp send against an invalid phone number enqueues a `FailedOperation` row whose `payload` contains `[redacted]` for any Bearer/api_key value that may have been attempted.
+- `/en/visit-requests` loads at 390px width; filters refine the returned list.
+- Only documentation-only AMBERs remain open: AMBER-09 (`AppointmentHorse` link table) — deferred per the audit note (adequate until per-appointment horse metadata is tracked).
+
+---
+
+## Phase 14.1 — Truthfulness pass
+
+### Scope
+- Verify the overnight hardening report claims against the repo, fix any mismatches with the smallest safe change, and lock the fix in with a regression test.
+
+### Findings & fixes
+- **Uploader attribution spoofing** (high-severity) — `app/api/horses/[id]/attachments` POST previously fell back to `uploadedById` read from the multipart form if present, and used `subject.id` (Auth.js `User.id`) as a second fallback. Two bugs:
+  1. Authenticated vet could spoof a colleague as the uploader by adding `uploadedById=<victim-staff-id>` to the form.
+  2. `HorseAttachment.uploadedById` FK references `Staff.id`, so the fallback would also fail the FK check (or silently mis-attribute) when `subject.id` is a bare User id.
+
+  **Fix**: ignore the form field entirely; resolve `staffRepository.findByUserId(subject.id)` and store `staff?.id ?? null`. New regression suite `__tests__/unit/api/horses-attachments.test.ts` locks in four cases: session→staff happy path, spoofed form value dropped, no-linked-staff falls back to null, description passes through unchanged.
+
+### Other claims re-verified (no code change needed)
+- Every `Appointment.status` mutation site (`bookingService`, `rescheduleService.cancel`/`markNoShow`, `visitOutcomeService`) now writes `AppointmentStatusHistory`; no stray mutation site exists.
+- Every `requireRole` placement matches the overnight report (`/api/export/vetup` ADMIN, `/api/staff` mutations ADMIN, `/api/attachments/[id]` NURSE GET + VET DELETE, `/api/attachments/[id]/analyse` VET, `/api/horses/[id]/clinical` NURSE GET + VET POST, `/api/horses/[id]/attachments` NURSE GET + VET POST, `/api/prescriptions/[id]` VET, `/api/status` ADMIN).
+- Rate limits wired at the four claimed routes (`webhooks/whatsapp`, `webhooks/email`, `export/vetup`, `attachments/[id]/analyse`).
+- `deadLetterService.enqueue` called from three claimed sites (`whatsapp sendTextMessage`, `whatsapp sendTemplateMessage`, `email sendEmail`).
+- `applySecurityHeaders` wraps every branch of `middleware.ts` (6 call sites).
+- `verifyWhatsAppVerifyToken` is the only verify-token check in `app/api/webhooks/whatsapp/route.ts` (no residual `===`).
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate`, `build` — all green. Net 739 tests passing (+4 new).
+
+---
+
+## Phase 14 — Security Hardening (PR E: overnight gap-closure pass)
+
+### Scope
+Overnight hardening sweep focused on data-access RBAC, fail-closed webhook auth, and rate limiting. Priority: protect customer/clinical data and close the remaining unauthenticated-integration paths.
+
+### Deliverables
+- **Fail-closed n8n / webhook auth** — `lib/utils/signature.ts#requireN8nApiKey` replaces ad-hoc `if (env.N8N_API_KEY)` checks. Returns HTTP 500 in production when the key is unset, instead of silently accepting anonymous traffic. Applied to:
+  - `/api/webhooks/email`
+  - `/api/n8n/triage-result`, `/api/n8n/geocode-result`, `/api/n8n/route-proposal`
+  - `/api/n8n/trigger/send-email`, `/api/n8n/trigger/send-whatsapp`, `/api/n8n/trigger/request-info`
+  - `/api/reminders/check`
+- **Middleware public-paths** — `/api/n8n/*` and `/api/reminders/check` added so n8n server-to-server calls are not blocked by the session middleware while the fail-closed API-key gate runs in the handler.
+- **Per-route rate limits** on every n8n-authenticated endpoint (60–300 req/min per IP) plus a 30 req/min per-IP limiter on `/api/auth/{callback,signin,verify-request,session}` in `middleware.ts` to slow magic-link / OAuth callback abuse.
+- **RBAC + audit** — `requireRole` added to customer / horse / yard / enquiry / visit-request / appointment / dashboard / triage-ops / triage-tasks / route-planning endpoints. DELETEs on Customer / Yard / Horse now write `SecurityAuditLog` entries (`CUSTOMER_DELETED`, `YARD_DELETED`, `HORSE_DELETED`). Override endpoint now derives `performedBy` from the RBAC subject, closing a spoofable-actor gap.
+- **Geocoding provenance runtime coverage** — both `geocodingService.geocodeYard` and `updateYardCoordinates` now write `geocodeSource` / `geocodePrecision` / `formattedAddress` (columns existed from PR D but weren't populated on the Google path).
+- **Tests** — signature-gate tests (6 new cases), middleware public-path tests (3 new cases), customer delete RBAC + audit tests (2 new cases). All existing suites adapted.
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate`, `build` — all green. Net 749 tests passing (+10 net new).
+- Manual: confirmed unauthenticated `GET /api/n8n/triage-result` now returns 500 in a non-demo env with `N8N_API_KEY` unset; returns 401 with it set and no Bearer header; returns 200 with correct Bearer.
+- Manual: DELETE /api/customers/:id with a NURSE session now returns 403; with ADMIN returns 200 and writes a `CUSTOMER_DELETED` row.

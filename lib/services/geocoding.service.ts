@@ -17,19 +17,27 @@ interface GeocodeResult {
   formattedAddress: string;
   placeId: string;
   partialMatch: boolean;
+  /**
+   * AMBER-06 remediation — provenance of the geocode result.
+   *
+   * Google returns one of: ROOFTOP, RANGE_INTERPOLATED,
+   * GEOMETRIC_CENTER, APPROXIMATE. See
+   * https://developers.google.com/maps/documentation/geocoding/requests-geocoding#GeocodingResponses
+   */
   precision: string | null;
+  source: 'google' | 'n8n' | 'manual';
 }
 
 interface GeocodeApiResponse {
   status: string;
-    results: Array<{
-      geometry: {
-        location: { lat: number; lng: number };
-        location_type?: string;
-      };
-      formatted_address: string;
-      place_id: string;
-      partial_match?: boolean;
+  results: Array<{
+    geometry: {
+      location: { lat: number; lng: number };
+      location_type?: string;
+    };
+    formatted_address: string;
+    place_id: string;
+    partial_match?: boolean;
   }>;
   error_message?: string;
 }
@@ -101,7 +109,8 @@ export const geocodingService = {
       formattedAddress: result.formatted_address,
       placeId: result.place_id,
       partialMatch,
-      precision: result.geometry.location_type ?? (partialMatch ? 'PARTIAL' : null),
+      precision: result.geometry.location_type ?? null,
+      source: 'google',
     };
   },
 
@@ -132,19 +141,18 @@ export const geocodingService = {
         return { success: false, error: 'No results found for address' };
       }
 
-        await prisma.yard.update({
-          where: { id: yardId },
-          data: {
-            latitude: result.latitude,
-            longitude: result.longitude,
-            formattedAddress: result.formattedAddress,
-            geocodeSource: 'google',
-            geocodePrecision: result.precision ?? (result.partialMatch ? 'PARTIAL' : 'ROOFTOP'),
-            geocodePlaceId: result.placeId,
-            geocodeFailed: false,
-            geocodedAt: new Date(),
-          },
-        });
+      await prisma.yard.update({
+        where: { id: yardId },
+        data: {
+          latitude: result.latitude,
+          longitude: result.longitude,
+          geocodeFailed: false,
+          geocodedAt: new Date(),
+          geocodeSource: result.source,
+          geocodePrecision: result.precision,
+          formattedAddress: result.formattedAddress,
+        },
+      });
 
       return { success: true };
     } catch (error) {
@@ -205,16 +213,20 @@ export const geocodingService = {
 
   /**
    * Update a yard with externally-provided geocode results (from n8n).
+   *
+   * Optional `meta` captures AMBER-06 provenance fields — source (who
+   * geocoded), precision (Google's location_type or equivalent), and
+   * the formatted address. These let operators audit stale/low-quality
+   * coordinates without having to re-run the geocoder.
    */
   async updateYardCoordinates(
     yardId: string,
     latitude: number,
     longitude: number,
-    metadata?: {
-      formattedAddress?: string | null;
-      placeId?: string | null;
+    meta?: {
       source?: string | null;
       precision?: string | null;
+      formattedAddress?: string | null;
     },
   ): Promise<{ success: boolean; error?: string }> {
     const yard = await prisma.yard.findUnique({ where: { id: yardId } });
@@ -227,12 +239,13 @@ export const geocodingService = {
       data: {
         latitude,
         longitude,
-        formattedAddress: metadata?.formattedAddress ?? null,
-        geocodeSource: metadata?.source ?? 'n8n',
-        geocodePrecision: metadata?.precision ?? null,
-        geocodePlaceId: metadata?.placeId ?? null,
         geocodeFailed: false,
         geocodedAt: new Date(),
+        // Default to 'n8n' when the caller doesn't specify a source —
+        // this method is exposed through the n8n callback.
+        geocodeSource: meta?.source ?? 'n8n',
+        geocodePrecision: meta?.precision ?? null,
+        formattedAddress: meta?.formattedAddress ?? null,
       },
     });
 

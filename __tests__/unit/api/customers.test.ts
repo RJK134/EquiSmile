@@ -1,6 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
+const requireRoleMock = vi.hoisted(() => vi.fn());
+const securityAuditRecordMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/auth', () => ({
+  auth: vi.fn(),
+  handlers: {},
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+vi.mock('@/lib/auth/rbac', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/auth/rbac')>('@/lib/auth/rbac');
+  return { ...actual, requireRole: requireRoleMock };
+});
+
+vi.mock('@/lib/services/security-audit.service', () => ({
+  securityAuditService: { record: securityAuditRecordMock },
+}));
+
 const mockCustomerRepo = {
   findMany: vi.fn(),
   findById: vi.fn(),
@@ -17,26 +36,20 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {},
 }));
 
-vi.mock('@/lib/auth/api', () => ({
-  requireActorWithRole: vi.fn().mockResolvedValue({
-    userId: 'user-1',
-    staffId: 'staff-1',
-    role: 'admin',
-    email: 'admin@example.com',
-    githubLogin: 'admin',
-    performedBy: 'admin',
-  }),
-}));
-
-vi.mock('@/lib/services/security-audit.service', () => ({
-  securityAuditService: {
-    log: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+function signedInAs(role: 'admin' | 'vet' | 'nurse' | 'readonly') {
+  requireRoleMock.mockResolvedValue({
+    id: 'u1',
+    email: 'vet@example.com',
+    githubLogin: 'vet1',
+    role,
+    actorLabel: 'vet1',
+  });
+}
 
 describe('GET /api/customers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signedInAs('readonly');
   });
 
   it('returns paginated customers', async () => {
@@ -83,6 +96,7 @@ describe('GET /api/customers', () => {
 describe('POST /api/customers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signedInAs('nurse');
   });
 
   it('creates a customer with valid data', async () => {
@@ -127,6 +141,7 @@ describe('POST /api/customers', () => {
 describe('GET /api/customers/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signedInAs('readonly');
   });
 
   it('returns customer by id', async () => {
@@ -156,6 +171,7 @@ describe('GET /api/customers/[id]', () => {
 describe('PATCH /api/customers/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signedInAs('nurse');
   });
 
   it('updates customer with valid data', async () => {
@@ -178,9 +194,10 @@ describe('PATCH /api/customers/[id]', () => {
 describe('DELETE /api/customers/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    signedInAs('admin');
   });
 
-  it('deletes a customer', async () => {
+  it('deletes a customer and writes a security audit entry', async () => {
     mockCustomerRepo.delete.mockResolvedValue({ id: '1' });
 
     const { DELETE } = await import('@/app/api/customers/[id]/route');
@@ -190,5 +207,26 @@ describe('DELETE /api/customers/[id]', () => {
 
     expect(response.status).toBe(200);
     expect(body.deleted).toBe(true);
+    expect(securityAuditRecordMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'CUSTOMER_DELETED',
+        targetType: 'Customer',
+        targetId: '1',
+      }),
+    );
+  });
+
+  it('rejects deletion when role is below admin', async () => {
+    requireRoleMock.mockImplementation(async () => {
+      const { AuthzError } = await import('@/lib/auth/rbac');
+      throw new AuthzError('Insufficient role: admin required', 403);
+    });
+
+    const { DELETE } = await import('@/app/api/customers/[id]/route');
+    const request = new NextRequest('http://localhost:3000/api/customers/1', { method: 'DELETE' });
+    const response = await DELETE(request, { params: Promise.resolve({ id: '1' }) });
+    expect(response.status).toBe(403);
+    expect(mockCustomerRepo.delete).not.toHaveBeenCalled();
+    expect(securityAuditRecordMock).not.toHaveBeenCalled();
   });
 });

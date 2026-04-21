@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockTransaction, mockAppointmentFindUnique, mockAppointmentUpdate } = vi.hoisted(() => ({
+const {
+  mockTransaction,
+  mockAppointmentFindUnique,
+  mockAppointmentUpdate,
+  mockStatusHistoryCreate,
+} = vi.hoisted(() => ({
   mockTransaction: vi.fn(),
   mockAppointmentFindUnique: vi.fn(),
   mockAppointmentUpdate: vi.fn(),
+  mockStatusHistoryCreate: vi.fn(),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -12,6 +18,9 @@ vi.mock('@/lib/prisma', () => ({
     appointment: {
       findUnique: mockAppointmentFindUnique,
       update: mockAppointmentUpdate,
+    },
+    appointmentStatusHistory: {
+      create: mockStatusHistoryCreate,
     },
   },
 }));
@@ -88,6 +97,7 @@ describe('rescheduleService', () => {
           visitRequest: { update: vi.fn() },
           routeRunStop: { updateMany: vi.fn(), count: vi.fn() },
           routeRun: { update: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });
@@ -113,6 +123,7 @@ describe('rescheduleService', () => {
           visitRequest: { update: vi.fn() },
           routeRunStop: { updateMany: vi.fn(), count: vi.fn() },
           routeRun: { update: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
         };
         return fn(tx);
       });

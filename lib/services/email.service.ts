@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
+import { deadLetterService } from '@/lib/services/dead-letter.service';
 import { withRetry, circuitBreakers } from '@/lib/utils/retry';
 
 interface SendEmailResult {
@@ -122,6 +123,17 @@ export const emailService = {
       return { messageId, success: true };
     } catch (error) {
       console.error('[Email] Send failed', error);
+      await deadLetterService.enqueue({
+        scope: 'email-send',
+        payload: {
+          to: options.to,
+          subject: options.subject,
+          enquiryId: options.enquiryId,
+          language: options.language,
+        },
+        lastError: error,
+        operationKey: options.enquiryId ? `email:${options.enquiryId}:${options.subject}` : null,
+      });
       return { messageId: '', success: false };
     }
   },

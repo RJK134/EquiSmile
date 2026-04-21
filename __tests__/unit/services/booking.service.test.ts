@@ -34,6 +34,7 @@ describe('bookingService', () => {
         appointment: { create: mockAppointmentCreate },
         visitRequest: { update: mockVisitRequestUpdate },
         routeRunStop: { update: mockRouteRunStopUpdate },
+        appointmentStatusHistory: { create: vi.fn() },
       };
       return fn(tx);
     });

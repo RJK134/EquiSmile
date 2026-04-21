@@ -2,9 +2,11 @@ import { NextRequest } from 'next/server';
 import { successResponse, handleApiError, parseSearchParams } from '@/lib/api-utils';
 import { routeRunRepository } from '@/lib/repositories/route-run.repository';
 import type { RouteRunStatus } from '@prisma/client';
+import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/rbac';
 
 export async function GET(request: NextRequest) {
   try {
+    await requireRole(ROLES.READONLY);
     const params = parseSearchParams(request.nextUrl.searchParams);
 
     const query = {
@@ -16,6 +18,7 @@ export async function GET(request: NextRequest) {
     const result = await routeRunRepository.findMany(query);
     return successResponse(result);
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }

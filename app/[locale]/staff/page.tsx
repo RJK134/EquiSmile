@@ -1,6 +1,5 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Header } from '@/components/layout/Header';
@@ -28,7 +27,6 @@ interface Staff {
 const ROLES: Staff['role'][] = ['VET', 'ADMIN', 'NURSE'];
 
 export default function StaffPage() {
-  const { data: session, status } = useSession();
   const t = useTranslations('staff');
   const tc = useTranslations('common');
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -37,9 +35,6 @@ export default function StaffPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    if (status !== 'authenticated' || session?.user?.role !== 'admin') {
-      return;
-    }
     let cancelled = false;
     fetch('/api/staff')
       .then((r) => r.json())
@@ -52,27 +47,7 @@ export default function StaffPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, session?.user?.role, status]);
-
-  if (status === 'authenticated' && session?.user?.role !== 'admin') {
-    return (
-      <div className="flex h-full flex-col">
-        <Header />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto pb-16 lg:pb-4">
-            <div className="mx-auto max-w-3xl p-4 lg:p-6">
-              <Card>
-                <h1 className="text-lg font-semibold text-danger">Access denied</h1>
-                <p className="mt-2 text-sm text-muted">Only administrators can manage staff records.</p>
-              </Card>
-            </div>
-          </main>
-        </div>
-        <MobileNav />
-      </div>
-    );
-  }
+  }, [refreshKey]);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

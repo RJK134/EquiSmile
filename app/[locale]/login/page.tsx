@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { SignInButton } from '@/components/auth/SignInButton';
 import { auth } from '@/auth';
 import { getProviderAvailability } from '@/lib/auth/providers';
+import { safeCallbackUrl } from '@/lib/auth/redirect';
 import { redirect } from 'next/navigation';
 
 interface LoginPageProps {
@@ -10,32 +11,16 @@ interface LoginPageProps {
   searchParams: Promise<{ error?: string; callbackUrl?: string; verify?: string }>;
 }
 
-function safeCallbackUrl(callbackUrl: string | undefined, locale: string): string {
-  if (!callbackUrl) return `/${locale}`;
-  if (!callbackUrl.startsWith('/') || callbackUrl.startsWith('//')) {
-    return `/${locale}`;
-  }
-  const decoded = (() => {
-    try {
-      return decodeURIComponent(callbackUrl);
-    } catch {
-      return callbackUrl;
-    }
-  })();
-  if (decoded.includes('://') || decoded.includes('javascript:') || decoded.includes('//')) {
-    return `/${locale}`;
-  }
-  return callbackUrl;
-}
-
 export default async function LoginPage({ params, searchParams }: LoginPageProps) {
   const [{ locale }, { error, callbackUrl, verify }] = await Promise.all([params, searchParams]);
   const t = await getTranslations({ locale, namespace: 'auth' });
-  const nextUrl = safeCallbackUrl(callbackUrl, locale);
+
+  // Only accept same-origin relative callback paths.
+  const safeCallback = safeCallbackUrl(callbackUrl, `/${locale}`);
 
   const session = await auth();
   if (session?.user) {
-    redirect(nextUrl);
+    redirect(safeCallback);
   }
 
   const providers = getProviderAvailability();
@@ -64,7 +49,7 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
           </div>
         )}
         <SignInButton
-          callbackUrl={nextUrl}
+          callbackUrl={safeCallback}
           githubEnabled={providers.github}
           emailEnabled={providers.email}
         />

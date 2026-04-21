@@ -1,17 +1,16 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
 
 const sidebarItems = [
   { key: 'dashboard' as const, href: '/dashboard' },
   { key: 'enquiries' as const, href: '/enquiries' },
-  { key: 'visitRequests' as const, href: '/visit-requests' },
   { key: 'customers' as const, href: '/customers' },
   { key: 'yards' as const, href: '/yards' },
   { key: 'horses' as const, href: '/horses' },
   { key: 'planning' as const, href: '/planning' },
+  { key: 'visitRequests' as const, href: '/visit-requests' },
   { key: 'routeRuns' as const, href: '/route-runs' },
   { key: 'appointments' as const, href: '/appointments' },
   { key: 'completed' as const, href: '/completed' },
@@ -19,17 +18,13 @@ const sidebarItems = [
 ];
 
 export function Sidebar() {
-  const { data: session } = useSession();
   const t = useTranslations('nav');
   const pathname = usePathname();
-  const isAdmin = session?.user?.role === 'admin';
 
   return (
     <aside className="hidden w-60 shrink-0 border-r border-border bg-background lg:block">
       <nav aria-label="Main navigation" className="flex flex-col gap-1 p-3">
-        {sidebarItems
-          .filter(({ key }) => key !== 'staff' || isAdmin)
-          .map(({ key, href }) => {
+        {sidebarItems.map(({ key, href }) => {
           const isActive = pathname.startsWith(href);
           return (
             <Link
