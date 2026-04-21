@@ -143,7 +143,7 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Replace the hard-coded `performedBy = "admin"` default in `app/api/triage-ops/override/route.ts` with the signed-in user's GitHub login/email.
 
 ### Deliverables
-- `auth.ts`, `lib/auth/allowlist.ts`, `lib/auth/session.ts`
+- `auth.ts`, `lib/auth/allowlist.ts` (`lib/auth/session.ts` superseded by `lib/auth/rbac.ts` in PR E)
 - `app/api/auth/[...nextauth]/route.ts`
 - `app/[locale]/login/page.tsx`, `components/auth/{SignInButton,UserMenu,AuthSessionProvider}.tsx`
 - Prisma schema + migration for auth tables

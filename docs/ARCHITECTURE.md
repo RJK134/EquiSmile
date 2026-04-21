@@ -259,7 +259,7 @@ Applied to (non-exhaustive): customers / horses / yards / enquiries / visit-requ
 DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside the existing entries for attachments, clinical records, prescriptions, exports, staff mutations, and role changes.
 
 ### Audit trail
-`TriageAuditLog.performedBy` is written from the authenticated session (via `performedByFor` in `lib/auth/session.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
+`TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
 ### Security hardening (Phase 14 PR A)
 

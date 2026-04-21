@@ -91,14 +91,17 @@ describe('requireN8nApiKey (fail-closed gate)', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('fails closed in production when no key is configured (500)', async () => {
+  it('fails closed in production when no key is configured (500) and response does not disclose config state', async () => {
     const r = requireN8nApiKey({ authHeader: 'Bearer anything', expectedKey: '', demoMode: false });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.response.status).toBe(500);
       const body = await r.response.json();
-      // Generic message; must not disclose config state.
-      expect(body.error).toContain('misconfiguration');
+      // Generic message — must NOT mention the env var name or the word
+      // "misconfiguration" so an anonymous probe can't fingerprint us.
+      expect(body.error).toBe('Internal server error');
+      expect(body.error).not.toMatch(/N8N_API_KEY/i);
+      expect(body.error).not.toMatch(/misconfiguration/i);
     }
   });
 

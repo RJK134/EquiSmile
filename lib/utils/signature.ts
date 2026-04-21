@@ -108,15 +108,17 @@ export function requireN8nApiKey(ctx: N8nAuthContext): N8nAuthResult {
       // because there's no comparison to leak.
       return { ok: true };
     }
-    // Misconfigured production: FAIL CLOSED. Log once at error level so
-    // operators notice — do not leak whether the header is present.
+    // Misconfigured production: FAIL CLOSED. Log the specific cause for
+    // operators; the wire response is deliberately generic so we don't
+    // disclose the missing env var name to an anonymous caller probing
+    // the endpoint.
     console.error(
       '[n8n-auth] N8N_API_KEY is not configured; refusing n8n-authenticated request in production.',
     );
     return {
       ok: false,
       response: NextResponse.json(
-        { error: 'Server misconfiguration: N8N_API_KEY is required' },
+        { error: 'Internal server error' },
         { status: 500 },
       ),
     };
