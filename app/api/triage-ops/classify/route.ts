@@ -1,18 +1,22 @@
 /**
- * POST /api/triage-ops/classify — Trigger auto-triage on an enquiry
+ * POST /api/triage-ops/classify — Trigger auto-triage on an enquiry.
  *
- * Called by the n8n triage-enrichment workflow (03-triage-enrichment.json).
- * Expects { enquiryId } in body. Looks up the enquiry's visit request
- * and runs the rules engine.
+ * Originally documented as being called by the n8n triage-enrichment
+ * workflow (03-triage-enrichment.json). In practice the n8n-to-app
+ * path uses `/api/n8n/triage-result` (server-to-server, API-key
+ * auth), while this endpoint is the UI-triggered version. Now locked
+ * to NURSE+ — running the classifier is a clinical-routing decision.
  */
 
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { successResponse, handleApiError } from '@/lib/api-utils';
+import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/rbac';
 
 export async function POST(request: NextRequest) {
   try {
+    await requireRole(ROLES.NURSE);
     const body = await request.json();
     const { enquiryId } = body as { enquiryId?: string };
 
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse(result);
   } catch (error) {
+    if (error instanceof AuthzError) return authzErrorResponse(error);
     return handleApiError(error);
   }
 }

@@ -9,7 +9,8 @@
 | KI-003 | 7 | Low | PWA offline queue does not retry mutations in the original submission order if multiple were queued | Mutations are eventually consistent; order rarely matters for this app's use case |
 | KI-004 | 3 | Medium | WhatsApp webhook verification requires the app to be publicly accessible — not possible in local dev | Use ngrok or similar tunnel for local WhatsApp testing |
 | KI-005 | 4 | Low | Auto-triage confidence scores are heuristic-based and may misclassify edge cases | Manual override is available; triage tasks created for low-confidence classifications |
-| KI-006 | 9 | Info | `/api/webhook/*` routes intentionally bypass session auth and stay behind the separate `N8N_API_KEY` check. This is by design — n8n calls these server-to-server without a browser session. | No action; enforced in `middleware.ts` via `PUBLIC_PATH_PATTERNS`. |
+| KI-006 | 9 | Info | `/api/webhooks/*`, `/api/n8n/*`, and `/api/reminders/check` intentionally bypass session auth and stay behind the separate `N8N_API_KEY` check — by design, because n8n calls them server-to-server without a browser session. Phase 14 PR E hardened this: the key gate now FAILS CLOSED in production (HTTP 500) when `N8N_API_KEY` is unset, instead of silently accepting anonymous traffic. | No action; enforced in `middleware.ts` via `PUBLIC_PATH_PATTERNS` + `lib/utils/signature.ts#requireN8nApiKey`. |
+| KI-007 | 14 | Info | In-memory rate limiters (`lib/utils/rate-limit.ts`) do not share state across horizontally-scaled instances. Acceptable for the single-vet single-VPS deploy shape; promote to Redis when the deploy goes multi-node. | No action required for v1 scale. |
 
 ## v1.0.0 Retrospective Audit — AMBER items (2026-04-20)
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
-import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { requireN8nApiKey } from '@/lib/utils/signature';
+import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { geocodingService } from '@/lib/services/geocoding.service';
 
 const geocodeResultSchema = z.object({
@@ -10,13 +11,22 @@ const geocodeResultSchema = z.object({
   longitude: z.number(),
   formattedAddress: z.string().optional(),
   placeId: z.string().optional(),
+  source: z.string().optional(),
+  precision: z.string().optional(),
 });
 
+const limiter = rateLimiter({ windowMs: 60_000, max: 120 });
+
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rl = limiter.check(clientKeyFromRequest(request, 'n8n-geo'));
+  if (!rl.allowed) return rateLimitedResponse(rl);
+
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
 
   try {
     const body = await request.json();
@@ -26,6 +36,11 @@ export async function POST(request: NextRequest) {
       payload.yardId,
       payload.latitude,
       payload.longitude,
+      {
+        source: payload.source,
+        precision: payload.precision,
+        formattedAddress: payload.formattedAddress,
+      },
     );
 
     if (!result.success) {

@@ -239,17 +239,27 @@ At least one provider must be configured outside demo mode (enforced by `lib/uti
 
 ### Public exceptions
 - `/login` and `/{locale}/login` — the sign-in page itself (bare path covers Auth.js error redirects that lack a locale).
-- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request).
-- `/api/webhooks/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session (see `lib/utils/n8n-auth`).
+- `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request). Protected by a per-IP rate limiter in `middleware.ts` (30 requests / minute) so the magic-link / OAuth callback path can't be cheaply abused.
+- `/api/webhooks/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session via `lib/utils/signature.ts#requireN8nApiKey`. **Fail-closed in production**: returns HTTP 500 if `N8N_API_KEY` is unset and `DEMO_MODE` is off.
+- `/api/n8n/*` — n8n callbacks (triage-result, geocode-result, route-proposal, trigger/*). Same fail-closed API-key gate as above; each route also has its own per-IP rate limit (60–300 req/min).
+- `/api/reminders/check` — n8n-scheduled cron endpoint. Same API-key gate + rate limit.
 - `/api/health` — uptime probes.
 
 ### Data model
 Auth tables live alongside the domain tables in `prisma/schema.prisma`:
-- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet` for future RBAC.
+- `User` — includes `githubLogin` (unique) and a `role` column defaulting to `vet`. Used as the input to RBAC (see below).
 - `Account`, `Session`, `VerificationToken` — standard Auth.js shape.
 
+### RBAC (lib/auth/rbac.ts)
+
+`requireAuth()` and `requireRole(required: Role)` are the single gate for every sensitive route handler. Deny-by-default: an unknown/blank role normalises to `readonly` and satisfies nothing above it. Ranks: `admin > vet > nurse > readonly`.
+
+Applied to (non-exhaustive): customers / horses / yards / enquiries / visit-requests (GET=readonly, POST/PATCH=nurse, DELETE=admin where applicable), horse attachments + clinical records (view=nurse, mutate=vet), prescriptions (status change=vet), staff (read=readonly, mutate/deactivate=admin), VetUp export (admin), vision analysis (vet), route-planning generate/geocode (vet), route-proposals list (readonly), triage-tasks (read=readonly, mutate=nurse), triage-ops override (vet — overrides clinical routing), dashboard (readonly).
+
+DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside the existing entries for attachments, clinical records, prescriptions, exports, staff mutations, and role changes.
+
 ### Audit trail
-`TriageAuditLog.performedBy` is written from the authenticated session (via `performedByFor` in `lib/auth/session.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
+`TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
 ### Security hardening (Phase 14 PR A)
 
@@ -258,6 +268,13 @@ Auth tables live alongside the domain tables in `prisma/schema.prisma`:
 - **Secure cookies** — Auth.js config emits `__Secure-` / `__Host-` prefixes, `HttpOnly`, `SameSite=Lax`, `Secure` in production (`useSecureCookies`). 30-day `session.maxAge` with 24-hour `updateAge`.
 - **`trustHost`** — only enabled when `AUTH_URL` is explicitly configured; prevents Host-header spoofing in front of a reverse proxy.
 - **Security headers** — `lib/security/headers.ts` applies CSP, HSTS (production only), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, COOP/CORP on every middleware-gated response. API responses use `default-src 'none'; frame-ancestors 'none'` (non-browseable); HTML uses a pragmatic CSP that permits Next.js inline hydration, PWA service worker, Google Maps, and Anthropic vision calls while blocking `object-src`, `frame-ancestors`, and cross-site `form-action`.
+
+### Security hardening (Phase 14 PR E — overnight gap-closure)
+
+- **Fail-closed n8n / webhook auth** — `lib/utils/signature.ts#requireN8nApiKey` replaces the previous opportunistic `if (env.N8N_API_KEY) verify()` pattern. If `N8N_API_KEY` is unset and `DEMO_MODE` is off, every n8n-authenticated route returns HTTP 500 with `{error: 'Server misconfiguration: N8N_API_KEY is required'}` rather than accepting anonymous traffic. Applied to the email webhook (`/api/webhooks/email`), all `/api/n8n/*` endpoints, and the `/api/reminders/check` cron.
+- **Per-IP rate limiting on public paths** — `middleware.ts` applies a 30 req/min cap on `/api/auth/callback|signin|verify-request|session`, and every n8n callback has its own `lib/utils/rate-limit.ts` limiter sized for the expected traffic class. `export/vetup`, `vision analyse`, and batch `geocode` already had per-user caps; those remain.
+- **RBAC on customer / horse / yard / enquiry / visit-request / appointment / dashboard / triage-ops / triage-tasks / route-planning routes** — all previously relied only on the middleware "signed-in user" gate. Now use `requireRole` with least-privilege defaults and write audit-log entries for irreversible actions (customer / yard / horse deletion).
+- **Geocoding provenance** — `Yard.geocodeSource` / `geocodePrecision` / `formattedAddress` are now populated by both the Google geocoder path and the n8n callback, closing AMBER-06 with runtime coverage (the columns had been added but were not being written consistently).
 
 ---
 

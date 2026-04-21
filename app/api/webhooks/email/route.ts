@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { verifyN8nApiKey } from '@/lib/utils/signature';
+import { requireN8nApiKey } from '@/lib/utils/signature';
 import { normaliseEmail } from '@/lib/utils/email';
 import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
@@ -40,11 +40,15 @@ export async function POST(request: NextRequest) {
   const decision = emailWebhookLimiter.check(clientKeyFromRequest(request, 'email-wh'));
   if (!decision.allowed) return rateLimitedResponse(decision);
 
-  // Authenticate with n8n API key
-  const authHeader = request.headers.get('authorization');
-  if (env.N8N_API_KEY && !verifyN8nApiKey(authHeader, env.N8N_API_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Authenticate with n8n API key — FAIL CLOSED in production if no key
+  // is configured (otherwise this endpoint would accept anonymous email
+  // payloads that create customers + enquiries and trigger auto-triage).
+  const gate = requireN8nApiKey({
+    authHeader: request.headers.get('authorization'),
+    expectedKey: env.N8N_API_KEY,
+    demoMode: env.DEMO_MODE === 'true',
+  });
+  if (!gate.ok) return gate.response;
 
   let payload: EmailPayload;
   try {

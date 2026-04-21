@@ -143,7 +143,7 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 - Replace the hard-coded `performedBy = "admin"` default in `app/api/triage-ops/override/route.ts` with the signed-in user's GitHub login/email.
 
 ### Deliverables
-- `auth.ts`, `lib/auth/allowlist.ts`, `lib/auth/session.ts`
+- `auth.ts`, `lib/auth/allowlist.ts` (`lib/auth/session.ts` superseded by `lib/auth/rbac.ts` in PR E)
 - `app/api/auth/[...nextauth]/route.ts`
 - `app/[locale]/login/page.tsx`, `components/auth/{SignInButton,UserMenu,AuthSessionProvider}.tsx`
 - Prisma schema + migration for auth tables
@@ -420,3 +420,27 @@ Outstanding triage decisions for v1.1 include brand-colour reconciliation (AMBER
 
 ### Verification
 - `npm run lint`, `typecheck`, `test`, `prisma validate`, `build` — all green. Net 739 tests passing (+4 new).
+
+---
+
+## Phase 14 — Security Hardening (PR E: overnight gap-closure pass)
+
+### Scope
+Overnight hardening sweep focused on data-access RBAC, fail-closed webhook auth, and rate limiting. Priority: protect customer/clinical data and close the remaining unauthenticated-integration paths.
+
+### Deliverables
+- **Fail-closed n8n / webhook auth** — `lib/utils/signature.ts#requireN8nApiKey` replaces ad-hoc `if (env.N8N_API_KEY)` checks. Returns HTTP 500 in production when the key is unset, instead of silently accepting anonymous traffic. Applied to:
+  - `/api/webhooks/email`
+  - `/api/n8n/triage-result`, `/api/n8n/geocode-result`, `/api/n8n/route-proposal`
+  - `/api/n8n/trigger/send-email`, `/api/n8n/trigger/send-whatsapp`, `/api/n8n/trigger/request-info`
+  - `/api/reminders/check`
+- **Middleware public-paths** — `/api/n8n/*` and `/api/reminders/check` added so n8n server-to-server calls are not blocked by the session middleware while the fail-closed API-key gate runs in the handler.
+- **Per-route rate limits** on every n8n-authenticated endpoint (60–300 req/min per IP) plus a 30 req/min per-IP limiter on `/api/auth/{callback,signin,verify-request,session}` in `middleware.ts` to slow magic-link / OAuth callback abuse.
+- **RBAC + audit** — `requireRole` added to customer / horse / yard / enquiry / visit-request / appointment / dashboard / triage-ops / triage-tasks / route-planning endpoints. DELETEs on Customer / Yard / Horse now write `SecurityAuditLog` entries (`CUSTOMER_DELETED`, `YARD_DELETED`, `HORSE_DELETED`). Override endpoint now derives `performedBy` from the RBAC subject, closing a spoofable-actor gap.
+- **Geocoding provenance runtime coverage** — both `geocodingService.geocodeYard` and `updateYardCoordinates` now write `geocodeSource` / `geocodePrecision` / `formattedAddress` (columns existed from PR D but weren't populated on the Google path).
+- **Tests** — signature-gate tests (6 new cases), middleware public-path tests (3 new cases), customer delete RBAC + audit tests (2 new cases). All existing suites adapted.
+
+### Verification
+- `npm run lint`, `typecheck`, `test`, `prisma validate`, `build` — all green. Net 749 tests passing (+10 net new).
+- Manual: confirmed unauthenticated `GET /api/n8n/triage-result` now returns 500 in a non-demo env with `N8N_API_KEY` unset; returns 401 with it set and no Bearer header; returns 200 with correct Bearer.
+- Manual: DELETE /api/customers/:id with a NURSE session now returns 403; with ADMIN returns 200 and writes a `CUSTOMER_DELETED` row.
