@@ -96,6 +96,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       }
       case 'prescription': {
         const payload = createPrescriptionSchema.parse(body);
+        // Clinical attribution MUST come from the authenticated session only.
+        // We deliberately do NOT accept `recordedById`, `createdById`, or
+        // `prescribedById` from the request body — an authenticated clinician
+        // could otherwise spoof a colleague as the author/prescriber.
         const rx = await clinicalRecordService.createPrescription({ ...payload, horseId: id });
         await securityAuditService.record({
           event: 'CLINICAL_RECORD_CREATED',
