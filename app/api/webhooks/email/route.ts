@@ -96,7 +96,19 @@ export async function POST(request: NextRequest) {
       },
     });
     isNewCustomer = true;
-    console.log('[Email] Created new customer', { customerId: customer.id, email });
+    console.log('[Email] Created new customer', { customerId: customer.id });
+  } else if (customer.deletedAt) {
+    // Phase 15 — the unique email/phone constraints still apply to
+    // tombstoned rows, so a returning customer is routed here. Restore
+    // them automatically (a new inbound message is strong signal of
+    // live relationship) and record it so the operator can audit.
+    customer = await prisma.customer.update({
+      where: { id: customer.id },
+      data: { deletedAt: null, deletedById: null },
+    });
+    console.log('[Email] Restored soft-deleted customer on inbound message', {
+      customerId: customer.id,
+    });
   }
 
   // Derive thread key from In-Reply-To or Message-ID

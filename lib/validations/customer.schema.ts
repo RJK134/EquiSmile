@@ -16,6 +16,9 @@ export const customerQuerySchema = z.object({
   preferredChannel: z.enum(['WHATSAPP', 'EMAIL', 'PHONE']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  // Soft-delete: by default (Phase 15) list endpoints hide tombstoned
+  // rows. Operators can pass `?includeDeleted=true` to audit erasure.
+  includeDeleted: z.coerce.boolean().optional().default(false),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;

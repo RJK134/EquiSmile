@@ -170,7 +170,19 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
               preferredLanguage: 'en',
             },
           });
-          console.log('[WhatsApp] Created new customer', { customerId: customer.id, name: senderName });
+          console.log('[WhatsApp] Created new customer', { customerId: customer.id });
+        } else if (customer.deletedAt) {
+          // Phase 15 — the mobilePhone unique constraint also applies to
+          // tombstoned rows. A returning customer who pings us is a
+          // strong signal of live relationship, so we restore them
+          // (and log it) rather than 500-ing on the FK insert below.
+          customer = await prisma.customer.update({
+            where: { id: customer.id },
+            data: { deletedAt: null, deletedById: null },
+          });
+          console.log('[WhatsApp] Restored soft-deleted customer on inbound message', {
+            customerId: customer.id,
+          });
         }
 
         // Parse message for structured info

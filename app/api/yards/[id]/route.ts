@@ -34,16 +34,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
+/**
+ * Soft delete (Phase 15). Also cascades tombstones to horses whose
+ * primary yard was this one, so list views stop showing rows pinned to
+ * an invisible yard.
+ */
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const subject = await requireRole(ROLES.ADMIN);
     const { id } = await context.params;
-    await yardRepository.delete(id);
+    await yardRepository.delete(id, subject.id);
     await securityAuditService.record({
       event: 'YARD_DELETED',
       actor: subject,
       targetType: 'Yard',
       targetId: id,
+      detail: 'soft-delete (deletedAt set)',
     });
     return successResponse({ deleted: true });
   } catch (error) {

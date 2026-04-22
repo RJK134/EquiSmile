@@ -35,20 +35,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 /**
- * Customer deletion is ADMIN-only and audited — a customer row owns
- * yards, horses, enquiries, and visit requests; removing it destroys a
- * lot of downstream data.
+ * Customer deletion is ADMIN-only and audited. Phase 15 makes this a
+ * SOFT delete: the row (and its owned yards/horses) is tombstoned with
+ * `deletedAt` / `deletedById` and list/detail reads filter it out, but
+ * the data is retained for audit and recovery. Hard delete is reserved
+ * for explicit GDPR/FADP erasure requests handled by an operator path
+ * outside the UI.
  */
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const subject = await requireRole(ROLES.ADMIN);
     const { id } = await context.params;
-    await customerRepository.delete(id);
+    await customerRepository.delete(id, subject.id);
     await securityAuditService.record({
       event: 'CUSTOMER_DELETED',
       actor: subject,
       targetType: 'Customer',
       targetId: id,
+      detail: 'soft-delete (deletedAt set)',
     });
     return successResponse({ deleted: true });
   } catch (error) {

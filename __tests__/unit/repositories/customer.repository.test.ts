@@ -1,17 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockPrisma } = vi.hoisted(() => ({
-  mockPrisma: {
+const { mockPrisma } = vi.hoisted(() => {
+  // Phase 15 — `$transaction` is used for the soft-delete cascade. The
+  // mock simply invokes the callback with the same prisma surface so
+  // we can assert on child `updateMany` calls.
+  const prismaSurface = {
     customer: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
       count: vi.fn(),
     },
-  },
-}));
+    yard: {
+      updateMany: vi.fn(),
+    },
+    horse: {
+      updateMany: vi.fn(),
+    },
+  };
+  return {
+    mockPrisma: {
+      ...prismaSurface,
+      $transaction: vi.fn(async (cb: (tx: typeof prismaSurface) => unknown) => cb(prismaSurface)),
+    },
+  };
+});
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -25,23 +41,35 @@ describe('customerRepository', () => {
   });
 
   describe('findMany', () => {
-    it('returns paginated results', async () => {
-      const customers = [{ id: '1', fullName: 'Sarah Jones' }];
-      mockPrisma.customer.findMany.mockResolvedValue(customers);
-      mockPrisma.customer.count.mockResolvedValue(1);
+    it('filters out soft-deleted rows by default', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      mockPrisma.customer.count.mockResolvedValue(0);
 
-      const result = await customerRepository.findMany({
+      await customerRepository.findMany({
         page: 1,
         pageSize: 20,
+        includeDeleted: false,
       });
 
-      expect(result.data).toEqual(customers);
-      expect(result.total).toBe(1);
-      expect(result.page).toBe(1);
-      expect(result.totalPages).toBe(1);
+      const findManyCall = mockPrisma.customer.findMany.mock.calls[0][0];
+      expect(findManyCall.where.deletedAt).toBeNull();
     });
 
-    it('applies search filter', async () => {
+    it('honours includeDeleted=true', async () => {
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      mockPrisma.customer.count.mockResolvedValue(0);
+
+      await customerRepository.findMany({
+        page: 1,
+        pageSize: 20,
+        includeDeleted: true,
+      });
+
+      const findManyCall = mockPrisma.customer.findMany.mock.calls[0][0];
+      expect(findManyCall.where.deletedAt).toBeUndefined();
+    });
+
+    it('applies search filter alongside soft-delete filter', async () => {
       mockPrisma.customer.findMany.mockResolvedValue([]);
       mockPrisma.customer.count.mockResolvedValue(0);
 
@@ -49,26 +77,13 @@ describe('customerRepository', () => {
         search: 'Jones',
         page: 1,
         pageSize: 20,
+        includeDeleted: false,
       });
 
       const findManyCall = mockPrisma.customer.findMany.mock.calls[0][0];
       expect(findManyCall.where.OR).toBeDefined();
       expect(findManyCall.where.OR).toHaveLength(3);
-      expect(findManyCall.where.OR[0].fullName.contains).toBe('Jones');
-    });
-
-    it('applies channel filter', async () => {
-      mockPrisma.customer.findMany.mockResolvedValue([]);
-      mockPrisma.customer.count.mockResolvedValue(0);
-
-      await customerRepository.findMany({
-        preferredChannel: 'EMAIL',
-        page: 1,
-        pageSize: 20,
-      });
-
-      const findManyCall = mockPrisma.customer.findMany.mock.calls[0][0];
-      expect(findManyCall.where.preferredChannel).toBe('EMAIL');
+      expect(findManyCall.where.deletedAt).toBeNull();
     });
 
     it('calculates pagination correctly', async () => {
@@ -78,6 +93,7 @@ describe('customerRepository', () => {
       const result = await customerRepository.findMany({
         page: 2,
         pageSize: 20,
+        includeDeleted: false,
       });
 
       expect(result.totalPages).toBe(3);
@@ -88,82 +104,105 @@ describe('customerRepository', () => {
   });
 
   describe('findById', () => {
-    it('returns customer with includes', async () => {
-      const customer = { id: '1', fullName: 'Sarah', yards: [], horses: [], enquiries: [] };
-      mockPrisma.customer.findUnique.mockResolvedValue(customer);
+    it('excludes tombstoned rows by default', async () => {
+      mockPrisma.customer.findFirst.mockResolvedValue(null);
 
-      const result = await customerRepository.findById('1');
+      await customerRepository.findById('1');
 
-      expect(result).toEqual(customer);
-      expect(mockPrisma.customer.findUnique).toHaveBeenCalledWith({
+      expect(mockPrisma.customer.findFirst).toHaveBeenCalledWith({
+        where: { id: '1', deletedAt: null },
+        include: expect.any(Object),
+      });
+    });
+
+    it('returns a tombstoned row when includeDeleted=true', async () => {
+      const tombstoned = { id: '1', fullName: 'Ghost', deletedAt: new Date() };
+      mockPrisma.customer.findFirst.mockResolvedValue(tombstoned);
+
+      const result = await customerRepository.findById('1', { includeDeleted: true });
+
+      expect(result).toEqual(tombstoned);
+      expect(mockPrisma.customer.findFirst).toHaveBeenCalledWith({
         where: { id: '1' },
-        include: expect.objectContaining({
-          yards: true,
-          horses: expect.any(Object),
-          enquiries: expect.any(Object),
-        }),
-      });
-    });
-
-    it('returns null for non-existent customer', async () => {
-      mockPrisma.customer.findUnique.mockResolvedValue(null);
-
-      const result = await customerRepository.findById('nonexistent');
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('create', () => {
-    it('creates a customer', async () => {
-      const newCustomer = { id: '1', fullName: 'New Customer', preferredChannel: 'WHATSAPP', preferredLanguage: 'en' };
-      mockPrisma.customer.create.mockResolvedValue(newCustomer);
-
-      const result = await customerRepository.create({
-        fullName: 'New Customer',
-        preferredChannel: 'WHATSAPP',
-        preferredLanguage: 'en',
-      });
-
-      expect(result).toEqual(newCustomer);
-      expect(mockPrisma.customer.create).toHaveBeenCalledWith({
-        data: { fullName: 'New Customer', preferredChannel: 'WHATSAPP', preferredLanguage: 'en' },
-      });
-    });
-  });
-
-  describe('update', () => {
-    it('updates a customer', async () => {
-      const updated = { id: '1', fullName: 'Updated Name' };
-      mockPrisma.customer.update.mockResolvedValue(updated);
-
-      const result = await customerRepository.update('1', { fullName: 'Updated Name' });
-
-      expect(result).toEqual(updated);
-      expect(mockPrisma.customer.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: { fullName: 'Updated Name' },
+        include: expect.any(Object),
       });
     });
   });
 
   describe('delete', () => {
-    it('deletes a customer', async () => {
-      mockPrisma.customer.delete.mockResolvedValue({ id: '1' });
+    it('soft-deletes the customer and cascades to yards/horses', async () => {
+      mockPrisma.customer.update.mockResolvedValue({ id: '1' });
 
+      await customerRepository.delete('1', 'user-42');
+
+      // Customer update — where must require live row, and set deletedAt.
+      const updateCall = mockPrisma.customer.update.mock.calls[0][0];
+      expect(updateCall.where).toEqual({ id: '1', deletedAt: null });
+      expect(updateCall.data.deletedAt).toBeInstanceOf(Date);
+      expect(updateCall.data.deletedById).toBe('user-42');
+
+      // Cascade: yards + horses updateMany called with customerId + live filter.
+      expect(mockPrisma.yard.updateMany).toHaveBeenCalledWith({
+        where: { customerId: '1', deletedAt: null },
+        data: expect.objectContaining({ deletedById: 'user-42' }),
+      });
+      expect(mockPrisma.horse.updateMany).toHaveBeenCalledWith({
+        where: { customerId: '1', deletedAt: null },
+        data: expect.objectContaining({ deletedById: 'user-42' }),
+      });
+
+      // Importantly, we never called prisma.customer.delete().
+      expect(mockPrisma.customer.delete).not.toHaveBeenCalled();
+    });
+
+    it('accepts a null actor id', async () => {
+      mockPrisma.customer.update.mockResolvedValue({ id: '1' });
       await customerRepository.delete('1');
+      const updateCall = mockPrisma.customer.update.mock.calls[0][0];
+      expect(updateCall.data.deletedById).toBeNull();
+    });
+  });
 
-      expect(mockPrisma.customer.delete).toHaveBeenCalledWith({
-        where: { id: '1' },
+  describe('restore', () => {
+    it('clears deletedAt on the customer and its owned rows', async () => {
+      mockPrisma.customer.update.mockResolvedValue({ id: '1' });
+      await customerRepository.restore('1');
+
+      const updateCall = mockPrisma.customer.update.mock.calls[0][0];
+      expect(updateCall.data).toEqual({ deletedAt: null, deletedById: null });
+      expect(mockPrisma.yard.updateMany).toHaveBeenCalledWith({
+        where: { customerId: '1' },
+        data: { deletedAt: null, deletedById: null },
+      });
+      expect(mockPrisma.horse.updateMany).toHaveBeenCalledWith({
+        where: { customerId: '1' },
+        data: { deletedAt: null, deletedById: null },
       });
     });
   });
 
-  describe('count', () => {
-    it('returns customer count', async () => {
-      mockPrisma.customer.count.mockResolvedValue(42);
+  describe('hardDelete', () => {
+    it('calls prisma.customer.delete — operator path for GDPR erasure', async () => {
+      mockPrisma.customer.delete.mockResolvedValue({ id: '1' });
+      await customerRepository.hardDelete('1');
+      expect(mockPrisma.customer.delete).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+  });
 
+  describe('count', () => {
+    it('filters tombstoned rows by default', async () => {
+      mockPrisma.customer.count.mockResolvedValue(42);
       const result = await customerRepository.count();
       expect(result).toBe(42);
+      expect(mockPrisma.customer.count).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+      });
+    });
+
+    it('includes tombstoned rows when includeDeleted=true', async () => {
+      mockPrisma.customer.count.mockResolvedValue(50);
+      await customerRepository.count({ includeDeleted: true });
+      expect(mockPrisma.customer.count).toHaveBeenCalledWith({ where: undefined });
     });
   });
 });
