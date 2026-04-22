@@ -37,8 +37,13 @@ services:
       context: .
       target: migrator
     container_name: equismile-migrator
+    # DATABASE_URL is loaded from the operator's `.env` — it must be set
+    # to a compose-internal URL such as
+    #   postgresql://equismile:<password>@postgres:5432/equismile
+    # See `.env.example` and `docs/DEPLOYMENT.md` for the shape.
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-equismile}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-equismile}
       DEMO_MODE: ${DEMO_MODE:-false}
     depends_on:
       postgres:
@@ -64,53 +69,26 @@ services:
     restart: unless-stopped
     expose:
       - '3000'
+    # Operator secrets (DATABASE_URL, AUTH_SECRET, token values, etc.)
+    # load from the ungitted `.env`. The `environment:` block below only
+    # overrides values that are compose-internal (service names, ports)
+    # or that never belong in a secret file.
+    env_file:
+      - .env
     environment:
-      # --- Core ---------------------------------------------------------
-      DATABASE_URL: postgresql://${POSTGRES_USER:-equismile}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-equismile}
+      # Compose-internal overrides only. Everything else (DATABASE_URL,
+      # AUTH_*, WHATSAPP_*, SMTP_*, GOOGLE_MAPS_API_KEY, ANTHROPIC_API_KEY
+      # etc.) is supplied by `env_file: .env` above so no secret literal
+      # ever lands in this file.
       DEMO_MODE: ${DEMO_MODE:-false}
       NODE_ENV: production
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      NEXT_PUBLIC_DEFAULT_LOCALE: ${NEXT_PUBLIC_DEFAULT_LOCALE:-en}
-      NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY:-}
-      # --- Auth.js (Phase 15 fix — was missing in Docker) --------------
-      # Without these the login page fails closed in production.
-      AUTH_SECRET: ${AUTH_SECRET:-}
-      AUTH_URL: ${AUTH_URL:-}
-      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
-      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
-      AUTH_EMAIL_ENABLED: ${AUTH_EMAIL_ENABLED:-false}
-      ALLOWED_GITHUB_LOGINS: ${ALLOWED_GITHUB_LOGINS:-}
-      # --- n8n ----------------------------------------------------------
-      N8N_API_KEY: ${N8N_API_KEY:-}
-      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678}
+      # Service-internal n8n address: the operator's .env may point at a
+      # different public URL; inside the compose network we always use
+      # the container name.
       N8N_HOST: n8n
       N8N_PORT: '5678'
       N8N_PROTOCOL: http
-      # --- WhatsApp -----------------------------------------------------
-      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
-      WHATSAPP_BUSINESS_ACCOUNT_ID: ${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
-      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
-      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
-      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
-      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
-      # --- Email / SMTP -------------------------------------------------
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-}
-      # --- Google Maps (server) -----------------------------------------
-      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
-      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
-      HOME_BASE_ADDRESS: ${HOME_BASE_ADDRESS:-}
-      HOME_BASE_LAT: ${HOME_BASE_LAT:-}
-      HOME_BASE_LNG: ${HOME_BASE_LNG:-}
-      # --- Clinical AI / vision (Phase 13) ------------------------------
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      EQUISMILE_VISION_MODEL: ${EQUISMILE_VISION_MODEL:-}
-      # --- Clinical attachments -----------------------------------------
-      # Must match the volume mount below so uploads survive container
-      # restarts.
+      # Must match the volume mount below so uploads survive restarts.
       ATTACHMENT_STORAGE_DIR: /app/data/attachments
     volumes:
       # Phase 15 — persistent storage for uploaded horse attachments.
