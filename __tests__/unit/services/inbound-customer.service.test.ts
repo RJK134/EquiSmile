@@ -52,13 +52,15 @@ describe('resolveInboundCustomer', () => {
 
   it('uses upsert (not create + catch P2002) when the customer is absent', async () => {
     tx.customer.findUnique.mockResolvedValue(null);
-    const created = {
-      id: 'c2',
+    // Fresh insert: the returned row carries the `id` the service
+    // generated client-side and passed into `create`, so the caller's
+    // INSERT won the race.
+    tx.customer.upsert.mockImplementation(async ({ create }) => ({
+      id: create.id,
       email: 'x@y.com',
       mobilePhone: null,
       deletedAt: null,
-    };
-    tx.customer.upsert.mockResolvedValue(created);
+    }));
 
     const result = await resolveInboundCustomer(tx as never, {
       lookup: { by: 'email', value: 'x@y.com' },
@@ -70,7 +72,6 @@ describe('resolveInboundCustomer', () => {
       },
     });
 
-    expect(result.customer).toEqual(created);
     expect(result.isNewCustomer).toBe(true);
 
     const upsertArg = tx.customer.upsert.mock.calls[0][0];
@@ -78,6 +79,40 @@ describe('resolveInboundCustomer', () => {
     // the existing row if a parallel transaction beat us to it.
     expect(upsertArg.update).toEqual({});
     expect(upsertArg.where).toEqual({ email: 'x@y.com' });
+    // Client-side `id` lets us tell apart "I just created this row"
+    // from "joined a parallel transaction's row" without relying on
+    // @updatedAt (which Prisma's `update: {}` path does not bump).
+    expect(typeof upsertArg.create.id).toBe('string');
+    expect(upsertArg.create.id).toHaveLength(36);
+  });
+
+  it('reports isNewCustomer=false when the upsert hits the race-safe no-op branch', async () => {
+    // A parallel transaction created the row between our findUnique
+    // and upsert; the returned row carries that transaction's id, not
+    // the candidate id we generated client-side. The caller must not
+    // log "Created new customer" in this case.
+    tx.customer.findUnique.mockResolvedValue(null);
+    const raced = {
+      id: 'parallel-tx-id',
+      email: 'race@x.com',
+      mobilePhone: null,
+      deletedAt: null,
+    };
+    tx.customer.upsert.mockResolvedValue(raced);
+
+    const result = await resolveInboundCustomer(tx as never, {
+      lookup: { by: 'email', value: 'race@x.com' },
+      create: {
+        fullName: 'Race',
+        email: 'race@x.com',
+        preferredChannel: 'EMAIL',
+        preferredLanguage: 'en',
+      },
+    });
+
+    expect(result.customer).toEqual(raced);
+    expect(result.isNewCustomer).toBe(false);
+    expect(result.wasRestored).toBe(false);
   });
 
   it('restores a tombstoned customer inline with cascade by deletedAt', async () => {

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Customer, Prisma } from '@prisma/client';
 
 /**
@@ -72,12 +74,21 @@ export async function resolveInboundCustomer(
     // between our findUnique above and this upsert, Postgres returns
     // the existing row via the `update: {}` (no-op) branch without
     // throwing. No P2002 can surface here.
+    //
+    // We pre-generate the `id` on the client so we can tell afterwards
+    // whether our INSERT won the race (returned row carries our id) or
+    // whether a parallel transaction beat us to it (returned row
+    // carries the parallel transaction's id). Prisma's upsert with
+    // `update: {}` does not bump `@updatedAt` on the existing-row
+    // branch (it emits a SELECT, not an UPDATE), so timestamps are
+    // unreliable for this check.
+    const candidateId = randomUUID();
     customer = await tx.customer.upsert({
       where,
-      create,
+      create: { ...create, id: candidateId },
       update: {},
     });
-    isNewCustomer = true;
+    isNewCustomer = customer.id === candidateId;
   }
 
   let wasRestored = false;
