@@ -140,13 +140,34 @@ function buildPayload(event: ErrorSinkEvent, environment?: string): string {
   // Still too big — message/error itself is pathological. Trim the
   // message to a safe budget and keep the shape valid. Leave enough
   // headroom for the fixed fields (timestamps, enum strings, keys).
+  // When both `message` and `error.message` are present, split the
+  // budget between them so the serialised payload cannot breach
+  // MAX_BODY_BYTES.
   const OVERHEAD_BUDGET = 256;
-  const remaining = MAX_BODY_BYTES - OVERHEAD_BUDGET;
-  body.message = body.message.slice(0, Math.max(0, remaining));
+  const remaining = Math.max(0, MAX_BODY_BYTES - OVERHEAD_BUDGET);
+  const hasErrorMessage = Boolean(body.error?.message);
+  const perFieldBudget = hasErrorMessage ? Math.floor(remaining / 2) : remaining;
+  body.message = body.message.slice(0, perFieldBudget);
   if (body.error?.message) {
-    body.error.message = body.error.message.slice(0, Math.max(0, remaining));
+    body.error.message = body.error.message.slice(0, perFieldBudget);
   }
   serialised = JSON.stringify(body);
+
+  // Defensive final guard — if a combination of unicode expansion or
+  // fixed-field growth still leaves us over the cap, keep trimming the
+  // message fields proportionally until the payload fits.
+  while (serialised.length > MAX_BODY_BYTES && body.message.length > 0) {
+    const overflow = serialised.length - MAX_BODY_BYTES;
+    const trimBy = Math.max(1, Math.ceil(overflow / (hasErrorMessage ? 2 : 1)));
+    body.message = body.message.slice(0, Math.max(0, body.message.length - trimBy));
+    if (body.error?.message) {
+      body.error.message = body.error.message.slice(
+        0,
+        Math.max(0, body.error.message.length - trimBy),
+      );
+    }
+    serialised = JSON.stringify(body);
+  }
   return serialised;
 }
 

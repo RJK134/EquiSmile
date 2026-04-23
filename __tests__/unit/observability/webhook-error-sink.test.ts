@@ -136,6 +136,29 @@ describe('createWebhookErrorSink', () => {
     expect(rawBody.length).toBeLessThanOrEqual(2_048);
   });
 
+  it('enforces the 2KB cap even when message AND error.message are both pathological', async () => {
+    const sink = createWebhookErrorSink({
+      url: 'https://collector.example.com/hook',
+      fetchImpl: fetchMock,
+      now,
+    });
+
+    // Both the message and the error message are huge. Naively slicing
+    // each to `MAX_BODY_BYTES - OVERHEAD_BUDGET` would let the
+    // serialised payload grow to ~3.8KB, breaching the documented 2KB
+    // cap (and risking 400s from Slack / chat webhooks).
+    sink({
+      message: 'X'.repeat(4_000),
+      error: new Error('Y'.repeat(4_000)),
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    const rawBody = fetchMock.mock.calls[0][1]!.body as string;
+    const parsed = JSON.parse(rawBody);
+    expect(parsed.body_truncated).toBe(true);
+    expect(rawBody.length).toBeLessThanOrEqual(2_048);
+  });
+
   it('never throws when fetch rejects', async () => {
     fetchMock.mockRejectedValue(new Error('network'));
     const sink = createWebhookErrorSink({

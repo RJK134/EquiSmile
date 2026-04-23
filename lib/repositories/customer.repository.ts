@@ -112,21 +112,35 @@ export const customerRepository = {
     });
   },
 
-  /** Operator-only: restore a tombstoned customer and its owned rows. */
+  /**
+   * Operator-only: restore a tombstoned customer and only those owned rows
+   * that were cascade-deleted at the same moment. Rows independently
+   * soft-deleted before the customer are left tombstoned — matching by the
+   * parent's `deletedAt` timestamp preserves the pre-delete state.
+   */
   async restore(id: string) {
     return prisma.$transaction(async (tx) => {
+      const existing = await tx.customer.findUnique({
+        where: { id },
+        select: { deletedAt: true },
+      });
+      const cascadeDeletedAt = existing?.deletedAt ?? null;
+
       const customer = await tx.customer.update({
         where: { id },
         data: { deletedAt: null, deletedById: null },
       });
-      await tx.yard.updateMany({
-        where: { customerId: id },
-        data: { deletedAt: null, deletedById: null },
-      });
-      await tx.horse.updateMany({
-        where: { customerId: id },
-        data: { deletedAt: null, deletedById: null },
-      });
+
+      if (cascadeDeletedAt) {
+        await tx.yard.updateMany({
+          where: { customerId: id, deletedAt: cascadeDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+        await tx.horse.updateMany({
+          where: { customerId: id, deletedAt: cascadeDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+      }
       return customer;
     });
   },

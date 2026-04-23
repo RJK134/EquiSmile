@@ -164,20 +164,46 @@ describe('customerRepository', () => {
   });
 
   describe('restore', () => {
-    it('clears deletedAt on the customer and its owned rows', async () => {
+    it('clears deletedAt on the customer and only cascade-deleted children', async () => {
+      const cascadeDeletedAt = new Date('2024-01-02T10:00:00Z');
+      mockPrisma.customer.findUnique.mockResolvedValue({ deletedAt: cascadeDeletedAt });
       mockPrisma.customer.update.mockResolvedValue({ id: '1' });
       await customerRepository.restore('1');
 
       const updateCall = mockPrisma.customer.update.mock.calls[0][0];
       expect(updateCall.data).toEqual({ deletedAt: null, deletedById: null });
       expect(mockPrisma.yard.updateMany).toHaveBeenCalledWith({
-        where: { customerId: '1' },
+        where: { customerId: '1', deletedAt: cascadeDeletedAt },
         data: { deletedAt: null, deletedById: null },
       });
       expect(mockPrisma.horse.updateMany).toHaveBeenCalledWith({
-        where: { customerId: '1' },
+        where: { customerId: '1', deletedAt: cascadeDeletedAt },
         data: { deletedAt: null, deletedById: null },
       });
+    });
+
+    it('does not resurrect independently soft-deleted children', async () => {
+      // Horse tombstoned on Monday; customer tombstoned on Tuesday.
+      // Restoring the customer on Wednesday must leave the horse
+      // tombstoned because its deletedAt does not match the cascade's.
+      const customerDeletedAt = new Date('2024-01-02T10:00:00Z');
+      mockPrisma.customer.findUnique.mockResolvedValue({ deletedAt: customerDeletedAt });
+      mockPrisma.customer.update.mockResolvedValue({ id: '1' });
+
+      await customerRepository.restore('1');
+
+      const horseCall = mockPrisma.horse.updateMany.mock.calls[0][0];
+      expect(horseCall.where.deletedAt).toEqual(customerDeletedAt);
+    });
+
+    it('is a no-op on children when the customer was not tombstoned', async () => {
+      mockPrisma.customer.findUnique.mockResolvedValue({ deletedAt: null });
+      mockPrisma.customer.update.mockResolvedValue({ id: '1' });
+
+      await customerRepository.restore('1');
+
+      expect(mockPrisma.yard.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.horse.updateMany).not.toHaveBeenCalled();
     });
   });
 
