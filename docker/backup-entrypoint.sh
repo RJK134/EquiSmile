@@ -93,6 +93,20 @@ case "${BACKUP_DIR}" in
   *) echo "error: BACKUP_DIR must be an absolute path" >&2; exit 1 ;;
 esac
 case "${BACKUP_DIR}" in *[!a-zA-Z0-9/._-]*) echo "error: BACKUP_DIR has disallowed characters" >&2; exit 1 ;; esac
+# BACKUP_CRON is splice-interpolated into /etc/crontabs/root, so a
+# value containing a newline could inject an extra crontab entry. The
+# cron vocabulary is digits, `*`, `,`, `-`, `/`, `?`, `L`, `W`, `#`
+# plus single spaces and tabs between fields. Anything else is a red
+# flag and we fail loud.
+case "${BACKUP_CRON}" in *[!0-9*,\-/?LW\#\ ]*)
+  echo "error: BACKUP_CRON has disallowed characters" >&2; exit 1 ;;
+esac
+# Must have exactly five fields (minute hour day-of-month month day-of-week).
+cron_field_count=$(printf '%s' "${BACKUP_CRON}" | awk '{print NF}')
+if [ "${cron_field_count}" != "5" ]; then
+  echo "error: BACKUP_CRON must have 5 fields, got ${cron_field_count}" >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------
 # Write the per-run backup script. Crond will invoke this on every tick.

@@ -83,11 +83,15 @@ services:
       DEMO_MODE: ${DEMO_MODE:-false}
       NODE_ENV: production
       # Service-internal n8n address: the operator's .env may point at a
-      # different public URL; inside the compose network we always use
-      # the container name.
+      # different public URL (e.g. `http://localhost:5678/webhook` on
+      # their dev box); inside the compose network we always override
+      # to the container name. `N8N_WEBHOOK_URL` is spelt out too
+      # because some callers read it directly rather than assembling
+      # from host/port/protocol.
       N8N_HOST: n8n
       N8N_PORT: '5678'
       N8N_PROTOCOL: http
+      N8N_WEBHOOK_URL: http://n8n:5678
       # Must match the volume mount below so uploads survive restarts.
       ATTACHMENT_STORAGE_DIR: /app/data/attachments
       # Phase 16 — where /api/status looks for dump files. Must match
