@@ -7,11 +7,17 @@ import { securityAuditService } from '@/lib/services/security-audit.service';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    await requireRole(ROLES.READONLY);
+    const subject = await requireRole(ROLES.READONLY);
     const { id } = await context.params;
-    const yard = await yardRepository.findById(id);
+    // Admin-gated restore preview: an operator inspecting a tombstoned
+    // row in the list view needs to open its detail before restoring.
+    // Non-admin sessions silently drop the flag (see yards/route.ts).
+    const includeDeleted =
+      request.nextUrl.searchParams.get('includeDeleted') === 'true' &&
+      subject.role === ROLES.ADMIN;
+    const yard = await yardRepository.findById(id, { includeDeleted });
     if (!yard) return errorResponse('Yard not found', 404);
     return successResponse(yard);
   } catch (error) {

@@ -7,11 +7,17 @@ import { securityAuditService } from '@/lib/services/security-audit.service';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    await requireRole(ROLES.READONLY);
+    const subject = await requireRole(ROLES.READONLY);
     const { id } = await context.params;
-    const customer = await customerRepository.findById(id);
+    // Admin-gated restore preview: an operator inspecting a tombstoned
+    // row in the list view needs to open its detail before restoring.
+    // Non-admin sessions silently drop the flag (see customers/route.ts).
+    const includeDeleted =
+      request.nextUrl.searchParams.get('includeDeleted') === 'true' &&
+      subject.role === ROLES.ADMIN;
+    const customer = await customerRepository.findById(id, { includeDeleted });
     if (!customer) return errorResponse('Customer not found', 404);
     return successResponse(customer);
   } catch (error) {
