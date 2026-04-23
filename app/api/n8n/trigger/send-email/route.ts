@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { requireN8nApiKey } from '@/lib/utils/signature';
 import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { emailService } from '@/lib/services/email.service';
+import { maskEmail } from '@/lib/utils/logger';
 
 const sendEmailSchema = z.object({
   to: z.string().email(),
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = sendEmailSchema.parse(body);
 
-    console.log('[n8n] Send email triggered', { to: payload.to, subject: payload.subject });
+    console.log('[n8n] Send email triggered', { to: maskEmail(payload.to), subject: payload.subject });
 
     const result = await emailService.sendEmail({
       to: payload.to,

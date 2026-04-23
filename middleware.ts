@@ -55,6 +55,20 @@ const authCallbackLimiter = rateLimiter({ windowMs: 60_000, max: 30 });
 
 const AUTH_CALLBACK_PATTERN = /^\/api\/auth\/(callback|signin|verify-request|session)(\/.*)?$/;
 
+/**
+ * Baseline per-IP rate limit for authenticated API writes
+ * (POST/PATCH/PUT/DELETE) that are not already rate-limited by their
+ * route handler. Intentionally generous — a legitimate operator rarely
+ * mutates more than a handful of rows per second — but bounded enough
+ * to stop an accidental script / runaway tab / stolen-cookie burst
+ * from hammering the DB.
+ *
+ * Each route that needs a tighter limit (export, vision analyse, etc.)
+ * still wraps its own limiter on top; this is only a floor.
+ */
+const apiWriteLimiter = rateLimiter({ windowMs: 60_000, max: 120 });
+const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
 }
@@ -103,6 +117,18 @@ export default async function middleware(request: NextRequest) {
   }
 
   if (isApiPath(pathname)) {
+    // Baseline write-traffic rate limit for authenticated API routes.
+    // Keyed on session user id so a shared NAT gateway doesn't punish
+    // innocent operators for a noisy colleague; falls back to IP.
+    if (WRITE_METHODS.has(request.method)) {
+      const key = session.user.id
+        ? `user:${session.user.id}`
+        : clientKeyFromRequest(request, 'api');
+      const decision = apiWriteLimiter.check(key);
+      if (!decision.allowed) {
+        return applySecurityHeaders(rateLimitedResponse(decision), { pathname });
+      }
+    }
     return applySecurityHeaders(NextResponse.next(), { pathname });
   }
 

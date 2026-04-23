@@ -1,6 +1,7 @@
 import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { deadLetterService } from '@/lib/services/dead-letter.service';
+import { maskPhone } from '@/lib/utils/logger';
 import {
   withRetry,
   circuitBreakers,
@@ -46,7 +47,7 @@ export const whatsappService = {
     // Idempotency: prevent duplicate sends on retry
     const idempotencyKey = generateIdempotencyKey('wa-text', `${to}:${enquiryId || 'none'}:${Date.now()}`);
     if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
-      console.warn('[WhatsApp] Duplicate send prevented', { to, enquiryId });
+      console.warn('[WhatsApp] Duplicate send prevented', { to: maskPhone(to), enquiryId });
       return { messageId: '', success: true };
     }
 
@@ -99,7 +100,7 @@ export const whatsappService = {
         });
       }
 
-      console.log('[WhatsApp] Message sent', { to, messageId, language });
+      console.log('[WhatsApp] Message sent', { to: maskPhone(to), messageId, language });
       return { messageId, success: true };
     } catch (error) {
       console.error('[WhatsApp] Send error', error);
@@ -135,7 +136,7 @@ export const whatsappService = {
 
     const idempotencyKey = generateIdempotencyKey('wa-tpl', `${to}:${templateName}:${enquiryId || 'none'}:${Date.now()}`);
     if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
-      console.warn('[WhatsApp] Duplicate template send prevented', { to, templateName });
+      console.warn('[WhatsApp] Duplicate template send prevented', { to: maskPhone(to), templateName });
       return { messageId: '', success: true };
     }
 
@@ -200,7 +201,7 @@ export const whatsappService = {
         });
       }
 
-      console.log('[WhatsApp] Template sent', { to, templateName, messageId, language: languageCode });
+      console.log('[WhatsApp] Template sent', { to: maskPhone(to), templateName, messageId, language: languageCode });
       return { messageId, success: true };
     } catch (error) {
       console.error('[WhatsApp] Template send error', error);
