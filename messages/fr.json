@@ -71,7 +71,8 @@
     "horses": "Chevaux",
     "staff": "Personnel",
     "completed": "Terminés",
-    "more": "Plus"
+    "more": "Plus",
+    "observability": "Observabilité"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -578,6 +579,50 @@
     "deleteSuccess": "Supprimé avec succès.",
     "deleteFailed": "Échec de la suppression. Veuillez réessayer.",
     "loadFailed": "Échec du chargement des données. Veuillez réessayer."
+  },
+  "observability": {
+    "title": "Observabilité",
+    "subtitle": "File d'opérations échouées, état des sauvegardes, activité d'audit récente",
+    "forbidden": "Vous devez être administrateur pour consulter cette page.",
+    "refreshError": "Échec du rafraîchissement",
+    "ops": {
+      "heading": "Signaux opérationnels",
+      "deadLetter": {
+        "label": "File d'échecs (en attente)",
+        "abandoned": "+{count} abandonnées"
+      },
+      "audit": {
+        "label": "Entrées d'audit (24 h)",
+        "signInDenied": "{count} connexions refusées"
+      },
+      "backup": {
+        "label": "Sauvegardes sur disque",
+        "newest": "plus récente : {age} h",
+        "none": "aucune sauvegarde trouvée",
+        "missingVolume": "volume de sauvegardes non monté"
+      }
+    },
+    "dlq": {
+      "heading": "Opérations échouées",
+      "empty": "Aucune opération échouée. Tout se rejoue correctement.",
+      "scope": "Périmètre",
+      "status": "Statut",
+      "attempts": "Tentatives",
+      "lastError": "Dernière erreur",
+      "created": "Créée",
+      "actions": "Actions",
+      "markReplayed": "Marquer rejouée",
+      "markAbandoned": "Abandonner"
+    },
+    "audit": {
+      "heading": "Activité d'audit récente",
+      "empty": "Aucune entrée d'audit pour le moment.",
+      "when": "Quand",
+      "event": "Événement",
+      "actor": "Acteur",
+      "target": "Cible",
+      "detail": "Détail"
+    }
   },
   "legal": {
     "backHome": "Retour à l'accueil",

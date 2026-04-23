@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
+import { maskPhone } from '@/lib/utils/logger';
 
 interface AppointmentWithDetails {
   id: string;
@@ -183,7 +184,7 @@ export const confirmationService = {
       sent = true;
       console.log('[Confirmation] WhatsApp message logged for dispatch', {
         appointmentId,
-        phone: customer.mobilePhone,
+        phone: customer.mobilePhone ? maskPhone(customer.mobilePhone) : null,
       });
     } else {
       error = `No valid contact for channel ${channel}`;

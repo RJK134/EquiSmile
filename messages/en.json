@@ -33,7 +33,8 @@
     "horses": "Horses",
     "staff": "Staff",
     "completed": "Completed",
-    "more": "More"
+    "more": "More",
+    "observability": "Observability"
   },
   "staff": {
     "title": "Staff",
@@ -578,6 +579,50 @@
     "deleteSuccess": "Successfully deleted.",
     "deleteFailed": "Failed to delete. Please try again.",
     "loadFailed": "Failed to load data. Please try again."
+  },
+  "observability": {
+    "title": "Observability",
+    "subtitle": "Dead-letter queue, backup health, and recent audit activity",
+    "forbidden": "You need admin privileges to view this page.",
+    "refreshError": "Refresh failed",
+    "ops": {
+      "heading": "Operational signals",
+      "deadLetter": {
+        "label": "Dead-letter queue (pending)",
+        "abandoned": "+{count} abandoned"
+      },
+      "audit": {
+        "label": "Audit entries (24h)",
+        "signInDenied": "{count} sign-ins denied"
+      },
+      "backup": {
+        "label": "Backups on disk",
+        "newest": "newest: {age}h old",
+        "none": "no backup files found",
+        "missingVolume": "backups volume not mounted"
+      }
+    },
+    "dlq": {
+      "heading": "Failed operations",
+      "empty": "No failed operations. Everything is replaying cleanly.",
+      "scope": "Scope",
+      "status": "Status",
+      "attempts": "Attempts",
+      "lastError": "Last error",
+      "created": "Created",
+      "actions": "Actions",
+      "markReplayed": "Mark replayed",
+      "markAbandoned": "Abandon"
+    },
+    "audit": {
+      "heading": "Recent audit activity",
+      "empty": "No audit entries yet.",
+      "when": "When",
+      "event": "Event",
+      "actor": "Actor",
+      "target": "Target",
+      "detail": "Detail"
+    }
   },
   "legal": {
     "backHome": "Back to home",

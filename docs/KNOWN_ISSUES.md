@@ -1,5 +1,15 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Operational-readiness uplift (2026-04-23)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| PR16-NO-ERRSINK-IMPL | Medium | Phase 15 shipped a sink interface but no wireable implementation | Resolved — `lib/observability/webhook-error-sink.ts` + `instrumentation.ts` auto-register when `EQUISMILE_ERROR_WEBHOOK_URL` is set. |
+| PR16-BACKUP-MANUAL | High | Backup was a host cron the operator had to install by hand | Resolved — `backup` compose service runs `pg_dump` on an internal cron; no host setup required. |
+| PR16-NO-RESTORE-DRILL | Medium | No mechanical way to verify a backup is restorable | Resolved — `scripts/backup-restore-verify.sh` restores the newest dump into a scratch DB and asserts schema + row presence. |
+| PR16-NO-OPS-UI | Medium | No operator-visible view of DLQ depth, audit activity, backup freshness | Resolved — `/api/admin/observability` + `/[locale]/admin/observability` page (admin-only). |
+| PR16-PII-SWEEP | Low | Remaining raw phone in confirmation.service and n8n send-whatsapp trigger | Resolved — `maskPhone()` applied to all outbound logs. |
+
 ## Phase 15 — Production-readiness uplift (2026-04-23)
 
 Filed and closed during the Phase 15 PR. See
