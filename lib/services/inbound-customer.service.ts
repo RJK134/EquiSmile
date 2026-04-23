@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Customer, Prisma } from '@prisma/client';
 
 /**
@@ -73,20 +75,20 @@ export async function resolveInboundCustomer(
     // the existing row via the `update: {}` (no-op) branch without
     // throwing. No P2002 can surface here.
     //
-    // `createdAt` is set ONLY on INSERT (Prisma `@default(now())`),
-    // so we can distinguish "we inserted" from "parallel transaction
-    // beat us to it and we joined their row" by snapshotting a
-    // timestamp before the upsert and checking whether the returned
-    // row's createdAt is strictly after it. This stops the webhook
-    // logging a misleading "Created new customer" for a row we
-    // didn't actually create.
-    const preUpsertAt = new Date();
+    // Distinguishing "we inserted" from "parallel tx beat us to it":
+    // we pre-generate the row's UUID on the client and pass it into
+    // the create payload. The INSERT path persists OUR id; the
+    // update-branch path returns the parallel transaction's existing
+    // id. Comparing them afterwards is exact and doesn't depend on
+    // app-vs-Postgres clock alignment (which a createdAt-timestamp
+    // check did).
+    const candidateId = randomUUID();
     customer = await tx.customer.upsert({
       where,
-      create,
+      create: { ...create, id: candidateId },
       update: {},
     });
-    isNewCustomer = customer.createdAt.getTime() >= preUpsertAt.getTime();
+    isNewCustomer = customer.id === candidateId;
   }
 
   let wasRestored = false;

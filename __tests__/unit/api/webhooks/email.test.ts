@@ -89,16 +89,18 @@ describe('Email Intake Endpoint', () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
     mockPrisma.customer.findUnique.mockResolvedValue(null);
     // Phase 16 — the webhook now resolves a new customer via the
-    // race-safe `upsert` path inside the shared helper, not `create`.
-    mockPrisma.customer.upsert.mockResolvedValue({
-      id: 'cust-1',
+    // race-safe `upsert` path. The helper pre-generates an `id`
+    // client-side and compares it to the returned row's id to
+    // distinguish INSERT from update:{}-no-op. Echo the caller's id
+    // back so the "fresh insert" branch fires.
+    mockPrisma.customer.upsert.mockImplementation(async ({ create }) => ({
+      id: create.id,
       deletedAt: null,
-      // createdAt in the future so resolveInboundCustomer treats this
-      // as a fresh insert rather than a parallel-create race.
-      createdAt: new Date(Date.now() + 60_000),
-    });
-    mockPrisma.customer.create.mockResolvedValue({ id: 'cust-1' });
-    mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'cust-1' });
+    }));
+    mockPrisma.enquiry.create.mockImplementation(async ({ data }) => ({
+      id: 'enq-1',
+      customerId: data.customerId,
+    }));
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
     const request = createEmailRequest(validPayload);

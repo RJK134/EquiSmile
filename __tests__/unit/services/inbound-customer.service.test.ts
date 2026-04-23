@@ -52,16 +52,15 @@ describe('resolveInboundCustomer', () => {
 
   it('uses upsert (not create + catch P2002) when the customer is absent', async () => {
     tx.customer.findUnique.mockResolvedValue(null);
-    const created = {
-      id: 'c2',
+    // Simulate the real INSERT-path behaviour: Postgres persists the
+    // id the service generated and passed in via `create.id`, and
+    // returns it.
+    tx.customer.upsert.mockImplementation(async ({ create }) => ({
+      id: create.id,
       email: 'x@y.com',
       mobilePhone: null,
       deletedAt: null,
-      // createdAt well into the future so the isNewCustomer check
-      // treats this as a fresh insert.
-      createdAt: new Date(Date.now() + 60_000),
-    };
-    tx.customer.upsert.mockResolvedValue(created);
+    }));
 
     const result = await resolveInboundCustomer(tx as never, {
       lookup: { by: 'email', value: 'x@y.com' },
@@ -73,7 +72,6 @@ describe('resolveInboundCustomer', () => {
       },
     });
 
-    expect(result.customer).toEqual(created);
     expect(result.isNewCustomer).toBe(true);
 
     const upsertArg = tx.customer.upsert.mock.calls[0][0];
@@ -81,23 +79,25 @@ describe('resolveInboundCustomer', () => {
     // the existing row if a parallel transaction beat us to it.
     expect(upsertArg.update).toEqual({});
     expect(upsertArg.where).toEqual({ email: 'x@y.com' });
+    // Service pre-generates the id client-side so we can tell
+    // afterwards whether our INSERT won the race.
+    expect(typeof upsertArg.create.id).toBe('string');
+    expect(upsertArg.create.id).toHaveLength(36);
   });
 
-  it('marks isNewCustomer=false when upsert no-ops on a pre-existing row', async () => {
-    // findUnique returned null (so the caller enters the upsert
-    // branch), but by the time upsert ran in Postgres a parallel
-    // transaction had already committed the insert. The row we get
-    // back has a createdAt from BEFORE our call — we didn't create
-    // it, so the log line must not lie.
+  it('marks isNewCustomer=false when upsert no-ops on a row a parallel tx already inserted', async () => {
+    // findUnique returned null, but by the time upsert ran in
+    // Postgres a parallel transaction had already committed the
+    // insert. The returned row carries THAT transaction's id, not
+    // the candidate id we generated client-side.
     tx.customer.findUnique.mockResolvedValue(null);
-    const preExistingCreatedAt = new Date(Date.now() - 60_000);
-    tx.customer.upsert.mockResolvedValue({
-      id: 'c-race',
+    const raced = {
+      id: 'parallel-tx-id',
       email: 'r@y.com',
       mobilePhone: null,
       deletedAt: null,
-      createdAt: preExistingCreatedAt,
-    });
+    };
+    tx.customer.upsert.mockResolvedValue(raced);
 
     const result = await resolveInboundCustomer(tx as never, {
       lookup: { by: 'email', value: 'r@y.com' },
@@ -109,7 +109,9 @@ describe('resolveInboundCustomer', () => {
       },
     });
 
+    expect(result.customer).toEqual(raced);
     expect(result.isNewCustomer).toBe(false);
+    expect(result.wasRestored).toBe(false);
   });
 
   it('restores a tombstoned customer inline with cascade by deletedAt', async () => {
