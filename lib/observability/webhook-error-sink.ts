@@ -220,7 +220,7 @@ async function postPayload(
   }
 }
 
-/** Test helper — resets dedupe state across runs. */
+/** Returns true when the webhook sink is enabled via env var. */
 export function __isWebhookSinkEnabled(): boolean {
   return Boolean(process.env.EQUISMILE_ERROR_WEBHOOK_URL);
 }

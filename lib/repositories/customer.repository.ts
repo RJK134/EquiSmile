@@ -63,12 +63,13 @@ export const customerRepository = {
   },
 
   async findById(id: string, options: { includeDeleted?: boolean } = {}) {
+    const childWhere = options.includeDeleted ? {} : { deletedAt: null };
     return prisma.customer.findFirst({
       where: options.includeDeleted ? { id } : { id, deletedAt: null },
       include: {
-        yards: { where: { deletedAt: null } },
+        yards: { where: childWhere },
         horses: {
-          where: { deletedAt: null },
+          where: childWhere,
           include: { primaryYard: true },
         },
         enquiries: { orderBy: { receivedAt: 'desc' }, take: 10 },

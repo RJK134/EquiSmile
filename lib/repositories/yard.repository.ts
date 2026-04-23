@@ -53,11 +53,12 @@ export const yardRepository = {
   },
 
   async findById(id: string, options: { includeDeleted?: boolean } = {}) {
+    const childWhere = options.includeDeleted ? {} : { deletedAt: null };
     return prisma.yard.findFirst({
       where: options.includeDeleted ? { id } : { id, deletedAt: null },
       include: {
         customer: true,
-        horses: { where: { deletedAt: null } },
+        horses: { where: childWhere },
       },
     });
   },
