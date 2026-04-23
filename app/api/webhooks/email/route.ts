@@ -8,6 +8,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 
 // n8n typically batches a handful of emails per minute; cap generously
 // at 200/min per IP to catch misconfigured loops.
@@ -88,86 +89,27 @@ export async function POST(request: NextRequest) {
   // Parse message for structured info
   const parsed = parseMessage(payload.textBody);
 
-  // Customer resolution + enquiry creation in ONE transaction.
-  //
-  // This closes two races Bugbot flagged:
-  //   (a) concurrent delete — without the transaction, a customer
-  //       could be soft-deleted between findUnique() and the enquiry
-  //       insert, leaving the enquiry permanently linked to a
-  //       tombstoned row. Prisma transactions hold the customer row
-  //       stable in-memory for the duration.
-  //   (b) concurrent create — without the transaction, two parallel
-  //       inbound messages from a never-seen-before sender could both
-  //       findUnique → null → create, and the second lose to a unique
-  //       violation. Inside the transaction we catch P2002 and re-find
-  //       so the second request joins the first's customer row.
+  // Customer resolution + enquiry creation in ONE transaction, using
+  // the shared `resolveInboundCustomer` helper so the WhatsApp path
+  // gets the same semantics (see lib/services/inbound-customer.service.ts
+  // for the rationale behind upsert / in-transaction restore).
   const { customer, enquiry, isNewCustomer, wasRestored } =
     await prisma.$transaction(async (tx) => {
-      let customer = await tx.customer.findUnique({ where: { email } });
-      let isNewCustomer = false;
-      let wasRestored = false;
-
-      if (!customer) {
-        try {
-          customer = await tx.customer.create({
-            data: {
-              fullName: payload.fromName || email,
-              email,
-              preferredChannel: 'EMAIL',
-              preferredLanguage: 'en',
-            },
-          });
-          isNewCustomer = true;
-        } catch (err) {
-          // P2002 = unique-constraint violation. Another request
-          // created the same customer in a parallel transaction.
-          // Re-fetch and join their row.
-          if (
-            err &&
-            typeof err === 'object' &&
-            (err as { code?: string }).code === 'P2002'
-          ) {
-            customer = await tx.customer.findUnique({ where: { email } });
-            if (!customer) throw err;
-          } else {
-            throw err;
-          }
-        }
-      }
-
-      if (customer?.deletedAt) {
-        // Phase 15 — inbound message from a tombstoned customer.
-        // Restore inline WITH CASCADE so yards/horses come back too
-        // (symmetric with customerRepository.restore, but inside the
-        // same transaction so no commit window races with a third
-        // party). Match children by the parent's own deletedAt so we
-        // don't resurrect rows that were independently tombstoned.
-        const parentDeletedAt = customer.deletedAt;
-        customer = await tx.customer.update({
-          where: { id: customer.id },
-          data: { deletedAt: null, deletedById: null },
-        });
-        await tx.yard.updateMany({
-          where: { customerId: customer.id, deletedAt: parentDeletedAt },
-          data: { deletedAt: null, deletedById: null },
-        });
-        await tx.horse.updateMany({
-          where: { customerId: customer.id, deletedAt: parentDeletedAt },
-          data: { deletedAt: null, deletedById: null },
-        });
-        wasRestored = true;
-      }
-
-      if (!customer) {
-        // Unreachable under correct branching above, but keeps TS happy.
-        throw new Error('customer resolution failed');
-      }
+      const resolved = await resolveInboundCustomer(tx, {
+        lookup: { by: 'email', value: email },
+        create: {
+          fullName: payload.fromName || email,
+          email,
+          preferredChannel: 'EMAIL',
+          preferredLanguage: 'en',
+        },
+      });
 
       const enquiry = await tx.enquiry.create({
         data: {
           channel: 'EMAIL',
           externalMessageId: payload.messageId,
-          customerId: customer.id,
+          customerId: resolved.customer.id,
           sourceFrom: email,
           subject: payload.subject || null,
           rawText: payload.textBody,
@@ -177,7 +119,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      return { customer, enquiry, isNewCustomer, wasRestored };
+      return { ...resolved, enquiry };
     });
 
   if (isNewCustomer) {

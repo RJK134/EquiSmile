@@ -7,6 +7,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -160,71 +161,40 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         const parsed = parseMessage(messageText);
 
         // Customer resolution + enquiry creation in ONE transaction —
-        // see app/api/webhooks/email/route.ts for rationale. Closes
-        // the soft-delete-between-find-and-use race + the parallel-
-        // create unique-constraint race.
+        // see lib/services/inbound-customer.service.ts for rationale.
+        // Uses the shared helper so email + WhatsApp stay in lock-step.
         const { customer, enquiry, isNewCustomer, wasRestored } =
           await prisma.$transaction(async (tx) => {
-            let customer = senderPhone
-              ? await tx.customer.findUnique({ where: { mobilePhone: senderPhone } })
-              : null;
-            let isNewCustomer = false;
-            let wasRestored = false;
-
-            if (!customer) {
-              try {
-                customer = await tx.customer.create({
-                  data: {
-                    fullName: senderName,
-                    mobilePhone: senderPhone,
-                    preferredChannel: 'WHATSAPP',
-                    preferredLanguage: 'en',
-                  },
-                });
-                isNewCustomer = true;
-              } catch (err) {
-                if (
-                  err &&
-                  typeof err === 'object' &&
-                  (err as { code?: string }).code === 'P2002' &&
-                  senderPhone
-                ) {
-                  customer = await tx.customer.findUnique({
-                    where: { mobilePhone: senderPhone },
-                  });
-                  if (!customer) throw err;
-                } else {
-                  throw err;
-                }
-              }
-            }
-
-            if (customer?.deletedAt) {
-              const parentDeletedAt = customer.deletedAt;
-              customer = await tx.customer.update({
-                where: { id: customer.id },
-                data: { deletedAt: null, deletedById: null },
+            let resolved: Awaited<ReturnType<typeof resolveInboundCustomer>>;
+            if (senderPhone) {
+              resolved = await resolveInboundCustomer(tx, {
+                lookup: { by: 'mobilePhone', value: senderPhone },
+                create: {
+                  fullName: senderName,
+                  mobilePhone: senderPhone,
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
               });
-              await tx.yard.updateMany({
-                where: { customerId: customer.id, deletedAt: parentDeletedAt },
-                data: { deletedAt: null, deletedById: null },
+            } else {
+              // No phone means no unique key, so the race-safe upsert
+              // path doesn't apply. Fall back to a plain create.
+              const customer = await tx.customer.create({
+                data: {
+                  fullName: senderName,
+                  mobilePhone: senderPhone,
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
               });
-              await tx.horse.updateMany({
-                where: { customerId: customer.id, deletedAt: parentDeletedAt },
-                data: { deletedAt: null, deletedById: null },
-              });
-              wasRestored = true;
-            }
-
-            if (!customer) {
-              throw new Error('customer resolution failed');
+              resolved = { customer, isNewCustomer: true, wasRestored: false };
             }
 
             const enquiry = await tx.enquiry.create({
               data: {
                 channel: 'WHATSAPP',
                 externalMessageId: message.id,
-                customerId: customer.id,
+                customerId: resolved.customer.id,
                 sourceFrom: message.from,
                 rawText: messageText,
                 receivedAt: timestamp,
@@ -233,7 +203,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
               },
             });
 
-            return { customer, enquiry, isNewCustomer, wasRestored };
+            return { ...resolved, enquiry };
           });
 
         if (isNewCustomer) {
