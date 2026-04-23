@@ -24,13 +24,46 @@ in the repo or operator-managed.
 
 ---
 
-## 2. Nightly backup — supported path
+## 2. Nightly backup — supported paths
 
-`scripts/backup-db.sh` produces a gzipped `pg_dump` into
-`$BACKUP_DIR` (default `./backups`) and rotates files older than
-`$BACKUP_RETENTION_DAYS` (default 14).
+There are two supported ways to run the nightly backup. The Docker
+service is the default path for compose deployments; the host cron is
+the fallback when compose is not available.
 
-### Recommended crontab (host, VPS deployment)
+### 2a. Docker service (recommended, compose deployments)
+
+The `backup` service in `docker-compose.yml` runs `pg_dump` on an
+internal cron schedule and writes rotated dumps into the named
+`backups_data` volume. No host cron needed.
+
+```sh
+# Bring it up alongside the rest of the stack.
+docker compose up -d backup
+
+# Check it's scheduled.
+docker compose logs backup | head
+# [backup] scheduler online cron='30 2 * * *' retention=14d dir=/backups
+
+# List the dumps currently held.
+docker compose exec backup ls -lh /backups
+
+# Restore the newest dump (see § 4).
+```
+
+Environment knobs (see `.env.example`):
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `BACKUP_CRON` | `30 2 * * *` | Schedule (UTC, 5-field cron). |
+| `BACKUP_RETENTION_DAYS` | `14` | Age in days before rotation deletes a dump. |
+
+Copy the volume off-box with `docker run --rm -v equismile_backups_data:/data:ro -v "$PWD":/host alpine tar -czf /host/equismile-backups-$(date -u +%F).tar.gz -C /data .`, or mount the volume into an rclone container and sync to S3.
+
+### 2b. Host cron (non-docker or external VPS cron)
+
+`scripts/backup-db.sh` produces a gzipped `pg_dump` into `$BACKUP_DIR`
+(default `./backups`) and rotates files older than `$BACKUP_RETENTION_DAYS`
+(default 14).
 
 ```cron
 # EquiSmile — nightly DB backup at 02:30 UTC
@@ -104,6 +137,25 @@ docker compose exec -T postgres \
   psql -U equismile -d equismile_restore \
   -c 'SELECT count(*) AS customers FROM "Customer" WHERE "deletedAt" IS NULL;'
 ```
+
+### 4.1a Automated restore-verify (recommended, weekly)
+
+`scripts/backup-restore-verify.sh` picks the newest backup from
+`$BACKUP_DIR`, restores it into a scratch `equismile_verify` database,
+runs two smoke queries (live customer count + SecurityAuditLog table
+presence), then drops the scratch DB. Non-zero exit on any failure.
+
+```sh
+# Manual run — useful for installation rehearsal.
+scripts/backup-restore-verify.sh
+
+# Suggested cron (Sunday 03:30 UTC, after the nightly backup window):
+30 3 * * 0  /opt/equismile/scripts/backup-restore-verify.sh >> /var/log/equismile-backup.log 2>&1
+```
+
+A backup that has never been restored is a wish, not a guarantee — run
+this at least weekly so the "our backups are silently broken" failure
+mode is caught in hours, not months.
 
 ### 4.2 Swap the restored DB into production
 

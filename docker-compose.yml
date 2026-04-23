@@ -180,9 +180,42 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # Phase 16 — scheduled database backup. Runs `pg_dump` on
+  # `BACKUP_CRON` (default 02:30 UTC daily) and rotates by
+  # `BACKUP_RETENTION_DAYS` (default 14). Backups land in the
+  # `backups_data` volume, which the operator is expected to sync
+  # off-box via rclone/rsync per docs/BACKUP.md §2.
+  backup:
+    image: postgres:16-alpine
+    container_name: equismile-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: ${POSTGRES_USER:-equismile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:-equismile}
+      BACKUP_CRON: ${BACKUP_CRON:-30 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_DIR: /backups
+    volumes:
+      - backups_data:/backups
+      - ./docker/backup-entrypoint.sh:/usr/local/bin/backup-entrypoint.sh:ro
+    entrypoint: ['/bin/sh', '/usr/local/bin/backup-entrypoint.sh']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    stop_grace_period: 15s
+
 volumes:
   postgres_data:
   n8n_data:
   caddy_data:
   caddy_config:
   attachments_data:
+  backups_data:
