@@ -21,7 +21,12 @@ export const yardQuerySchema = z.object({
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  includeDeleted: z.coerce.boolean().optional().default(false),
+  // See customer.schema.ts for why this is a literal-string parse.
+  includeDeleted: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type CreateYardInput = z.infer<typeof createYardSchema>;

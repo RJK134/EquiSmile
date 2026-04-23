@@ -46,6 +46,21 @@ describe('yardRepository — soft delete', () => {
     expect(mockPrisma.yard.findMany.mock.calls[0][0].where.deletedAt).toBeNull();
   });
 
+  it('restore un-tombstones the yard AND horses cascaded by an earlier delete', async () => {
+    mockPrisma.yard.update.mockResolvedValue({ id: 'y1' });
+
+    await yardRepository.restore('y1');
+
+    expect(mockPrisma.yard.update).toHaveBeenCalledWith({
+      where: { id: 'y1' },
+      data: { deletedAt: null, deletedById: null },
+    });
+    expect(mockPrisma.horse.updateMany).toHaveBeenCalledWith({
+      where: { primaryYardId: 'y1' },
+      data: { deletedAt: null, deletedById: null },
+    });
+  });
+
   it('delete tombstones the yard and orphaned horses pointing at it', async () => {
     mockPrisma.yard.update.mockResolvedValue({ id: 'y1' });
 

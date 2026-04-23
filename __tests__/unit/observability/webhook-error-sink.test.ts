@@ -113,6 +113,29 @@ describe('createWebhookErrorSink', () => {
     expect(body.context.userId).toBe('u1');
   });
 
+  it('emits VALID JSON and drops context when the payload would exceed the cap', async () => {
+    const sink = createWebhookErrorSink({
+      url: 'https://collector.example.com/hook',
+      fetchImpl: fetchMock,
+      now,
+    });
+
+    // 4KB of context — guaranteed to blow past the 2KB cap.
+    const fatContext = { blob: 'A'.repeat(4_000) };
+    sink({ message: 'big', context: fatContext });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    const rawBody = fetchMock.mock.calls[0][1]!.body as string;
+
+    // Must be parseable JSON. The old implementation produced a
+    // mid-string slice that Slack/Sentry would reject with a 400.
+    const parsed = JSON.parse(rawBody);
+    expect(parsed.message).toBe('big');
+    expect(parsed.body_truncated).toBe(true);
+    expect(parsed.context).toBeUndefined();
+    expect(rawBody.length).toBeLessThanOrEqual(2_048);
+  });
+
   it('never throws when fetch rejects', async () => {
     fetchMock.mockRejectedValue(new Error('network'));
     const sink = createWebhookErrorSink({

@@ -99,7 +99,17 @@ function buildDedupeKey(event: ErrorSinkEvent): string {
 }
 
 function buildPayload(event: ErrorSinkEvent, environment?: string): string {
-  const body = {
+  type Payload = {
+    ts: string;
+    service: 'equismile';
+    env: string;
+    message: string;
+    error?: { name?: string; message: string };
+    context?: unknown;
+    body_truncated?: true;
+  };
+
+  const body: Payload = {
     ts: new Date().toISOString(),
     service: 'equismile',
     env: environment ?? process.env.NODE_ENV ?? 'unknown',
@@ -112,10 +122,32 @@ function buildPayload(event: ErrorSinkEvent, environment?: string): string {
         : undefined,
     context: redact(event.context) as unknown,
   };
-  const serialised = JSON.stringify(body);
-  return serialised.length > MAX_BODY_BYTES
-    ? serialised.slice(0, MAX_BODY_BYTES - 3) + '..."'
-    : serialised;
+
+  let serialised = JSON.stringify(body);
+  if (serialised.length <= MAX_BODY_BYTES) return serialised;
+
+  // Over the cap — produce a valid, smaller payload. Context is almost
+  // always the biggest field (redacted object graph) and the least
+  // essential for triage, so we drop it first and stamp a flag.
+  // Consumers that parse JSON (Slack, Sentry) must not receive
+  // truncated strings that break JSON.parse.
+  delete body.context;
+  body.body_truncated = true;
+  serialised = JSON.stringify(body);
+
+  if (serialised.length <= MAX_BODY_BYTES) return serialised;
+
+  // Still too big — message/error itself is pathological. Trim the
+  // message to a safe budget and keep the shape valid. Leave enough
+  // headroom for the fixed fields (timestamps, enum strings, keys).
+  const OVERHEAD_BUDGET = 256;
+  const remaining = MAX_BODY_BYTES - OVERHEAD_BUDGET;
+  body.message = body.message.slice(0, Math.max(0, remaining));
+  if (body.error?.message) {
+    body.error.message = body.error.message.slice(0, Math.max(0, remaining));
+  }
+  serialised = JSON.stringify(body);
+  return serialised;
 }
 
 async function postPayload(

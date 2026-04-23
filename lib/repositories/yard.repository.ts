@@ -86,10 +86,22 @@ export const yardRepository = {
     });
   },
 
+  /**
+   * Un-tombstone the yard and any horses whose primary yard was this
+   * one. Symmetric with `delete` — a delete-then-restore cycle must
+   * leave no row permanently soft-deleted.
+   */
   async restore(id: string) {
-    return prisma.yard.update({
-      where: { id },
-      data: { deletedAt: null, deletedById: null },
+    return prisma.$transaction(async (tx) => {
+      const yard = await tx.yard.update({
+        where: { id },
+        data: { deletedAt: null, deletedById: null },
+      });
+      await tx.horse.updateMany({
+        where: { primaryYardId: id },
+        data: { deletedAt: null, deletedById: null },
+      });
+      return yard;
     });
   },
 
