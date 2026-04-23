@@ -5,6 +5,7 @@ const { mockPrisma } = vi.hoisted(() => {
     yard: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -46,7 +47,9 @@ describe('yardRepository — soft delete', () => {
     expect(mockPrisma.yard.findMany.mock.calls[0][0].where.deletedAt).toBeNull();
   });
 
-  it('restore un-tombstones the yard AND horses cascaded by an earlier delete', async () => {
+  it('restore clears the yard and only horses cascaded by the same tombstone', async () => {
+    const parentDeletedAt = new Date('2026-04-22T12:34:56.789Z');
+    mockPrisma.yard.findUnique.mockResolvedValue({ deletedAt: parentDeletedAt });
     mockPrisma.yard.update.mockResolvedValue({ id: 'y1' });
 
     await yardRepository.restore('y1');
@@ -55,10 +58,23 @@ describe('yardRepository — soft delete', () => {
       where: { id: 'y1' },
       data: { deletedAt: null, deletedById: null },
     });
+
+    // Horses are matched by deletedAt = parent's deletedAt so that a
+    // horse independently soft-deleted at some other moment stays
+    // tombstoned.
     expect(mockPrisma.horse.updateMany).toHaveBeenCalledWith({
-      where: { primaryYardId: 'y1' },
+      where: { primaryYardId: 'y1', deletedAt: parentDeletedAt },
       data: { deletedAt: null, deletedById: null },
     });
+  });
+
+  it('restore skips horse updateMany when the yard was never tombstoned', async () => {
+    mockPrisma.yard.findUnique.mockResolvedValue({ deletedAt: null });
+    mockPrisma.yard.update.mockResolvedValue({ id: 'y1' });
+
+    await yardRepository.restore('y1');
+
+    expect(mockPrisma.horse.updateMany).not.toHaveBeenCalled();
   });
 
   it('delete tombstones the yard and orphaned horses pointing at it', async () => {

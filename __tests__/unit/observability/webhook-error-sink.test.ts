@@ -136,6 +136,25 @@ describe('createWebhookErrorSink', () => {
     expect(rawBody.length).toBeLessThanOrEqual(2_048);
   });
 
+  it('stays under the 2KB cap even when both message and error.message are pathological', async () => {
+    const sink = createWebhookErrorSink({
+      url: 'https://collector.example.com/hook',
+      fetchImpl: fetchMock,
+      now,
+    });
+
+    // 10KB of text in both fields — used to produce ~3800+ byte output.
+    const giant = 'M'.repeat(10_000);
+    sink({ message: giant, error: new Error('E'.repeat(10_000)) });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    const rawBody = fetchMock.mock.calls[0][1]!.body as string;
+
+    expect(rawBody.length).toBeLessThanOrEqual(2_048);
+    const parsed = JSON.parse(rawBody);
+    expect(parsed.body_truncated).toBe(true);
+  });
+
   it('never throws when fetch rejects', async () => {
     fetchMock.mockRejectedValue(new Error('network'));
     const sink = createWebhookErrorSink({

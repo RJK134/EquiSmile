@@ -137,16 +137,43 @@ function buildPayload(event: ErrorSinkEvent, environment?: string): string {
 
   if (serialised.length <= MAX_BODY_BYTES) return serialised;
 
-  // Still too big — message/error itself is pathological. Trim the
-  // message to a safe budget and keep the shape valid. Leave enough
-  // headroom for the fixed fields (timestamps, enum strings, keys).
+  // Still too big — message/error itself is pathological. Trim
+  // message and (if present) error.message, sharing a single budget
+  // between them so the total can never climb back over the cap. Keep
+  // a fixed-field overhead (timestamps, enum strings, keys, braces).
   const OVERHEAD_BUDGET = 256;
-  const remaining = MAX_BODY_BYTES - OVERHEAD_BUDGET;
-  body.message = body.message.slice(0, Math.max(0, remaining));
-  if (body.error?.message) {
-    body.error.message = body.error.message.slice(0, Math.max(0, remaining));
+  const SHARED_TEXT_BUDGET = Math.max(0, MAX_BODY_BYTES - OVERHEAD_BUDGET);
+  const hasErrorMessage = Boolean(body.error?.message);
+  const errorShare = hasErrorMessage ? Math.floor(SHARED_TEXT_BUDGET / 2) : 0;
+  const messageShare = SHARED_TEXT_BUDGET - errorShare;
+
+  body.message = body.message.slice(0, messageShare);
+  if (body.error && hasErrorMessage) {
+    body.error.message = body.error.message.slice(0, errorShare);
   }
   serialised = JSON.stringify(body);
+
+  // Belt-and-braces: under adversarial input (long key names, highly
+  // escaped characters) the JSON fixed-field overhead can still tip
+  // us over the cap. Do a final hard truncation — drop the error
+  // field entirely, then trim the message further if needed, and
+  // assert the final byte count before returning.
+  if (serialised.length > MAX_BODY_BYTES) {
+    delete body.error;
+    serialised = JSON.stringify(body);
+  }
+  if (serialised.length > MAX_BODY_BYTES) {
+    const over = serialised.length - MAX_BODY_BYTES;
+    body.message = body.message.slice(0, Math.max(0, body.message.length - over));
+    serialised = JSON.stringify(body);
+  }
+  if (serialised.length > MAX_BODY_BYTES) {
+    // Absolute last resort: blank the message. The `body_truncated`
+    // flag + timestamp + service + env fields still tell the operator
+    // something fired.
+    body.message = '';
+    serialised = JSON.stringify(body);
+  }
   return serialised;
 }
 

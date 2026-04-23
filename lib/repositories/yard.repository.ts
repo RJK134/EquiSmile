@@ -87,20 +87,36 @@ export const yardRepository = {
   },
 
   /**
-   * Un-tombstone the yard and any horses whose primary yard was this
-   * one. Symmetric with `delete` — a delete-then-restore cycle must
-   * leave no row permanently soft-deleted.
+   * Un-tombstone the yard and any horses cascaded by THIS yard's
+   * delete. Symmetric with `delete` — a delete-then-restore cycle
+   * must leave no row permanently soft-deleted and must NOT resurrect
+   * children that were independently soft-deleted at another moment.
+   *
+   * Matches children by `deletedAt = parent.deletedAt`: the delete
+   * transaction writes a single `Date` instance to both parent and
+   * cascaded children, so timestamps match at microsecond precision.
    */
   async restore(id: string) {
     return prisma.$transaction(async (tx) => {
+      const existing = await tx.yard.findUnique({
+        where: { id },
+        select: { deletedAt: true },
+      });
+      if (!existing) throw new Error(`Yard ${id} not found`);
+
+      const parentDeletedAt = existing.deletedAt;
+
       const yard = await tx.yard.update({
         where: { id },
         data: { deletedAt: null, deletedById: null },
       });
-      await tx.horse.updateMany({
-        where: { primaryYardId: id },
-        data: { deletedAt: null, deletedById: null },
-      });
+
+      if (parentDeletedAt !== null) {
+        await tx.horse.updateMany({
+          where: { primaryYardId: id, deletedAt: parentDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+      }
       return yard;
     });
   },

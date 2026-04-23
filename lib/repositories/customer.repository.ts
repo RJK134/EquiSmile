@@ -112,21 +112,48 @@ export const customerRepository = {
     });
   },
 
-  /** Operator-only: restore a tombstoned customer and its owned rows. */
+  /**
+   * Operator-only: restore a tombstoned customer and its owned rows.
+   *
+   * Symmetric with `delete`: only un-tombstones yards/horses that were
+   * cascaded by THIS customer-delete. We identify them by matching
+   * their `deletedAt` to the parent customer's `deletedAt` — the
+   * delete transaction writes the same `Date` instance to all three
+   * tables, so children tombstoned in the same cascade share that
+   * timestamp at the microsecond precision Postgres stores.
+   *
+   * A child that was independently soft-deleted at a different
+   * moment (before or after the parent) has a different `deletedAt`
+   * and is intentionally LEFT tombstoned by this restore.
+   */
   async restore(id: string) {
     return prisma.$transaction(async (tx) => {
+      const existing = await tx.customer.findUnique({
+        where: { id },
+        select: { deletedAt: true },
+      });
+      if (!existing) throw new Error(`Customer ${id} not found`);
+
+      const parentDeletedAt = existing.deletedAt;
+
       const customer = await tx.customer.update({
         where: { id },
         data: { deletedAt: null, deletedById: null },
       });
-      await tx.yard.updateMany({
-        where: { customerId: id },
-        data: { deletedAt: null, deletedById: null },
-      });
-      await tx.horse.updateMany({
-        where: { customerId: id },
-        data: { deletedAt: null, deletedById: null },
-      });
+
+      // If the parent wasn't tombstoned, there can't be cascaded
+      // children. Skip the updateMany calls entirely so we don't
+      // accidentally touch a row with a null filter.
+      if (parentDeletedAt !== null) {
+        await tx.yard.updateMany({
+          where: { customerId: id, deletedAt: parentDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+        await tx.horse.updateMany({
+          where: { customerId: id, deletedAt: parentDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+      }
       return customer;
     });
   },

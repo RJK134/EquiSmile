@@ -164,20 +164,44 @@ describe('customerRepository', () => {
   });
 
   describe('restore', () => {
-    it('clears deletedAt on the customer and its owned rows', async () => {
+    it('clears deletedAt on the customer and on children that share the parent tombstone timestamp', async () => {
+      const parentDeletedAt = new Date('2026-04-22T12:34:56.789Z');
+      mockPrisma.customer.findUnique.mockResolvedValue({
+        deletedAt: parentDeletedAt,
+      });
       mockPrisma.customer.update.mockResolvedValue({ id: '1' });
+
       await customerRepository.restore('1');
 
       const updateCall = mockPrisma.customer.update.mock.calls[0][0];
       expect(updateCall.data).toEqual({ deletedAt: null, deletedById: null });
+
+      // Children are matched by deletedAt = parent's deletedAt, so an
+      // independently tombstoned child (different timestamp) would NOT
+      // be resurrected by this restore.
       expect(mockPrisma.yard.updateMany).toHaveBeenCalledWith({
-        where: { customerId: '1' },
+        where: { customerId: '1', deletedAt: parentDeletedAt },
         data: { deletedAt: null, deletedById: null },
       });
       expect(mockPrisma.horse.updateMany).toHaveBeenCalledWith({
-        where: { customerId: '1' },
+        where: { customerId: '1', deletedAt: parentDeletedAt },
         data: { deletedAt: null, deletedById: null },
       });
+    });
+
+    it('skips child updateMany when the customer was never tombstoned', async () => {
+      mockPrisma.customer.findUnique.mockResolvedValue({ deletedAt: null });
+      mockPrisma.customer.update.mockResolvedValue({ id: '1' });
+
+      await customerRepository.restore('1');
+
+      expect(mockPrisma.yard.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.horse.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('throws when the customer does not exist', async () => {
+      mockPrisma.customer.findUnique.mockResolvedValue(null);
+      await expect(customerRepository.restore('missing')).rejects.toThrow('not found');
     });
   });
 
