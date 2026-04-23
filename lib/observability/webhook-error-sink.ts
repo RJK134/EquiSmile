@@ -220,7 +220,3 @@ async function postPayload(
   }
 }
 
-/** Test helper — resets dedupe state across runs. */
-export function __isWebhookSinkEnabled(): boolean {
-  return Boolean(process.env.EQUISMILE_ERROR_WEBHOOK_URL);
-}

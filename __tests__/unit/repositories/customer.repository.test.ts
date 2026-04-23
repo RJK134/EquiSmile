@@ -127,6 +127,25 @@ describe('customerRepository', () => {
         include: expect.any(Object),
       });
     });
+
+    it('filters children by deletedAt:null by default', async () => {
+      mockPrisma.customer.findFirst.mockResolvedValue(null);
+      await customerRepository.findById('1');
+      const call = mockPrisma.customer.findFirst.mock.calls[0][0];
+      expect(call.include.yards.where).toEqual({ deletedAt: null });
+      expect(call.include.horses.where).toEqual({ deletedAt: null });
+    });
+
+    it('shows cascaded children when includeDeleted=true so restore-preview is complete', async () => {
+      // Without this, an admin inspecting a tombstoned customer for
+      // restore would see zero yards/horses because they all share the
+      // parent's `deletedAt` timestamp after a cascade.
+      mockPrisma.customer.findFirst.mockResolvedValue({ id: '1', deletedAt: new Date() });
+      await customerRepository.findById('1', { includeDeleted: true });
+      const call = mockPrisma.customer.findFirst.mock.calls[0][0];
+      expect(call.include.yards.where).toBeUndefined();
+      expect(call.include.horses.where).toBeUndefined();
+    });
   });
 
   describe('delete', () => {

@@ -63,12 +63,18 @@ export const customerRepository = {
   },
 
   async findById(id: string, options: { includeDeleted?: boolean } = {}) {
+    // Propagate the `includeDeleted` flag to the nested yards/horses
+    // relations so that a tombstoned parent actually shows the
+    // cascaded children an operator would need to see before restoring.
+    // With the default (includeDeleted: false) we still hide deleted
+    // children — the standard UI list invariant.
+    const childWhere = options.includeDeleted ? undefined : { deletedAt: null };
     return prisma.customer.findFirst({
       where: options.includeDeleted ? { id } : { id, deletedAt: null },
       include: {
-        yards: { where: { deletedAt: null } },
+        yards: { where: childWhere },
         horses: {
-          where: { deletedAt: null },
+          where: childWhere,
           include: { primaryYard: true },
         },
         enquiries: { orderBy: { receivedAt: 'desc' }, take: 10 },

@@ -53,11 +53,16 @@ export const yardRepository = {
   },
 
   async findById(id: string, options: { includeDeleted?: boolean } = {}) {
+    // Propagate the flag to the nested horses relation — see
+    // customer.repository.ts findById for the reasoning. A tombstoned
+    // parent should expose its cascaded children when the caller
+    // explicitly asks (e.g. a restore-preview UI).
+    const childWhere = options.includeDeleted ? undefined : { deletedAt: null };
     return prisma.yard.findFirst({
       where: options.includeDeleted ? { id } : { id, deletedAt: null },
       include: {
         customer: true,
-        horses: { where: { deletedAt: null } },
+        horses: { where: childWhere },
       },
     });
   },
