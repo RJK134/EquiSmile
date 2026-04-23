@@ -61,7 +61,7 @@ describe('opsStatusService.auditStats', () => {
     expect(stats).toEqual({
       last24h: 42,
       latestAt: latest.toISOString(),
-      signIndeniedLast24h: 2,
+      signInDeniedLast24h: 2,
     });
   });
 });

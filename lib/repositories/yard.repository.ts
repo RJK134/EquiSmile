@@ -28,6 +28,10 @@ export const yardRepository = {
       ];
     }
 
+    // Mirror the parent `includeDeleted` flag on the _count aggregation so
+    // an admin auditing tombstoned yards sees the true cascaded child count.
+    const horsesCount = includeDeleted ? true : { where: { deletedAt: null } };
+
     const [data, total] = await Promise.all([
       prisma.yard.findMany({
         where,
@@ -36,7 +40,7 @@ export const yardRepository = {
         take: pageSize,
         include: {
           customer: { select: { id: true, fullName: true } },
-          _count: { select: { horses: { where: { deletedAt: null } } } },
+          _count: { select: { horses: horsesCount } },
         },
       }),
       prisma.yard.count({ where }),

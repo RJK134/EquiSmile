@@ -33,6 +33,11 @@ export const customerRepository = {
       where.preferredChannel = preferredChannel;
     }
 
+    // Mirror the parent `includeDeleted` flag on the _count aggregation so
+    // an admin auditing tombstoned customers sees the true cascaded child
+    // counts. Enquiries are not soft-deletable, so the count is unconditional.
+    const childCount = includeDeleted ? true : { where: { deletedAt: null } };
+
     const [data, total] = await Promise.all([
       prisma.customer.findMany({
         where,
@@ -42,8 +47,8 @@ export const customerRepository = {
         include: {
           _count: {
             select: {
-              yards: { where: { deletedAt: null } },
-              horses: { where: { deletedAt: null } },
+              yards: childCount,
+              horses: childCount,
               enquiries: true,
             },
           },
