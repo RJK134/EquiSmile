@@ -11,23 +11,40 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-const mockPrisma = vi.hoisted(() => ({
-  enquiry: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  customer: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  visitRequest: {
-    create: vi.fn(),
-  },
-  enquiryMessage: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-  },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const surface = {
+    enquiry: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    customer: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    yard: {
+      updateMany: vi.fn(),
+    },
+    horse: {
+      updateMany: vi.fn(),
+    },
+    visitRequest: {
+      create: vi.fn(),
+    },
+    enquiryMessage: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+  };
+  return {
+    ...surface,
+    // Phase 16 — webhook handlers now wrap the customer lookup +
+    // enquiry create in `$transaction`. The mock just invokes the
+    // callback with the same prisma surface so the assertions keep
+    // working.
+    $transaction: vi.fn(async (cb: (tx: typeof surface) => unknown) => cb(surface)),
+  };
+});
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,

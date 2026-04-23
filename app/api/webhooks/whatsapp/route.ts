@@ -7,7 +7,6 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
-import { customerRepository } from '@/lib/repositories/customer.repository';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -157,52 +156,94 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           continue;
         }
 
-        // Match or create customer by phone
-        let customer = senderPhone
-          ? await prisma.customer.findUnique({ where: { mobilePhone: senderPhone } })
-          : null;
+        // Parse message for structured info
+        const parsed = parseMessage(messageText);
 
-        if (!customer) {
-          customer = await prisma.customer.create({
-            data: {
-              fullName: senderName,
-              mobilePhone: senderPhone,
-              preferredChannel: 'WHATSAPP',
-              preferredLanguage: 'en',
-            },
+        // Customer resolution + enquiry creation in ONE transaction —
+        // see app/api/webhooks/email/route.ts for rationale. Closes
+        // the soft-delete-between-find-and-use race + the parallel-
+        // create unique-constraint race.
+        const { customer, enquiry, isNewCustomer, wasRestored } =
+          await prisma.$transaction(async (tx) => {
+            let customer = senderPhone
+              ? await tx.customer.findUnique({ where: { mobilePhone: senderPhone } })
+              : null;
+            let isNewCustomer = false;
+            let wasRestored = false;
+
+            if (!customer) {
+              try {
+                customer = await tx.customer.create({
+                  data: {
+                    fullName: senderName,
+                    mobilePhone: senderPhone,
+                    preferredChannel: 'WHATSAPP',
+                    preferredLanguage: 'en',
+                  },
+                });
+                isNewCustomer = true;
+              } catch (err) {
+                if (
+                  err &&
+                  typeof err === 'object' &&
+                  (err as { code?: string }).code === 'P2002' &&
+                  senderPhone
+                ) {
+                  customer = await tx.customer.findUnique({
+                    where: { mobilePhone: senderPhone },
+                  });
+                  if (!customer) throw err;
+                } else {
+                  throw err;
+                }
+              }
+            }
+
+            if (customer?.deletedAt) {
+              const parentDeletedAt = customer.deletedAt;
+              customer = await tx.customer.update({
+                where: { id: customer.id },
+                data: { deletedAt: null, deletedById: null },
+              });
+              await tx.yard.updateMany({
+                where: { customerId: customer.id, deletedAt: parentDeletedAt },
+                data: { deletedAt: null, deletedById: null },
+              });
+              await tx.horse.updateMany({
+                where: { customerId: customer.id, deletedAt: parentDeletedAt },
+                data: { deletedAt: null, deletedById: null },
+              });
+              wasRestored = true;
+            }
+
+            if (!customer) {
+              throw new Error('customer resolution failed');
+            }
+
+            const enquiry = await tx.enquiry.create({
+              data: {
+                channel: 'WHATSAPP',
+                externalMessageId: message.id,
+                customerId: customer.id,
+                sourceFrom: message.from,
+                rawText: messageText,
+                receivedAt: timestamp,
+                triageStatus: 'NEW',
+                threadKey: `wa:${message.from}`,
+              },
+            });
+
+            return { customer, enquiry, isNewCustomer, wasRestored };
           });
+
+        if (isNewCustomer) {
           console.log('[WhatsApp] Created new customer', { customerId: customer.id });
-        } else if (customer.deletedAt) {
-          // Phase 15 — the mobilePhone unique constraint also applies to
-          // tombstoned rows. A returning customer who pings us is a
-          // strong signal of live relationship, so we restore them
-          // (and log it) rather than 500-ing on the FK insert below.
-          //
-          // Via `customerRepository.restore` so the tombstone is also
-          // cleared on the cascaded yards/horses — an inline
-          // `prisma.customer.update` would leave them invisible.
-          customer = await customerRepository.restore(customer.id);
+        }
+        if (wasRestored) {
           console.log('[WhatsApp] Restored soft-deleted customer on inbound message', {
             customerId: customer.id,
           });
         }
-
-        // Parse message for structured info
-        const parsed = parseMessage(messageText);
-
-        // Create enquiry
-        const enquiry = await prisma.enquiry.create({
-          data: {
-            channel: 'WHATSAPP',
-            externalMessageId: message.id,
-            customerId: customer.id,
-            sourceFrom: message.from,
-            rawText: messageText,
-            receivedAt: timestamp,
-            triageStatus: 'NEW',
-            threadKey: `wa:${message.from}`,
-          },
-        });
 
         // Create inbound message log
         await messageLogService.logMessage({

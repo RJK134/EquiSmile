@@ -66,11 +66,22 @@ export function createWebhookErrorSink(config: WebhookErrorSinkConfig): ErrorSin
       const current = now();
       const key = buildDedupeKey(event);
 
-      // Evict expired entries (cheap linear prune — cap on key count).
-      if (dedupe.size >= DEDUPE_MAX_KEYS) {
-        for (const [k, e] of dedupe) {
-          if (current - e.firstAt > DEDUPE_WINDOW_MS) dedupe.delete(k);
-        }
+      // Prune expired entries. Two-stage so memory doesn't balloon even
+      // when the map is small: drop anything past the dedupe window on
+      // every call. Keeps the walk O(n) in the worst case but n is
+      // bounded by DEDUPE_MAX_KEYS.
+      for (const [k, e] of dedupe) {
+        if (current - e.firstAt > DEDUPE_WINDOW_MS) dedupe.delete(k);
+      }
+
+      // After pruning the map may still be at or above cap — all live
+      // entries are inside the window. Evict oldest (Map iteration is
+      // insertion order) until we have room for one more key. This
+      // guarantees we never exceed DEDUPE_MAX_KEYS.
+      while (dedupe.size >= DEDUPE_MAX_KEYS) {
+        const oldestKey = dedupe.keys().next().value;
+        if (oldestKey === undefined) break;
+        dedupe.delete(oldestKey);
       }
 
       const existing = dedupe.get(key);

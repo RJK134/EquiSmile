@@ -73,9 +73,38 @@ export HOME=/root
 unset POSTGRES_PASSWORD
 
 # ---------------------------------------------------------------------
+# Validate non-secret env vars before we splice them into the generated
+# backup script. These values are also interpolated into a shell
+# literal, so we reject any character that could break the quoting or
+# smuggle in an extra command. Narrow whitelists only.
+#
+#   host/user/db: lowercase letters, digits, `.`, `-`, `_`
+#   port / retention-days: digits only
+#   backup dir: absolute path — letters, digits, `/`, `.`, `-`, `_`
+# ---------------------------------------------------------------------
+
+case "${POSTGRES_HOST}" in *[!a-zA-Z0-9._-]*) echo "error: POSTGRES_HOST has disallowed characters" >&2; exit 1 ;; esac
+case "${POSTGRES_USER}" in *[!a-zA-Z0-9._-]*) echo "error: POSTGRES_USER has disallowed characters" >&2; exit 1 ;; esac
+case "${POSTGRES_DB}"   in *[!a-zA-Z0-9._-]*) echo "error: POSTGRES_DB has disallowed characters"   >&2; exit 1 ;; esac
+case "${POSTGRES_PORT}" in *[!0-9]*) echo "error: POSTGRES_PORT must be numeric" >&2; exit 1 ;; esac
+case "${BACKUP_RETENTION_DAYS}" in *[!0-9]*) echo "error: BACKUP_RETENTION_DAYS must be numeric" >&2; exit 1 ;; esac
+case "${BACKUP_DIR}" in
+  /*) ;;
+  *) echo "error: BACKUP_DIR must be an absolute path" >&2; exit 1 ;;
+esac
+case "${BACKUP_DIR}" in *[!a-zA-Z0-9/._-]*) echo "error: BACKUP_DIR has disallowed characters" >&2; exit 1 ;; esac
+
+# ---------------------------------------------------------------------
 # Write the per-run backup script. Crond will invoke this on every tick.
 # The script references `.pgpass` via libpq; no password literal lives
 # inside its body.
+#
+# The heredoc is UNQUOTED, so `${VAR}` references expand at write time.
+# Every interpolated value below is wrapped in its own double-quoted
+# segment of the output script so a value containing a shell
+# metacharacter can never change the command structure. The values
+# themselves have already been validated above against narrow
+# whitelists — this is defence in depth, not the first line of defence.
 # ---------------------------------------------------------------------
 
 BACKUP_SCRIPT=/usr/local/bin/do-backup.sh
@@ -85,9 +114,9 @@ set -eu
 export HOME=/root
 TS=\$(date -u +%Y%m%dT%H%M%SZ)
 OUT="${BACKUP_DIR}/equismile-\${TS}.sql.gz"
-pg_dump -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB} \\
+pg_dump -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \\
   | gzip -9 > "\$OUT"
-find ${BACKUP_DIR} -maxdepth 1 -type f -name 'equismile-*.sql.gz' -mtime +${BACKUP_RETENTION_DAYS} -delete
+find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'equismile-*.sql.gz' -mtime +"${BACKUP_RETENTION_DAYS}" -delete
 SIZE=\$(stat -c%s "\$OUT" 2>/dev/null || wc -c < "\$OUT")
 echo "ok backup=\$OUT size_bytes=\$SIZE retention_days=${BACKUP_RETENTION_DAYS}"
 EOF

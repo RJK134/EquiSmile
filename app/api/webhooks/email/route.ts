@@ -8,7 +8,6 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
-import { customerRepository } from '@/lib/repositories/customer.repository';
 
 // n8n typically batches a handful of emails per minute; cap generously
 // at 200/min per IP to catch misconfigured loops.
@@ -81,40 +80,6 @@ export async function POST(request: NextRequest) {
   const email = normaliseEmail(payload.from);
   const receivedAt = new Date(payload.receivedAt);
 
-  // Match or create customer by email
-  let customer = await prisma.customer.findUnique({
-    where: { email },
-  });
-  let isNewCustomer = false;
-
-  if (!customer) {
-    customer = await prisma.customer.create({
-      data: {
-        fullName: payload.fromName || email,
-        email,
-        preferredChannel: 'EMAIL',
-        preferredLanguage: 'en',
-      },
-    });
-    isNewCustomer = true;
-    console.log('[Email] Created new customer', { customerId: customer.id });
-  } else if (customer.deletedAt) {
-    // Phase 15 — the unique email/phone constraints still apply to
-    // tombstoned rows, so a returning customer is routed here. Restore
-    // them automatically (a new inbound message is strong signal of
-    // live relationship) and record it so the operator can audit.
-    //
-    // Delegating to `customerRepository.restore` so the tombstone is
-    // cleared on the customer AND on the cascaded yards/horses. An
-    // inline `prisma.customer.update` would leave the customer's yards
-    // and horses invisible to every list query, which breaks appointment
-    // booking as soon as the restored customer tries to interact.
-    customer = await customerRepository.restore(customer.id);
-    console.log('[Email] Restored soft-deleted customer on inbound message', {
-      customerId: customer.id,
-    });
-  }
-
   // Derive thread key from In-Reply-To or Message-ID
   const threadKey = payload.inReplyTo
     ? `email:${payload.inReplyTo}`
@@ -123,20 +88,106 @@ export async function POST(request: NextRequest) {
   // Parse message for structured info
   const parsed = parseMessage(payload.textBody);
 
-  // Create enquiry
-  const enquiry = await prisma.enquiry.create({
-    data: {
-      channel: 'EMAIL',
-      externalMessageId: payload.messageId,
+  // Customer resolution + enquiry creation in ONE transaction.
+  //
+  // This closes two races Bugbot flagged:
+  //   (a) concurrent delete — without the transaction, a customer
+  //       could be soft-deleted between findUnique() and the enquiry
+  //       insert, leaving the enquiry permanently linked to a
+  //       tombstoned row. Prisma transactions hold the customer row
+  //       stable in-memory for the duration.
+  //   (b) concurrent create — without the transaction, two parallel
+  //       inbound messages from a never-seen-before sender could both
+  //       findUnique → null → create, and the second lose to a unique
+  //       violation. Inside the transaction we catch P2002 and re-find
+  //       so the second request joins the first's customer row.
+  const { customer, enquiry, isNewCustomer, wasRestored } =
+    await prisma.$transaction(async (tx) => {
+      let customer = await tx.customer.findUnique({ where: { email } });
+      let isNewCustomer = false;
+      let wasRestored = false;
+
+      if (!customer) {
+        try {
+          customer = await tx.customer.create({
+            data: {
+              fullName: payload.fromName || email,
+              email,
+              preferredChannel: 'EMAIL',
+              preferredLanguage: 'en',
+            },
+          });
+          isNewCustomer = true;
+        } catch (err) {
+          // P2002 = unique-constraint violation. Another request
+          // created the same customer in a parallel transaction.
+          // Re-fetch and join their row.
+          if (
+            err &&
+            typeof err === 'object' &&
+            (err as { code?: string }).code === 'P2002'
+          ) {
+            customer = await tx.customer.findUnique({ where: { email } });
+            if (!customer) throw err;
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      if (customer?.deletedAt) {
+        // Phase 15 — inbound message from a tombstoned customer.
+        // Restore inline WITH CASCADE so yards/horses come back too
+        // (symmetric with customerRepository.restore, but inside the
+        // same transaction so no commit window races with a third
+        // party). Match children by the parent's own deletedAt so we
+        // don't resurrect rows that were independently tombstoned.
+        const parentDeletedAt = customer.deletedAt;
+        customer = await tx.customer.update({
+          where: { id: customer.id },
+          data: { deletedAt: null, deletedById: null },
+        });
+        await tx.yard.updateMany({
+          where: { customerId: customer.id, deletedAt: parentDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+        await tx.horse.updateMany({
+          where: { customerId: customer.id, deletedAt: parentDeletedAt },
+          data: { deletedAt: null, deletedById: null },
+        });
+        wasRestored = true;
+      }
+
+      if (!customer) {
+        // Unreachable under correct branching above, but keeps TS happy.
+        throw new Error('customer resolution failed');
+      }
+
+      const enquiry = await tx.enquiry.create({
+        data: {
+          channel: 'EMAIL',
+          externalMessageId: payload.messageId,
+          customerId: customer.id,
+          sourceFrom: email,
+          subject: payload.subject || null,
+          rawText: payload.textBody,
+          receivedAt,
+          threadKey,
+          triageStatus: 'NEW',
+        },
+      });
+
+      return { customer, enquiry, isNewCustomer, wasRestored };
+    });
+
+  if (isNewCustomer) {
+    console.log('[Email] Created new customer', { customerId: customer.id });
+  }
+  if (wasRestored) {
+    console.log('[Email] Restored soft-deleted customer on inbound message', {
       customerId: customer.id,
-      sourceFrom: email,
-      subject: payload.subject || null,
-      rawText: payload.textBody,
-      receivedAt,
-      threadKey,
-      triageStatus: 'NEW',
-    },
-  });
+    });
+  }
 
   // Log inbound message
   await messageLogService.logMessage({
