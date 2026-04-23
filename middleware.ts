@@ -33,6 +33,11 @@ const intlMiddleware = createMiddleware(routing);
 const PUBLIC_PATH_PATTERNS = [
   /^\/login(\/.*)?$/,
   /^\/[a-z]{2}\/login(\/.*)?$/,
+  // Privacy / terms pages must stay reachable without a session so we
+  // can satisfy Meta's WhatsApp Business requirement and give data
+  // subjects a public landing page for their rights enquiries.
+  /^\/[a-z]{2}\/privacy(\/.*)?$/,
+  /^\/[a-z]{2}\/terms(\/.*)?$/,
   /^\/api\/auth(\/.*)?$/,
   /^\/api\/webhooks(\/.*)?$/,
   /^\/api\/n8n(\/.*)?$/,

@@ -1,5 +1,24 @@
 # EquiSmile Known Issues
 
+## Phase 15 — Production-readiness uplift (2026-04-23)
+
+Filed and closed during the Phase 15 PR. See
+[PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the updated
+go-live checklist.
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| PR15-SOFT-DEL | High | Hard deletes on Customer/Yard/Horse cascaded clinical records | Resolved — `deletedAt` / `deletedById` tombstones + repo-level `deletedAt: null` default filter. |
+| PR15-DOCKER-ENV | High | Docker compose missing Auth.js / Anthropic / `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` pass-through | Resolved — `env_file: .env` + explicit `args:` for NEXT_PUBLIC_* build-time vars. |
+| PR15-NO-BACKUP | High | No backup script or restore runbook | Resolved — `scripts/backup-db.sh` + `docs/BACKUP.md`. |
+| PR15-API-RATE | Medium | Only webhook & vision endpoints rate-limited; no floor on authenticated write traffic | Resolved — middleware-level per-user API write-limit (60s / 120 writes). |
+| PR15-PII-LOGS | Medium | Raw phone/email in WhatsApp/email/n8n-trigger logs | Resolved — `maskPhone()` / `maskEmail()` wrapped around every outbound log. |
+| PR15-NO-ERRSINK | Low | No hook to forward errors to Sentry / log aggregator | Resolved — `registerErrorSink()` in `lib/utils/logger.ts`. |
+| PR15-NO-LEGAL | Low | No public privacy notice or terms page | Resolved — `/[locale]/privacy` + `/[locale]/terms` (EN + FR). |
+| PR15-NO-TOKENOPS | Low | WhatsApp token lifecycle not documented | Resolved — `docs/OPERATIONS.md` §1. |
+| PR15-NO-POOLTUNE | Low | Prisma pool tuning / `pool_timeout` not documented | Resolved — `docs/OPERATIONS.md` §2. |
+| PR15-WEAK-DBPW | High | `docker-compose.yml` used `equismile_dev` as a default POSTGRES_PASSWORD | Resolved — compose now fails loud via `${POSTGRES_PASSWORD:?}` with no default; `.env.example` uses an obvious `<strong-password-here>` placeholder. |
+
 ## Active Issues
 
 | ID | Phase | Severity | Description | Workaround |

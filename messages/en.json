@@ -17,7 +17,9 @@
     "sendingMagicLink": "Sending…",
     "checkInbox": "Check your inbox for a sign-in link. The link is valid for 15 minutes.",
     "emailRequired": "Please enter a valid email address.",
-    "linkSendFailed": "We couldn't send the sign-in link. Please try again."
+    "linkSendFailed": "We couldn't send the sign-in link. Please try again.",
+    "privacyLink": "Privacy",
+    "termsLink": "Terms"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -576,5 +578,81 @@
     "deleteSuccess": "Successfully deleted.",
     "deleteFailed": "Failed to delete. Please try again.",
     "loadFailed": "Failed to load data. Please try again."
+  },
+  "legal": {
+    "backHome": "Back to home",
+    "privacy": {
+      "title": "Privacy Notice",
+      "lastUpdated": "Last updated: April 2026",
+      "controller": {
+        "heading": "1. Data controller",
+        "body": "EquiSmile is operated by an equine veterinary practice based in Switzerland. The practice is the data controller for personal data processed through this application and is the point of contact for any request concerning that data."
+      },
+      "data": {
+        "heading": "2. Personal data we process",
+        "intro": "We only process data that is necessary to deliver equine dental veterinary services to our customers:",
+        "customer": "Customer identity and contact details (full name, mobile number, email, preferred language and channel).",
+        "messages": "Inbound and outbound WhatsApp and email messages exchanged about appointments, including message content and timestamps.",
+        "clinical": "Clinical records about the horses under our care — notes, dental charts, findings, prescriptions and uploaded images or PDFs.",
+        "location": "Yard addresses and, where geocoding succeeds, latitude/longitude coordinates used for route planning.",
+        "audit": "Access and change audit logs (who did what, when) for sensitive operations."
+      },
+      "lawful": {
+        "heading": "3. Lawful basis for processing",
+        "body": "We process this data under Swiss FADP and EU GDPR Articles 6(1)(b) (performance of the veterinary service contract) and 6(1)(f) (legitimate interests of delivering and invoicing the service). Clinical records are processed under Article 9(2)(h) where applicable (provision of veterinary care)."
+      },
+      "retention": {
+        "heading": "4. Retention",
+        "body": "Customer, yard and horse records are retained for the active relationship plus a veterinary record-keeping period consistent with Swiss practice standards. When a customer is removed from the active list, their record is marked as deleted but retained (soft-delete) so clinical history and audit trail remain recoverable. Full erasure is carried out on request (see Your rights)."
+      },
+      "sharing": {
+        "heading": "5. Processors and third parties",
+        "body": "Personal data is shared only with the processors required to run the service:",
+        "whatsapp": "Meta Platforms Ireland Ltd. — WhatsApp Business Cloud API (message delivery).",
+        "email": "The SMTP provider configured by the practice — outbound email delivery.",
+        "maps": "Google — geocoding and route optimisation (address coordinates only; no customer identity is shared).",
+        "anthropic": "Anthropic — clinical image analysis, only where the vet explicitly triggers vision analysis on an uploaded image."
+      },
+      "rights": {
+        "heading": "6. Your rights",
+        "body": "Under Swiss FADP and EU GDPR you have the right to access, correct, restrict or delete your personal data, and to object to processing based on legitimate interest. Contact the practice using the details below to exercise these rights; we reply within one month."
+      },
+      "contact": {
+        "heading": "7. Contact",
+        "body": "Privacy queries should be addressed to the practice by WhatsApp or email using the same channels used for appointments. The practice will confirm identity before releasing or deleting personal data."
+      }
+    },
+    "terms": {
+      "title": "Terms of Use",
+      "lastUpdated": "Last updated: April 2026",
+      "scope": {
+        "heading": "1. Scope",
+        "body": "These terms govern use of the EquiSmile internal operations application by veterinary staff and approved administrative users. Customers do not use this application directly; they interact with the practice via WhatsApp, email or phone."
+      },
+      "accounts": {
+        "heading": "2. Accounts and sign-in",
+        "body": "Sign-in is limited to named staff whose GitHub login or email is on the practice allow-list. Sharing credentials is not permitted. The practice may revoke access at any time."
+      },
+      "acceptableUse": {
+        "heading": "3. Acceptable use",
+        "body": "The application must only be used for delivering and administering equine dental veterinary services. Bulk export, scraping, and any use that could compromise customer privacy or service availability are prohibited."
+      },
+      "clinicalDisclaimer": {
+        "heading": "4. Clinical decision responsibility",
+        "body": "Automated triage classifications, route proposals and AI-assisted image analyses are decision aids. The veterinarian retains full responsibility for every clinical decision; the application is not a substitute for professional judgement."
+      },
+      "availability": {
+        "heading": "5. Availability",
+        "body": "The practice runs the application on its own infrastructure. It is operated to reasonable operational standards but is not subject to a formal availability guarantee. Planned maintenance may cause short outages."
+      },
+      "changes": {
+        "heading": "6. Changes",
+        "body": "The practice may update these terms as operational needs change. Material changes are communicated to active users at next sign-in."
+      },
+      "contact": {
+        "heading": "7. Contact",
+        "body": "Operational and access queries are handled by the practice via the usual internal channels."
+      }
+    }
   }
 }
