@@ -72,12 +72,21 @@ export async function resolveInboundCustomer(
     // between our findUnique above and this upsert, Postgres returns
     // the existing row via the `update: {}` (no-op) branch without
     // throwing. No P2002 can surface here.
+    //
+    // `createdAt` is set ONLY on INSERT (Prisma `@default(now())`),
+    // so we can distinguish "we inserted" from "parallel transaction
+    // beat us to it and we joined their row" by snapshotting a
+    // timestamp before the upsert and checking whether the returned
+    // row's createdAt is strictly after it. This stops the webhook
+    // logging a misleading "Created new customer" for a row we
+    // didn't actually create.
+    const preUpsertAt = new Date();
     customer = await tx.customer.upsert({
       where,
       create,
       update: {},
     });
-    isNewCustomer = true;
+    isNewCustomer = customer.createdAt.getTime() >= preUpsertAt.getTime();
   }
 
   let wasRestored = false;

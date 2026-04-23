@@ -57,6 +57,9 @@ describe('resolveInboundCustomer', () => {
       email: 'x@y.com',
       mobilePhone: null,
       deletedAt: null,
+      // createdAt well into the future so the isNewCustomer check
+      // treats this as a fresh insert.
+      createdAt: new Date(Date.now() + 60_000),
     };
     tx.customer.upsert.mockResolvedValue(created);
 
@@ -78,6 +81,35 @@ describe('resolveInboundCustomer', () => {
     // the existing row if a parallel transaction beat us to it.
     expect(upsertArg.update).toEqual({});
     expect(upsertArg.where).toEqual({ email: 'x@y.com' });
+  });
+
+  it('marks isNewCustomer=false when upsert no-ops on a pre-existing row', async () => {
+    // findUnique returned null (so the caller enters the upsert
+    // branch), but by the time upsert ran in Postgres a parallel
+    // transaction had already committed the insert. The row we get
+    // back has a createdAt from BEFORE our call — we didn't create
+    // it, so the log line must not lie.
+    tx.customer.findUnique.mockResolvedValue(null);
+    const preExistingCreatedAt = new Date(Date.now() - 60_000);
+    tx.customer.upsert.mockResolvedValue({
+      id: 'c-race',
+      email: 'r@y.com',
+      mobilePhone: null,
+      deletedAt: null,
+      createdAt: preExistingCreatedAt,
+    });
+
+    const result = await resolveInboundCustomer(tx as never, {
+      lookup: { by: 'email', value: 'r@y.com' },
+      create: {
+        fullName: 'R',
+        email: 'r@y.com',
+        preferredChannel: 'EMAIL',
+        preferredLanguage: 'en',
+      },
+    });
+
+    expect(result.isNewCustomer).toBe(false);
   });
 
   it('restores a tombstoned customer inline with cascade by deletedAt', async () => {

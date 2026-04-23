@@ -90,7 +90,13 @@ describe('Email Intake Endpoint', () => {
     mockPrisma.customer.findUnique.mockResolvedValue(null);
     // Phase 16 — the webhook now resolves a new customer via the
     // race-safe `upsert` path inside the shared helper, not `create`.
-    mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-1', deletedAt: null });
+    mockPrisma.customer.upsert.mockResolvedValue({
+      id: 'cust-1',
+      deletedAt: null,
+      // createdAt in the future so resolveInboundCustomer treats this
+      // as a fresh insert rather than a parallel-create race.
+      createdAt: new Date(Date.now() + 60_000),
+    });
     mockPrisma.customer.create.mockResolvedValue({ id: 'cust-1' });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'cust-1' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
