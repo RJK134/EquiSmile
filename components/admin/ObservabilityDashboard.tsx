@@ -22,7 +22,7 @@ interface OpsSnapshot {
   audit: {
     last24h: number;
     latestAt: string | null;
-    signIndeniedLast24h: number;
+    signInDeniedLast24h: number;
   };
   backup: {
     present: boolean;
@@ -170,9 +170,9 @@ export function ObservabilityDashboard({ locale }: ObservabilityDashboardProps) 
             value={ops?.audit.last24h ?? 0}
             tone="ok"
             sub={
-              ops?.audit.signIndeniedLast24h
+              ops?.audit.signInDeniedLast24h
                 ? t('ops.audit.signInDenied', {
-                    count: ops.audit.signIndeniedLast24h,
+                    count: ops.audit.signInDeniedLast24h,
                   })
                 : null
             }

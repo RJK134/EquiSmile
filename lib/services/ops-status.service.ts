@@ -31,7 +31,7 @@ export interface DeadLetterStats {
 export interface AuditStats {
   last24h: number;
   latestAt: string | null;
-  signIndeniedLast24h: number;
+  signInDeniedLast24h: number;
 }
 
 export interface BackupStats {
@@ -99,7 +99,7 @@ export const opsStatusService = {
     return {
       last24h,
       latestAt: latest?.createdAt.toISOString() ?? null,
-      signIndeniedLast24h: signInDenied,
+      signInDeniedLast24h: signInDenied,
     };
   },
 

@@ -33,6 +33,11 @@ export const customerRepository = {
       where.preferredChannel = preferredChannel;
     }
 
+    // Nested `_count` filters must mirror the top-level `includeDeleted`
+    // flag so an admin auditing tombstoned customers sees the true
+    // yard/horse count, not the post-cascade "0 yards, 0 horses"
+    // illusion (every cascaded child shares the parent's deletedAt).
+    const childCountWhere = includeDeleted ? undefined : { deletedAt: null };
     const [data, total] = await Promise.all([
       prisma.customer.findMany({
         where,
@@ -42,8 +47,8 @@ export const customerRepository = {
         include: {
           _count: {
             select: {
-              yards: { where: { deletedAt: null } },
-              horses: { where: { deletedAt: null } },
+              yards: { where: childCountWhere },
+              horses: { where: childCountWhere },
               enquiries: true,
             },
           },

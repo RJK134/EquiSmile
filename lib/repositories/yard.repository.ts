@@ -28,6 +28,9 @@ export const yardRepository = {
       ];
     }
 
+    // Nested `_count` mirrors the top-level `includeDeleted` so admins
+    // auditing tombstoned yards see the true horse count.
+    const childCountWhere = includeDeleted ? undefined : { deletedAt: null };
     const [data, total] = await Promise.all([
       prisma.yard.findMany({
         where,
@@ -36,7 +39,7 @@ export const yardRepository = {
         take: pageSize,
         include: {
           customer: { select: { id: true, fullName: true } },
-          _count: { select: { horses: { where: { deletedAt: null } } } },
+          _count: { select: { horses: { where: childCountWhere } } },
         },
       }),
       prisma.yard.count({ where }),
