@@ -119,18 +119,51 @@ export const customerRepository = {
   },
 
   /**
+   * Shared restore primitive — un-tombstones a customer and the
+   * yards/horses that were cascaded by THIS customer-delete.
+   *
+   * Children are matched by `deletedAt = parent.deletedAt` — the
+   * delete transaction writes the same `Date` instance to all three
+   * tables at once, so cascaded children share that timestamp at the
+   * microsecond precision Postgres stores. A child that was
+   * independently soft-deleted at a different moment has a different
+   * `deletedAt` and is intentionally LEFT tombstoned by this restore.
+   *
+   * Runs inside the caller's transaction so the caller can compose
+   * further work atomically (e.g. the inbound-message webhook
+   * immediately follows the restore with an enquiry insert). The
+   * caller is expected to have the parent customer row already — pass
+   * `parentDeletedAt` explicitly so this helper doesn't have to
+   * re-query.
+   */
+  async cascadeRestoreWithin(
+    tx: Prisma.TransactionClient,
+    id: string,
+    parentDeletedAt: Date | null,
+  ) {
+    const customer = await tx.customer.update({
+      where: { id },
+      data: { deletedAt: null, deletedById: null },
+    });
+    if (parentDeletedAt !== null) {
+      await tx.yard.updateMany({
+        where: { customerId: id, deletedAt: parentDeletedAt },
+        data: { deletedAt: null, deletedById: null },
+      });
+      await tx.horse.updateMany({
+        where: { customerId: id, deletedAt: parentDeletedAt },
+        data: { deletedAt: null, deletedById: null },
+      });
+    }
+    return customer;
+  },
+
+  /**
    * Operator-only: restore a tombstoned customer and its owned rows.
    *
-   * Symmetric with `delete`: only un-tombstones yards/horses that were
-   * cascaded by THIS customer-delete. We identify them by matching
-   * their `deletedAt` to the parent customer's `deletedAt` — the
-   * delete transaction writes the same `Date` instance to all three
-   * tables, so children tombstoned in the same cascade share that
-   * timestamp at the microsecond precision Postgres stores.
-   *
-   * A child that was independently soft-deleted at a different
-   * moment (before or after the parent) has a different `deletedAt`
-   * and is intentionally LEFT tombstoned by this restore.
+   * Symmetric with `delete`. Delegates to `cascadeRestoreWithin` so the
+   * inbound-message auto-restore path in `resolveInboundCustomer` runs
+   * exactly the same cascade logic and can't drift.
    */
   async restore(id: string) {
     return prisma.$transaction(async (tx) => {
@@ -139,28 +172,7 @@ export const customerRepository = {
         select: { deletedAt: true },
       });
       if (!existing) throw new Error(`Customer ${id} not found`);
-
-      const parentDeletedAt = existing.deletedAt;
-
-      const customer = await tx.customer.update({
-        where: { id },
-        data: { deletedAt: null, deletedById: null },
-      });
-
-      // If the parent wasn't tombstoned, there can't be cascaded
-      // children. Skip the updateMany calls entirely so we don't
-      // accidentally touch a row with a null filter.
-      if (parentDeletedAt !== null) {
-        await tx.yard.updateMany({
-          where: { customerId: id, deletedAt: parentDeletedAt },
-          data: { deletedAt: null, deletedById: null },
-        });
-        await tx.horse.updateMany({
-          where: { customerId: id, deletedAt: parentDeletedAt },
-          data: { deletedAt: null, deletedById: null },
-        });
-      }
-      return customer;
+      return this.cascadeRestoreWithin(tx, id, existing.deletedAt);
     });
   },
 

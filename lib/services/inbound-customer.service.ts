@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import type { Customer, Prisma } from '@prisma/client';
 
+import { customerRepository } from '@/lib/repositories/customer.repository';
+
 /**
  * Resolve the customer a webhook handler should attach an inbound
  * message to, inside the caller's Prisma transaction.
@@ -98,19 +100,15 @@ export async function resolveInboundCustomer(
     // yards/horses come back symmetrically. Children are matched by
     // the parent's own `deletedAt` so rows independently soft-deleted
     // at another moment stay tombstoned.
-    const parentDeletedAt = customer.deletedAt;
-    customer = await tx.customer.update({
-      where: { id: customer.id },
-      data: { deletedAt: null, deletedById: null },
-    });
-    await tx.yard.updateMany({
-      where: { customerId: customer.id, deletedAt: parentDeletedAt },
-      data: { deletedAt: null, deletedById: null },
-    });
-    await tx.horse.updateMany({
-      where: { customerId: customer.id, deletedAt: parentDeletedAt },
-      data: { deletedAt: null, deletedById: null },
-    });
+    //
+    // Delegates to the repository's shared cascade helper so this
+    // path and the admin-initiated `customerRepository.restore` can
+    // never drift in their cascade semantics.
+    customer = await customerRepository.cascadeRestoreWithin(
+      tx,
+      customer.id,
+      customer.deletedAt,
+    );
     wasRestored = true;
   }
 
