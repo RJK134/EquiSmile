@@ -180,6 +180,9 @@ export const geocodingService = {
   }> {
     const yardsToGeocode = await prisma.yard.findMany({
       where: {
+        // Phase 15 — skip tombstoned yards so we don't waste Geocoding
+        // quota / queue time on rows the operator has already deleted.
+        deletedAt: null,
         OR: [
           { latitude: null },
           { longitude: null },

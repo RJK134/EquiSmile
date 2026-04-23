@@ -74,7 +74,11 @@ export const attachmentService = {
   async upload(input: UploadAttachmentInput): Promise<HorseAttachment> {
     validateAttachment({ mimeType: input.mimeType, sizeBytes: input.bytes.byteLength });
 
-    const horse = await prisma.horse.findUnique({ where: { id: input.horseId }, select: { id: true } });
+    // Phase 15 — refuse to attach clinical material to a tombstoned horse.
+    const horse = await prisma.horse.findFirst({
+      where: { id: input.horseId, deletedAt: null },
+      select: { id: true },
+    });
     if (!horse) throw new Error('Horse not found');
 
     const relativePath = buildRelativePath(input.horseId, input.filename);

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,7 +8,7 @@ services:
       - '5433:5432'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-equismile}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-equismile_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_DB: ${POSTGRES_DB:-equismile}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -25,6 +23,13 @@ services:
         limits:
           memory: 512M
           cpus: '1.0'
+    # Cap Docker-managed log file growth so a crash loop can't fill the
+    # disk on the VPS. 10MB × 5 files = 50MB ceiling per service.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     stop_grace_period: 30s
 
   migrator:
@@ -32,44 +37,75 @@ services:
       context: .
       target: migrator
     container_name: equismile-migrator
+    # DATABASE_URL is loaded from the operator's `.env` — it must be set
+    # to a compose-internal URL such as
+    #   postgresql://equismile:<password>@postgres:5432/equismile
+    # See `.env.example` and `docs/DEPLOYMENT.md` for the shape.
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-equismile}:${POSTGRES_PASSWORD:-equismile_dev}@postgres:5432/${POSTGRES_DB:-equismile}
       DEMO_MODE: ${DEMO_MODE:-false}
     depends_on:
       postgres:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: "no"
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        # NEXT_PUBLIC_* variables are inlined into the client bundle at
+        # build time, so the Maps browser key must be available here —
+        # setting it only at runtime leaves the map blank in prod.
+        NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_DEFAULT_LOCALE: ${NEXT_PUBLIC_DEFAULT_LOCALE:-en}
     container_name: equismile-app
     restart: unless-stopped
     expose:
       - '3000'
+    # Operator secrets (DATABASE_URL, AUTH_SECRET, token values, etc.)
+    # load from the ungitted `.env`. The `environment:` block below only
+    # overrides values that are compose-internal (service names, ports)
+    # or that never belong in a secret file.
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://equismile:${POSTGRES_PASSWORD:-equismile_dev}@postgres:5432/${POSTGRES_DB:-equismile}
+      # Compose-internal overrides only. Everything else (DATABASE_URL,
+      # AUTH_*, WHATSAPP_*, SMTP_*, GOOGLE_MAPS_API_KEY, ANTHROPIC_API_KEY
+      # etc.) is supplied by `env_file: .env` above so no secret literal
+      # ever lands in this file.
       DEMO_MODE: ${DEMO_MODE:-false}
       NODE_ENV: production
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      NEXT_PUBLIC_DEFAULT_LOCALE: ${NEXT_PUBLIC_DEFAULT_LOCALE:-en}
-      N8N_API_KEY: ${N8N_API_KEY:-}
-      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678}
+      # Service-internal n8n address: the operator's .env may point at a
+      # different public URL (e.g. `http://localhost:5678/webhook` on
+      # their dev box); inside the compose network we always override
+      # to the container name. `N8N_WEBHOOK_URL` is spelt out too
+      # because some callers read it directly rather than assembling
+      # from host/port/protocol.
       N8N_HOST: n8n
       N8N_PORT: '5678'
       N8N_PROTOCOL: http
-      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
-      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
-      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
-      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-}
-      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
-      HOME_BASE_ADDRESS: ${HOME_BASE_ADDRESS:-}
-      HOME_BASE_LAT: ${HOME_BASE_LAT:-}
-      HOME_BASE_LNG: ${HOME_BASE_LNG:-}
+      N8N_WEBHOOK_URL: http://n8n:5678
+      # Must match the volume mount below so uploads survive restarts.
+      ATTACHMENT_STORAGE_DIR: /app/data/attachments
+      # Phase 16 — where /api/status looks for dump files. Must match
+      # the `backup` service's output directory.
+      BACKUP_DIR: /backups
+    volumes:
+      # Phase 16 — mount the backups volume READ-ONLY so /api/status
+      # can report backup freshness without giving the app the ability
+      # to tamper with, delete, or exfiltrate dump files.
+      - backups_data:/backups:ro
+      # Phase 15 — persistent storage for uploaded horse attachments.
+      # Without this, the filesystem under /app is ephemeral and every
+      # container restart wipes uploaded PDFs / clinical images.
+      - attachments_data:/app/data/attachments
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -85,6 +121,11 @@ services:
         limits:
           memory: 1G
           cpus: '1.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     stop_grace_period: 30s
 
   n8n:
@@ -99,7 +140,7 @@ services:
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: n8n
       DB_POSTGRESDB_USER: ${POSTGRES_USER:-equismile}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-equismile_dev}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?}
       N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
       N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
       N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
@@ -121,6 +162,11 @@ services:
         limits:
           memory: 1G
           cpus: '1.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     stop_grace_period: 30s
 
   caddy:
@@ -139,9 +185,48 @@ services:
     depends_on:
       - app
       - n8n
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Phase 16 — scheduled database backup. Runs `pg_dump` on
+  # `BACKUP_CRON` (default 02:30 UTC daily) and rotates by
+  # `BACKUP_RETENTION_DAYS` (default 14). Backups land in the
+  # `backups_data` volume, which the operator is expected to sync
+  # off-box via rclone/rsync per docs/BACKUP.md §2.
+  backup:
+    image: postgres:16-alpine
+    container_name: equismile-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: ${POSTGRES_USER:-equismile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:-equismile}
+      BACKUP_CRON: ${BACKUP_CRON:-30 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_DIR: /backups
+    volumes:
+      - backups_data:/backups
+      - ./docker/backup-entrypoint.sh:/usr/local/bin/backup-entrypoint.sh:ro
+    entrypoint: ['/bin/sh', '/usr/local/bin/backup-entrypoint.sh']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    stop_grace_period: 15s
 
 volumes:
   postgres_data:
   n8n_data:
   caddy_data:
   caddy_config:
+  attachments_data:
+  backups_data:

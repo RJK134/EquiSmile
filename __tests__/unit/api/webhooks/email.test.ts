@@ -11,23 +11,41 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-const mockPrisma = vi.hoisted(() => ({
-  enquiry: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  customer: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  visitRequest: {
-    create: vi.fn(),
-  },
-  enquiryMessage: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-  },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const surface = {
+    enquiry: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    customer: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
+    },
+    yard: {
+      updateMany: vi.fn(),
+    },
+    horse: {
+      updateMany: vi.fn(),
+    },
+    visitRequest: {
+      create: vi.fn(),
+    },
+    enquiryMessage: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+  };
+  return {
+    ...surface,
+    // Phase 16 — webhook handlers now wrap the customer lookup +
+    // enquiry create in `$transaction`. The mock just invokes the
+    // callback with the same prisma surface so the assertions keep
+    // working.
+    $transaction: vi.fn(async (cb: (tx: typeof surface) => unknown) => cb(surface)),
+  };
+});
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -70,8 +88,19 @@ describe('Email Intake Endpoint', () => {
   it('creates enquiry from valid payload', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
     mockPrisma.customer.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.create.mockResolvedValue({ id: 'cust-1' });
-    mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'cust-1' });
+    // Phase 16 — the webhook now resolves a new customer via the
+    // race-safe `upsert` path. The helper pre-generates an `id`
+    // client-side and compares it to the returned row's id to
+    // distinguish INSERT from update:{}-no-op. Echo the caller's id
+    // back so the "fresh insert" branch fires.
+    mockPrisma.customer.upsert.mockImplementation(async ({ create }) => ({
+      id: create.id,
+      deletedAt: null,
+    }));
+    mockPrisma.enquiry.create.mockImplementation(async ({ data }) => ({
+      id: 'enq-1',
+      customerId: data.customerId,
+    }));
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
     const request = createEmailRequest(validPayload);

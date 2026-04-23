@@ -91,6 +91,52 @@ describe('GET /api/customers', () => {
       })
     );
   });
+
+  describe('includeDeleted admin gating', () => {
+    it('silently drops includeDeleted=true for a non-admin (vet) session', async () => {
+      // Critical: without this gate, any authenticated vet could
+      // URL-hack `?includeDeleted=true` and see soft-deleted PII.
+      signedInAs('vet');
+      mockCustomerRepo.findMany.mockResolvedValue({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+      });
+
+      const { GET } = await import('@/app/api/customers/route');
+      const request = new NextRequest(
+        'http://localhost:3000/api/customers?includeDeleted=true',
+      );
+      await GET(request);
+
+      expect(mockCustomerRepo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ includeDeleted: false }),
+      );
+    });
+
+    it('honours includeDeleted=true for an admin session', async () => {
+      signedInAs('admin');
+      mockCustomerRepo.findMany.mockResolvedValue({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+      });
+
+      const { GET } = await import('@/app/api/customers/route');
+      const request = new NextRequest(
+        'http://localhost:3000/api/customers?includeDeleted=true',
+      );
+      await GET(request);
+
+      expect(mockCustomerRepo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ includeDeleted: true }),
+      );
+    });
+  });
 });
 
 describe('POST /api/customers', () => {

@@ -75,4 +75,28 @@ describe('customerQuerySchema', () => {
   it('rejects invalid preferredChannel in query', () => {
     expect(() => customerQuerySchema.parse({ preferredChannel: 'FAX' })).toThrow();
   });
+
+  describe('includeDeleted', () => {
+    it('defaults to false when absent', () => {
+      const result = customerQuerySchema.parse({});
+      expect(result.includeDeleted).toBe(false);
+    });
+
+    it('treats the literal string "false" as boolean false', () => {
+      // Regression: z.coerce.boolean() would coerce any non-empty
+      // string to true, silently exposing soft-deleted PII.
+      const result = customerQuerySchema.parse({ includeDeleted: 'false' });
+      expect(result.includeDeleted).toBe(false);
+    });
+
+    it('parses the literal string "true" as boolean true', () => {
+      const result = customerQuerySchema.parse({ includeDeleted: 'true' });
+      expect(result.includeDeleted).toBe(true);
+    });
+
+    it('rejects any other string value', () => {
+      expect(() => customerQuerySchema.parse({ includeDeleted: '1' })).toThrow();
+      expect(() => customerQuerySchema.parse({ includeDeleted: 'yes' })).toThrow();
+    });
+  });
 });

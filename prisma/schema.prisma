@@ -168,6 +168,11 @@ model Customer {
   notes             String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+  // Phase 15 production-readiness — soft delete. `deletedAt` is the only
+  // "tombstone" field; repositories filter on it so callers never have to
+  // know about it. Hard delete is reserved for GDPR/FADP erasure requests.
+  deletedAt         DateTime?
+  deletedById       String?
 
   yards         Yard[]
   horses        Horse[]
@@ -175,6 +180,7 @@ model Customer {
   visitRequests VisitRequest[]
 
   @@index([fullName])
+  @@index([deletedAt])
 }
 
 model Yard {
@@ -198,6 +204,9 @@ model Yard {
   areaLabel      String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  // Phase 15 production-readiness — soft delete.
+  deletedAt      DateTime?
+  deletedById    String?
 
   customer      Customer       @relation(fields: [customerId], references: [id])
   horses        Horse[]
@@ -208,6 +217,7 @@ model Yard {
   @@index([customerId])
   @@index([postcode])
   @@index([areaLabel])
+  @@index([deletedAt])
 }
 
 model Horse {
@@ -221,6 +231,9 @@ model Horse {
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  // Phase 15 production-readiness — soft delete.
+  deletedAt     DateTime?
+  deletedById   String?
 
   customer    Customer @relation(fields: [customerId], references: [id])
   primaryYard Yard?    @relation(fields: [primaryYardId], references: [id])
@@ -232,6 +245,7 @@ model Horse {
 
   @@index([customerId])
   @@index([primaryYardId])
+  @@index([deletedAt])
 }
 
 model Enquiry {

@@ -3,11 +3,19 @@ import type { Prisma } from '@prisma/client';
 import type { CreateHorseInput, UpdateHorseInput, HorseQuery } from '@/lib/validations/horse.schema';
 import type { PaginatedResult } from '@/lib/types';
 
+/**
+ * Repository for Horse.
+ *
+ * Soft-delete invariant (Phase 15): `delete` tombstones the row;
+ * clinical history (attachments, charts, findings, prescriptions) is
+ * retained via the FK and stays recoverable.
+ */
 export const horseRepository = {
   async findMany(query: HorseQuery) {
-    const { customerId, primaryYardId, active, search, page, pageSize } = query;
+    const { customerId, primaryYardId, active, search, page, pageSize, includeDeleted } = query;
     const where: Prisma.HorseWhereInput = {};
 
+    if (!includeDeleted) where.deletedAt = null;
     if (customerId) where.customerId = customerId;
     if (primaryYardId) where.primaryYardId = primaryYardId;
     if (active !== undefined) where.active = active;
@@ -40,9 +48,9 @@ export const horseRepository = {
     return result;
   },
 
-  async findById(id: string) {
-    return prisma.horse.findUnique({
-      where: { id },
+  async findById(id: string, options: { includeDeleted?: boolean } = {}) {
+    return prisma.horse.findFirst({
+      where: options.includeDeleted ? { id } : { id, deletedAt: null },
       include: {
         customer: true,
         primaryYard: true,
@@ -55,10 +63,24 @@ export const horseRepository = {
   },
 
   async update(id: string, data: UpdateHorseInput) {
-    return prisma.horse.update({ where: { id }, data });
+    return prisma.horse.update({ where: { id, deletedAt: null }, data });
   },
 
-  async delete(id: string) {
+  async delete(id: string, actorId?: string | null) {
+    return prisma.horse.update({
+      where: { id, deletedAt: null },
+      data: { deletedAt: new Date(), deletedById: actorId ?? null },
+    });
+  },
+
+  async restore(id: string) {
+    return prisma.horse.update({
+      where: { id },
+      data: { deletedAt: null, deletedById: null },
+    });
+  },
+
+  async hardDelete(id: string) {
     return prisma.horse.delete({ where: { id } });
   },
 };

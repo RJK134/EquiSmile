@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { deadLetterService } from '@/lib/services/dead-letter.service';
 import { withRetry, circuitBreakers } from '@/lib/utils/retry';
+import { maskEmail } from '@/lib/utils/logger';
 
 interface SendEmailResult {
   messageId: string;
@@ -119,7 +120,7 @@ export const emailService = {
         });
       }
 
-      console.log('[Email] Sent', { to: options.to, messageId, subject: options.subject });
+      console.log('[Email] Sent', { to: maskEmail(options.to), messageId, subject: options.subject });
       return { messageId, success: true };
     } catch (error) {
       console.error('[Email] Send failed', error);

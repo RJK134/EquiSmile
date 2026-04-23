@@ -35,20 +35,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 /**
- * Deleting a horse cascades attachments/findings/charts/prescriptions,
- * so it's treated as a clinical-record mutation — VET-only plus an audit
- * entry for traceability.
+ * Horse deletion is a clinical-record mutation — VET-only and audited.
+ * Phase 15 makes this a SOFT delete: the horse row is tombstoned with
+ * `deletedAt` / `deletedById`; attachments, findings, dental charts and
+ * prescriptions are retained (still reachable via the stable FK) so the
+ * clinical history is not lost. Hard delete is reserved for explicit
+ * GDPR/FADP erasure requests handled by an operator path outside the UI.
  */
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const subject = await requireRole(ROLES.VET);
     const { id } = await context.params;
-    await horseRepository.delete(id);
+    await horseRepository.delete(id, subject.id);
     await securityAuditService.record({
       event: 'HORSE_DELETED',
       actor: subject,
       targetType: 'Horse',
       targetId: id,
+      detail: 'soft-delete (deletedAt set)',
     });
     return successResponse({ deleted: true });
   } catch (error) {

@@ -8,6 +8,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 
 // n8n typically batches a handful of emails per minute; cap generously
 // at 200/min per IP to catch misconfigured loops.
@@ -80,25 +81,6 @@ export async function POST(request: NextRequest) {
   const email = normaliseEmail(payload.from);
   const receivedAt = new Date(payload.receivedAt);
 
-  // Match or create customer by email
-  let customer = await prisma.customer.findUnique({
-    where: { email },
-  });
-  let isNewCustomer = false;
-
-  if (!customer) {
-    customer = await prisma.customer.create({
-      data: {
-        fullName: payload.fromName || email,
-        email,
-        preferredChannel: 'EMAIL',
-        preferredLanguage: 'en',
-      },
-    });
-    isNewCustomer = true;
-    console.log('[Email] Created new customer', { customerId: customer.id, email });
-  }
-
   // Derive thread key from In-Reply-To or Message-ID
   const threadKey = payload.inReplyTo
     ? `email:${payload.inReplyTo}`
@@ -107,20 +89,47 @@ export async function POST(request: NextRequest) {
   // Parse message for structured info
   const parsed = parseMessage(payload.textBody);
 
-  // Create enquiry
-  const enquiry = await prisma.enquiry.create({
-    data: {
-      channel: 'EMAIL',
-      externalMessageId: payload.messageId,
+  // Customer resolution + enquiry creation in ONE transaction, using
+  // the shared `resolveInboundCustomer` helper so the WhatsApp path
+  // gets the same semantics (see lib/services/inbound-customer.service.ts
+  // for the rationale behind upsert / in-transaction restore).
+  const { customer, enquiry, isNewCustomer, wasRestored } =
+    await prisma.$transaction(async (tx) => {
+      const resolved = await resolveInboundCustomer(tx, {
+        lookup: { by: 'email', value: email },
+        create: {
+          fullName: payload.fromName || email,
+          email,
+          preferredChannel: 'EMAIL',
+          preferredLanguage: 'en',
+        },
+      });
+
+      const enquiry = await tx.enquiry.create({
+        data: {
+          channel: 'EMAIL',
+          externalMessageId: payload.messageId,
+          customerId: resolved.customer.id,
+          sourceFrom: email,
+          subject: payload.subject || null,
+          rawText: payload.textBody,
+          receivedAt,
+          threadKey,
+          triageStatus: 'NEW',
+        },
+      });
+
+      return { ...resolved, enquiry };
+    });
+
+  if (isNewCustomer) {
+    console.log('[Email] Created new customer', { customerId: customer.id });
+  }
+  if (wasRestored) {
+    console.log('[Email] Restored soft-deleted customer on inbound message', {
       customerId: customer.id,
-      sourceFrom: email,
-      subject: payload.subject || null,
-      rawText: payload.textBody,
-      receivedAt,
-      threadKey,
-      triageStatus: 'NEW',
-    },
-  });
+    });
+  }
 
   // Log inbound message
   await messageLogService.logMessage({
