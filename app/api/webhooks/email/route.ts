@@ -8,6 +8,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { customerRepository } from '@/lib/repositories/customer.repository';
 
 // n8n typically batches a handful of emails per minute; cap generously
 // at 200/min per IP to catch misconfigured loops.
@@ -102,10 +103,13 @@ export async function POST(request: NextRequest) {
     // tombstoned rows, so a returning customer is routed here. Restore
     // them automatically (a new inbound message is strong signal of
     // live relationship) and record it so the operator can audit.
-    customer = await prisma.customer.update({
-      where: { id: customer.id },
-      data: { deletedAt: null, deletedById: null },
-    });
+    //
+    // Delegating to `customerRepository.restore` so the tombstone is
+    // cleared on the customer AND on the cascaded yards/horses. An
+    // inline `prisma.customer.update` would leave the customer's yards
+    // and horses invisible to every list query, which breaks appointment
+    // booking as soon as the restored customer tries to interact.
+    customer = await customerRepository.restore(customer.id);
     console.log('[Email] Restored soft-deleted customer on inbound message', {
       customerId: customer.id,
     });

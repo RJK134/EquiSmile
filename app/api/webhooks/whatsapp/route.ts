@@ -7,6 +7,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { customerRepository } from '@/lib/repositories/customer.repository';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -176,10 +177,11 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           // tombstoned rows. A returning customer who pings us is a
           // strong signal of live relationship, so we restore them
           // (and log it) rather than 500-ing on the FK insert below.
-          customer = await prisma.customer.update({
-            where: { id: customer.id },
-            data: { deletedAt: null, deletedById: null },
-          });
+          //
+          // Via `customerRepository.restore` so the tombstone is also
+          // cleared on the cascaded yards/horses — an inline
+          // `prisma.customer.update` would leave them invisible.
+          customer = await customerRepository.restore(customer.id);
           console.log('[WhatsApp] Restored soft-deleted customer on inbound message', {
             customerId: customer.id,
           });
