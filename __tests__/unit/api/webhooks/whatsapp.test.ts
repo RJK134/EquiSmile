@@ -258,5 +258,57 @@ describe('WhatsApp Webhook', () => {
       expect(mockPrisma.appointmentResponse.create).not.toHaveBeenCalled();
       expect(mockPrisma.visitRequest.create).toHaveBeenCalledTimes(1);
     });
+
+    it('DOES create a new VisitRequest for OTHER-intent replies (e.g. a new urgent enquiry from a customer with an open booking)', async () => {
+      // Regression: the short-circuit used to fire on ANY match,
+      // including OTHER intent. A customer with a pending routine
+      // appointment sending a genuinely new urgent enquiry ("My other
+      // horse has colic!") would have that request silently dropped
+      // from the planning pool. The short-circuit now requires an
+      // explicit cancel/reschedule intent, so OTHER-intent messages
+      // still reach auto-triage via a fresh VisitRequest.
+      mockPrisma.enquiry.findUnique.mockResolvedValue(null);
+      mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-3', deletedAt: null });
+      mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-3' });
+      mockPrisma.appointment.findFirst.mockResolvedValue({ id: 'appt-3' });
+      mockPrisma.appointmentResponse.create.mockResolvedValue({ id: 'ar-3' });
+      mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-3' });
+
+      const urgentPayload = {
+        ...validPayload,
+        entry: [{
+          ...validPayload.entry[0],
+          changes: [{
+            ...validPayload.entry[0].changes[0],
+            value: {
+              ...validPayload.entry[0].changes[0].value,
+              messages: [{
+                id: 'wamid.urgent-other',
+                from: '447700900002',
+                timestamp: '1700000000',
+                type: 'text',
+                text: { body: 'My other horse has colic, really bleeding, please help' },
+              }],
+            },
+          }],
+        }],
+      };
+
+      const response = await POST(makeSignedRequest(urgentPayload));
+      expect(response.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // AppointmentResponse is still recorded (OTHER intent, for audit)
+      expect(mockPrisma.appointmentResponse.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          appointmentId: 'appt-3',
+          kind: 'OTHER',
+          channel: 'WHATSAPP',
+        }),
+      });
+      // AND a fresh VisitRequest is created so the urgent message
+      // actually lands in the planning pool.
+      expect(mockPrisma.visitRequest.create).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -272,20 +272,31 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         });
 
         // If this customer already has an open appointment, record the
-        // reply as an AppointmentResponse (AMBER-11) and short-circuit:
-        // a "cancel" / "reschedule" / "thanks" reply is a message about
-        // the existing booking, not a new booking request, so we must
-        // NOT create a second planning-pool VisitRequest for it. The
-        // thread still lives on the Enquiry + EnquiryMessage above; the
-        // appointment detail view surfaces the AppointmentResponse.
+        // reply as an AppointmentResponse (AMBER-11) so the audit trail
+        // links the inbound message to the booking.
+        //
+        // We ONLY short-circuit for clearly-identified cancel /
+        // reschedule intent. An "OTHER"-kind match (parser couldn't
+        // classify) still runs the normal new-enquiry path: a message
+        // like "My other horse has colic" from a customer with a
+        // pending routine booking must NOT be silently dropped just
+        // because they happen to have an open appointment. Auto-triage
+        // on the new VisitRequest is the safe default — an operator
+        // can close the phantom VR if it turns out to be a benign ack
+        // like "thanks!", whereas an urgent-care message that never
+        // enters the planning pool is invisible.
         const matchedAppointment = await recordAppointmentResponseIfAny({
           customerId: customer.id,
           messageText,
           enquiryMessageId: loggedMessage.id,
         });
-        if (matchedAppointment) {
+        if (
+          matchedAppointment &&
+          (matchedAppointment.kind === 'CANCELLED' ||
+            matchedAppointment.kind === 'RESCHEDULE_REQUESTED')
+        ) {
           logger.info(
-            'WhatsApp reply matched to open appointment; skipping new visit-request creation',
+            'WhatsApp reply matched to open appointment with clear cancel/reschedule intent; skipping new visit-request creation',
             {
               service: 'whatsapp-webhook',
               operation: 'match-appointment-response',
