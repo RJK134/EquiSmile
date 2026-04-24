@@ -145,7 +145,7 @@ describe('Email Intake Endpoint', () => {
 
   it('matches existing customer by email', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.findUnique.mockResolvedValue({ id: 'existing-cust' });
+    mockPrisma.customer.findUnique.mockResolvedValue({ id: 'existing-cust', deletedAt: null });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'existing-cust' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 

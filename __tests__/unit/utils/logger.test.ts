@@ -45,11 +45,49 @@ describe('logger', () => {
     expect(spy.mock.calls[0][0]).toContain('Test message');
   });
 
+  it('should redact contact fields in log context', () => {
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    logger.info('Outbound message', {
+      to: '+447911123456',
+      email: 'owner@example.com',
+      mobilePhone: '+447700900123',
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const output = spy.mock.calls[0][0];
+    expect(output).toContain('"to":"+447*******56"');
+    expect(output).toContain('"email":"ow***@example.com"');
+    expect(output).toContain('"mobilePhone":"+447*******23"');
+  });
+
   it('should log error messages with error details', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     logger.error('Something failed', new Error('test error'), { service: 'test' });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0][0]).toContain('Something failed');
+  });
+
+  it('should redact token-like fields in log context', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    logger.warn('Webhook failure', {
+      token: 'secret-token',
+      authorization: 'Bearer sk-ant-api03-abc123456789',
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const output = spy.mock.calls[0][0];
+    expect(output).toContain('"token":"***"');
+    expect(output).toContain('"authorization":"***"');
+  });
+
+  it('should mask non-contact identifiers in to/from fields', () => {
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    logger.info('Dispatch queued', {
+      to: 'wamid.abc123456789',
+      from: 'acct_internal_channel',
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const output = spy.mock.calls[0][0];
+    expect(output).toContain('"to":"wa***89"');
+    expect(output).toContain('"from":"ac***el"');
   });
 
   it('should log warn messages', () => {

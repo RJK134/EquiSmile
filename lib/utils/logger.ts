@@ -59,6 +59,31 @@ export function maskEmail(email: string): string {
   return local.slice(0, visible) + '***' + domain;
 }
 
+function maskIdentifier(value: string): string {
+  if (value.length <= 6) return '***';
+  return value.slice(0, 2) + '***' + value.slice(-2);
+}
+
+function looksSensitiveKey(lowerKey: string): boolean {
+  return [
+    'password',
+    'secret',
+    'token',
+    'authorization',
+    'api_key',
+    'apikey',
+    'api-key',
+    'signature',
+    'cookie',
+    'session',
+    'credential',
+  ].some((needle) => lowerKey.includes(needle));
+}
+
+function looksSensitiveValue(value: string): boolean {
+  return /^Bearer\s+\S+/i.test(value) || /^sk-[a-zA-Z0-9-]{10,}/.test(value);
+}
+
 /**
  * Recursively mask sensitive fields in an object.
  */
@@ -74,13 +99,21 @@ function maskSensitive(obj: unknown): unknown {
     if (typeof value === 'string') {
       if (lowerKey.includes('phone') || lowerKey.includes('mobile')) {
         result[key] = maskPhone(value);
-      } else if (lowerKey.includes('email') || lowerKey === 'to' || lowerKey === 'from') {
+      } else if (lowerKey.includes('email')) {
         if (value.includes('@')) {
           result[key] = maskEmail(value);
         } else {
-          result[key] = value;
+          result[key] = '***';
         }
-      } else if (lowerKey.includes('password') || lowerKey.includes('secret') || lowerKey.includes('token')) {
+      } else if (lowerKey === 'to' || lowerKey === 'from') {
+        if (value.includes('@')) {
+          result[key] = maskEmail(value);
+        } else if (/^[+\d\s().-]+$/.test(value) && value.replace(/\D/g, '').length >= 6) {
+          result[key] = maskPhone(value);
+        } else {
+          result[key] = maskIdentifier(value);
+        }
+      } else if (looksSensitiveKey(lowerKey) || looksSensitiveValue(value)) {
         result[key] = '***';
       } else {
         result[key] = value;
@@ -118,7 +151,7 @@ function formatEntry(entry: LogEntry): string {
     return JSON.stringify(entry);
   }
   // Dev: readable format
-  const ctx = entry.context ? ` ${JSON.stringify(maskSensitive(entry.context))}` : '';
+  const ctx = entry.context ? ` ${JSON.stringify(entry.context)}` : '';
   const err = entry.error ? ` | ${entry.error.message}` : '';
   return `[${entry.level.toUpperCase()}] ${entry.message}${ctx}${err}`;
 }

@@ -54,6 +54,7 @@ See also:
 - [ ] Application logging configured (structured JSON to stdout; Docker json-file collects it)
 - [ ] Error-tracking sink wired — set `EQUISMILE_ERROR_WEBHOOK_URL` (Slack/Loki/Sentry relay/etc.); `instrumentation.ts` auto-registers the sink at boot
 - [ ] Admin observability page (`/[locale]/admin/observability`) reachable and shows live DLQ depth, audit activity, backup freshness
+- [ ] Structured logs verified to mask customer contact details and auth/API tokens before shipping off-box
 - [ ] Health check monitoring (uptime check on `/api/health`)
 - [ ] Database monitoring (connection count, query latency)
 - [ ] Disk space monitoring (include `/var/lib/docker/volumes/equismile_backups_data`)
@@ -91,4 +92,3 @@ See also:
 - [ ] Mobile PWA tested on real device
 - [ ] Performance acceptable under expected load
 - [ ] Business owner sign-off obtained
-

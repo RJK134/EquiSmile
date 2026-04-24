@@ -8,6 +8,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { logger } from '@/lib/utils/logger';
 import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 
 // n8n typically batches a handful of emails per minute; cap generously
@@ -123,10 +124,17 @@ export async function POST(request: NextRequest) {
     });
 
   if (isNewCustomer) {
-    console.log('[Email] Created new customer', { customerId: customer.id });
+    logger.info('Email intake created new customer', {
+      service: 'email-webhook',
+      operation: 'create-customer',
+      customerId: customer.id,
+      email,
+    });
   }
   if (wasRestored) {
-    console.log('[Email] Restored soft-deleted customer on inbound message', {
+    logger.info('Email intake restored soft-deleted customer', {
+      service: 'email-webhook',
+      operation: 'restore-customer',
       customerId: customer.id,
     });
   }
@@ -164,20 +172,28 @@ export async function POST(request: NextRequest) {
       visitRequest.id,
       payload.textBody,
     );
-    console.log('[Email] Auto-triage completed', {
+    logger.info('Email auto-triage completed', {
+      service: 'email-webhook',
+      operation: 'auto-triage',
       enquiryId: enquiry.id,
       urgency: triageResult.urgency,
       confidence: triageResult.confidence,
     });
   } catch (triageErr) {
-    console.error('[Email] Auto-triage failed, enquiry still created', triageErr);
+    logger.error('Email auto-triage failed; enquiry still created', triageErr, {
+      service: 'email-webhook',
+      operation: 'auto-triage',
+      enquiryId: enquiry.id,
+      visitRequestId: visitRequest.id,
+    });
   }
 
-  console.log('[Email] Enquiry created', {
+  logger.info('Email enquiry created', {
+    service: 'email-webhook',
+    operation: 'create-enquiry',
     enquiryId: enquiry.id,
     customerId: customer.id,
     isNewCustomer,
-    subject: payload.subject,
   });
 
   return NextResponse.json({

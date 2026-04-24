@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { SecurityAuditEvent } from '@prisma/client';
 import type { AuthenticatedSubject } from '@/lib/auth/rbac';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Phase 14 PR B — security audit log.
@@ -45,7 +46,9 @@ export const securityAuditService = {
       // Audit logging must NEVER break the primary request — best-effort
       // only, but we do surface the failure to the structured logger so
       // operators can alert on audit-write failure spikes.
-      console.warn('[security-audit] failed to record event', {
+      logger.warn('Security audit write failed', {
+        service: 'security-audit',
+        operation: 'record',
         event: input.event,
         targetType: input.targetType,
         targetId: input.targetId,

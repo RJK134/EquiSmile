@@ -13,23 +13,37 @@ vi.mock('@/lib/env', () => ({
 }));
 
 // Mock prisma
-const mockPrisma = vi.hoisted(() => ({
-  enquiry: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  customer: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  visitRequest: {
-    create: vi.fn(),
-  },
-  enquiryMessage: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-  },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const surface = {
+    enquiry: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    customer: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
+    },
+    yard: {
+      updateMany: vi.fn(),
+    },
+    horse: {
+      updateMany: vi.fn(),
+    },
+    visitRequest: {
+      create: vi.fn(),
+    },
+    enquiryMessage: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+  };
+  return {
+    ...surface,
+    $transaction: vi.fn(async (cb: (tx: typeof surface) => unknown) => cb(surface)),
+  };
+});
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -127,7 +141,10 @@ describe('WhatsApp Webhook', () => {
     it('returns 200 for valid signed payload', async () => {
       mockPrisma.enquiry.findUnique.mockResolvedValue(null);
       mockPrisma.customer.findUnique.mockResolvedValue(null);
-      mockPrisma.customer.create.mockResolvedValue({ id: 'cust-1' });
+      mockPrisma.customer.upsert.mockImplementation(async ({ create }) => ({
+        id: create.id,
+        deletedAt: null,
+      }));
       mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1' });
       mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 

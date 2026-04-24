@@ -1,7 +1,6 @@
 import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { deadLetterService } from '@/lib/services/dead-letter.service';
-import { maskPhone } from '@/lib/utils/logger';
 import {
   withRetry,
   circuitBreakers,
@@ -9,6 +8,7 @@ import {
   hasBeenProcessed,
   markAsProcessed,
 } from '@/lib/utils/retry';
+import { logger } from '@/lib/utils/logger';
 
 const GRAPH_API_VERSION = 'v21.0';
 
@@ -40,14 +40,22 @@ export const whatsappService = {
     const accessToken = env.WHATSAPP_ACCESS_TOKEN || env.WHATSAPP_API_TOKEN;
 
     if (!phoneNumberId || !accessToken) {
-      console.warn('[WhatsApp] Cannot send message: missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN');
+      logger.warn('Cannot send WhatsApp message because credentials are incomplete', {
+        service: 'whatsapp-service',
+        operation: 'send-text',
+      });
       return { messageId: '', success: false };
     }
 
     // Idempotency: prevent duplicate sends on retry
     const idempotencyKey = generateIdempotencyKey('wa-text', `${to}:${enquiryId || 'none'}:${Date.now()}`);
     if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
-      console.warn('[WhatsApp] Duplicate send prevented', { to: maskPhone(to), enquiryId });
+      logger.warn('Duplicate WhatsApp send prevented', {
+        service: 'whatsapp-service',
+        operation: 'send-text',
+        to,
+        enquiryId,
+      });
       return { messageId: '', success: true };
     }
 
@@ -100,10 +108,21 @@ export const whatsappService = {
         });
       }
 
-      console.log('[WhatsApp] Message sent', { to: maskPhone(to), messageId, language });
+      logger.info('WhatsApp message sent', {
+        service: 'whatsapp-service',
+        operation: 'send-text',
+        to,
+        messageId,
+        language,
+      });
       return { messageId, success: true };
     } catch (error) {
-      console.error('[WhatsApp] Send error', error);
+      logger.error('WhatsApp send failed', error, {
+        service: 'whatsapp-service',
+        operation: 'send-text',
+        to,
+        enquiryId,
+      });
       // AMBER-15 — record the permanent failure for operator triage.
       await deadLetterService.enqueue({
         scope: 'whatsapp-send-text',
@@ -130,13 +149,22 @@ export const whatsappService = {
     const accessToken = env.WHATSAPP_ACCESS_TOKEN || env.WHATSAPP_API_TOKEN;
 
     if (!phoneNumberId || !accessToken) {
-      console.warn('[WhatsApp] Cannot send template: missing credentials');
+      logger.warn('Cannot send WhatsApp template because credentials are incomplete', {
+        service: 'whatsapp-service',
+        operation: 'send-template',
+      });
       return { messageId: '', success: false };
     }
 
     const idempotencyKey = generateIdempotencyKey('wa-tpl', `${to}:${templateName}:${enquiryId || 'none'}:${Date.now()}`);
     if (enquiryId && (await hasBeenProcessed(idempotencyKey))) {
-      console.warn('[WhatsApp] Duplicate template send prevented', { to: maskPhone(to), templateName });
+      logger.warn('Duplicate WhatsApp template send prevented', {
+        service: 'whatsapp-service',
+        operation: 'send-template',
+        to,
+        templateName,
+        enquiryId,
+      });
       return { messageId: '', success: true };
     }
 
@@ -201,10 +229,23 @@ export const whatsappService = {
         });
       }
 
-      console.log('[WhatsApp] Template sent', { to: maskPhone(to), templateName, messageId, language: languageCode });
+      logger.info('WhatsApp template sent', {
+        service: 'whatsapp-service',
+        operation: 'send-template',
+        to,
+        templateName,
+        messageId,
+        language: languageCode,
+      });
       return { messageId, success: true };
     } catch (error) {
-      console.error('[WhatsApp] Template send error', error);
+      logger.error('WhatsApp template send failed', error, {
+        service: 'whatsapp-service',
+        operation: 'send-template',
+        to,
+        templateName,
+        enquiryId,
+      });
       await deadLetterService.enqueue({
         scope: 'whatsapp-send-template',
         payload: { to, templateName, language, enquiryId, parameters },
