@@ -8,6 +8,9 @@ vi.mock('@/lib/prisma', () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    confirmationDispatch: {
+      count: vi.fn(),
+    },
   },
 }));
 
@@ -44,6 +47,8 @@ describe('confirmationService', () => {
     // PROPOSED during the send. Individual tests can override to
     // simulate the race.
     (prisma.appointment.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+    // Default: no prior dispatch rows → first attempt, index 0.
+    (prisma.confirmationDispatch.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
   });
 
   describe('buildConfirmationMessage', () => {
@@ -161,7 +166,10 @@ describe('confirmationService', () => {
         expect.stringContaining('Your equine dental appointment has been confirmed'),
         'enq-wa',
         'en',
-        { operationKey: 'wa-confirmation:appt-wa' },
+        // Operation key includes the dispatch-attempt index so a
+        // deliberate resend after the first succeeded gets a fresh
+        // key and actually reaches the customer.
+        { operationKey: 'wa-confirmation:appt-wa:0' },
       );
     });
 
@@ -221,6 +229,31 @@ describe('confirmationService', () => {
 
       expect(logConfirmationDispatchMock).toHaveBeenCalledWith(
         expect.objectContaining({ channel: 'PHONE', success: false }),
+      );
+    });
+
+    it('scopes the WhatsApp operation key per dispatch attempt so deliberate resends go out', async () => {
+      // Regression: a static wa-confirmation:<id> key would silently
+      // dedupe a legitimate operator-triggered resend within the
+      // 30-day TTL window. The service now counts existing
+      // ConfirmationDispatch rows and scopes the key accordingly — a
+      // second deliberate click after the first attempt's row was
+      // written sees count=1 and produces a distinct key, so the
+      // send actually reaches the customer.
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...whatsappAppointment,
+        status: 'CONFIRMED',
+      });
+      (prisma.confirmationDispatch.count as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+
+      await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(whatsappService.sendTextMessage).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        { operationKey: 'wa-confirmation:appt-wa:1' },
       );
     });
 
