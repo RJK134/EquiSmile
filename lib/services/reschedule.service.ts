@@ -7,7 +7,9 @@
 
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
-import { messageLogService } from '@/lib/services/message-log.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
+import { logger } from '@/lib/utils/logger';
+import type { ActorContext } from '@/lib/types/actor';
 
 interface CancelResult {
   appointmentId: string;
@@ -52,12 +54,46 @@ function sendRescheduleAcknowledgement(
   return `Hi ${customerName}, your appointment has been cancelled and will be rescheduled. We will contact you with a new date. Thank you, EquiSmile`;
 }
 
+/**
+ * Optional per-call options for the cancel path.
+ *
+ * `actor` threads through to the AppointmentStatusHistory audit row.
+ * `notifyCustomer` exists so `rescheduleAppointment` can suppress the
+ * cancel-ack — the reschedule path sends its own "has been cancelled
+ * and will be rescheduled" message afterwards, and without this flag
+ * the customer would receive two contradictory WhatsApp texts in
+ * succession.
+ *
+ * The two settings live on the same bag so a caller cannot accidentally
+ * pass `{ notifyCustomer: false }` into the actor slot (or vice versa):
+ * with two adjacent optional-only object parameters they would be
+ * structurally compatible and TypeScript would not catch the mix-up
+ * except on direct object-literal calls.
+ */
+export interface CancelOptions extends ActorContext {
+  notifyCustomer?: boolean;
+}
+
 export const rescheduleService = {
   /**
    * Cancel an appointment, return visit request to planning pool.
    */
-  async cancelAppointment(appointmentId: string, reason?: string): Promise<CancelResult> {
-    return prisma.$transaction(async (tx) => {
+  async cancelAppointment(
+    appointmentId: string,
+    reason?: string,
+    options: CancelOptions = {},
+  ): Promise<CancelResult> {
+    const actor = options.actor?.trim() || 'system';
+    const notifyCustomer = options.notifyCustomer ?? true;
+
+    // 1. Do all DB work inside the transaction. External sends are
+    //    deliberately excluded: whatsappService retries twice with a
+    //    15s per-attempt timeout (~45s worst case) which would blow
+    //    past Prisma's 5s interactive-transaction timeout and roll
+    //    back the cancellation AFTER the customer has already received
+    //    the "your appointment is cancelled" message. Keep the outbound
+    //    dispatch strictly post-commit.
+    const { customer, lang, enquiryId } = await prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
         include: {
@@ -85,7 +121,6 @@ export const rescheduleService = {
         throw new Error(`Cannot cancel appointment with status: ${appointment.status}`);
       }
 
-      // 1. Cancel the appointment
       const priorStatus = appointment.status;
       await tx.appointment.update({
         where: { id: appointmentId },
@@ -94,28 +129,24 @@ export const rescheduleService = {
           cancellationReason: reason ?? null,
         },
       });
-      // AMBER-13 — status history row for the transition.
+      // AMBER-13 — status history row for the transition. Actor threads
+      // down from the route handler so operator-triggered cancellations
+      // record the real user rather than 'system'.
       await tx.appointmentStatusHistory.create({
         data: {
           appointmentId,
           fromStatus: priorStatus,
           toStatus: 'CANCELLED',
-          // Callers don't currently thread an actor through the cancel
-          // path. The domain wrapper (API route handler) should supply
-          // a real actor when it adopts this service; for now fall back
-          // to 'system'.
-          changedBy: 'system',
+          changedBy: actor,
           reason: reason ?? null,
         },
       });
 
-      // 2. Return visit request to planning pool
       await tx.visitRequest.update({
         where: { id: appointment.visitRequestId },
         data: { planningStatus: 'PLANNING_POOL' },
       });
 
-      // 3. Update route run stop to SKIPPED (if linked)
       if (appointment.routeRunId) {
         await tx.routeRunStop.updateMany({
           where: {
@@ -125,7 +156,6 @@ export const rescheduleService = {
           data: { stopStatus: 'SKIPPED' },
         });
 
-        // 4. Recalculate route run totals
         const remainingStops = await tx.routeRunStop.count({
           where: {
             routeRunId: appointment.routeRunId,
@@ -139,45 +169,88 @@ export const rescheduleService = {
         });
       }
 
-      // 5. Send cancellation acknowledgement
-      const customer = appointment.visitRequest.customer;
-      const lang = customer.preferredLanguage || 'en';
-      const message = sendCancellationAcknowledgement(customer.fullName, lang);
-
-      if (customer.preferredChannel === 'EMAIL' && customer.email) {
-        const subject = lang === 'fr'
-          ? 'Annulation de rendez-vous — EquiSmile'
-          : 'Appointment Cancelled — EquiSmile';
-        await emailService.sendBrandedEmail(
-          customer.email,
-          subject,
-          message,
-          lang,
-          appointment.visitRequest.enquiryId ?? undefined,
-        );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone && appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
-        });
-      }
-
       return {
-        appointmentId,
-        cancelled: true,
-        returnedToPool: true,
+        customer: appointment.visitRequest.customer,
+        lang: appointment.visitRequest.customer.preferredLanguage || 'en',
+        enquiryId: appointment.visitRequest.enquiryId ?? undefined,
       };
     });
+
+    // 2. Post-commit: send the customer acknowledgement, unless the
+    //    caller (e.g. the reschedule path) explicitly told us not to.
+    //    The send is idempotent (`wa-cancel:<appointmentId>` operation
+    //    key), so a retry after a transient failure here will not
+    //    double-message the customer.
+    //
+    //    The whole block is try-wrapped: the cancellation has already
+    //    been committed by this point, so any send-side failure must
+    //    NOT propagate and turn into a 500 — that would mask the
+    //    successful state change and trick the caller into retrying,
+    //    which would hit "Cannot cancel appointment with status:
+    //    CANCELLED" on the second attempt. Failed sends are already
+    //    captured by the underlying services (dead-letter queue +
+    //    ConfirmationDispatch); we just need to keep them out of the
+    //    success path.
+    if (notifyCustomer) {
+      try {
+        const message = sendCancellationAcknowledgement(customer.fullName, lang);
+        if (customer.preferredChannel === 'EMAIL' && customer.email) {
+          const subject = lang === 'fr'
+            ? 'Annulation de rendez-vous — EquiSmile'
+            : 'Appointment Cancelled — EquiSmile';
+          await emailService.sendBrandedEmail(
+            customer.email,
+            subject,
+            message,
+            lang,
+            enquiryId,
+          );
+        } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+          await whatsappService.sendTextMessage(
+            customer.mobilePhone,
+            message,
+            enquiryId,
+            lang,
+            { operationKey: `wa-cancel:${appointmentId}` },
+          );
+        }
+      } catch (notifyError) {
+        logger.error(
+          'Cancellation acknowledgement failed AFTER cancel was committed; returning success',
+          notifyError,
+          {
+            service: 'reschedule-service',
+            operation: 'cancel-notify',
+            appointmentId,
+          },
+        );
+      }
+    }
+
+    return {
+      appointmentId,
+      cancelled: true,
+      returnedToPool: true,
+    };
   },
 
   /**
    * Reschedule an appointment: cancel and return to pool with note.
    */
-  async rescheduleAppointment(appointmentId: string, notes?: string): Promise<RescheduleResult> {
-    const cancelResult = await this.cancelAppointment(appointmentId, 'Rescheduled');
+  async rescheduleAppointment(
+    appointmentId: string,
+    notes?: string,
+    context: ActorContext = {},
+  ): Promise<RescheduleResult> {
+    // Suppress the cancellation ack inside cancelAppointment — we send
+    // our own "cancelled and will be rescheduled" message below.
+    // Without this the customer receives two contradictory WhatsApp
+    // messages back-to-back (cancelled, then cancelled-and-rescheduled).
+    const cancelResult = await this.cancelAppointment(
+      appointmentId,
+      'Rescheduled',
+      { actor: context.actor, notifyCustomer: false },
+    );
 
     // Update the visit request with rescheduling note
     const appointment = await prisma.appointment.findUnique({
@@ -201,29 +274,46 @@ export const rescheduleService = {
     });
 
     if (appointment) {
-      const customer = appointment.visitRequest.customer;
-      const lang = customer.preferredLanguage || 'en';
-      const message = sendRescheduleAcknowledgement(customer.fullName, lang);
+      // Same try-wrap rationale as cancelAppointment: the underlying
+      // cancel transaction has already committed, so a send-side
+      // exception here must not be re-thrown — that would 500 the
+      // operator and trick a retry into hitting "Cannot cancel
+      // appointment with status: CANCELLED" on the second try.
+      try {
+        const customer = appointment.visitRequest.customer;
+        const lang = customer.preferredLanguage || 'en';
+        const message = sendRescheduleAcknowledgement(customer.fullName, lang);
 
-      if (customer.preferredChannel === 'EMAIL' && customer.email) {
-        const subject = lang === 'fr'
-          ? 'Report de rendez-vous — EquiSmile'
-          : 'Appointment Rescheduled — EquiSmile';
-        await emailService.sendBrandedEmail(
-          customer.email,
-          subject,
-          message,
-          lang,
-          appointment.visitRequest.enquiryId ?? undefined,
+        if (customer.preferredChannel === 'EMAIL' && customer.email) {
+          const subject = lang === 'fr'
+            ? 'Report de rendez-vous — EquiSmile'
+            : 'Appointment Rescheduled — EquiSmile';
+          await emailService.sendBrandedEmail(
+            customer.email,
+            subject,
+            message,
+            lang,
+            appointment.visitRequest.enquiryId ?? undefined,
+          );
+        } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+          await whatsappService.sendTextMessage(
+            customer.mobilePhone,
+            message,
+            appointment.visitRequest.enquiryId ?? undefined,
+            lang,
+            { operationKey: `wa-reschedule:${appointmentId}` },
+          );
+        }
+      } catch (notifyError) {
+        logger.error(
+          'Reschedule acknowledgement failed AFTER reschedule was committed; returning success',
+          notifyError,
+          {
+            service: 'reschedule-service',
+            operation: 'reschedule-notify',
+            appointmentId,
+          },
         );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone && appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
-        });
       }
     }
 
@@ -258,7 +348,8 @@ export const rescheduleService = {
   /**
    * Mark an appointment as no-show (admin action).
    */
-  async markNoShow(appointmentId: string): Promise<void> {
+  async markNoShow(appointmentId: string, context: ActorContext = {}): Promise<void> {
+    const actor = context.actor?.trim() || 'system';
     const appointment = await prisma.appointment.findUnique({
       where: { id: appointmentId },
     });
@@ -281,7 +372,7 @@ export const rescheduleService = {
         appointmentId,
         fromStatus: priorStatus,
         toStatus: 'NO_SHOW',
-        changedBy: 'system',
+        changedBy: actor,
       },
     });
   },

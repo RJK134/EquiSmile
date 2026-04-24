@@ -74,7 +74,7 @@ docker compose ps  # verify healthy
 
 This starts:
 - **PostgreSQL 16** on port 5432 (health-checked with `pg_isready`)
-- **n8n** on port 5678 (waits for PostgreSQL to be healthy)
+- **n8n** on port 5678 bound to `127.0.0.1` (loopback-only by default — waits for PostgreSQL to be healthy). For public access use the `n8n.<your-domain>` subdomain served by Caddy, or set `N8N_BIND_ADDR=0.0.0.0` in `.env` if you really need direct exposure.
 
 To stop all services:
 
@@ -159,10 +159,10 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 
 After starting services, import the workflow templates from the `n8n/` directory:
 
-1. Open n8n at [http://localhost:5678](http://localhost:5678)
-2. Log in (default: admin / changeme)
-3. Import each workflow JSON file
-4. Configure credentials for WhatsApp, SMTP, Google Maps, and the EquiSmile API
+1. Open n8n at [http://localhost:5678](http://localhost:5678). The port binds to `127.0.0.1` by default, so only the host (or an SSH tunnel into it) can reach the admin UI.
+2. Log in. Rotate `N8N_BASIC_AUTH_PASSWORD` from the default `changeme` before going public.
+3. Import each workflow JSON file.
+4. Configure credentials for WhatsApp, SMTP, Google Maps, and the EquiSmile API. The "EquiSmile API" credential should set `Authorization: Bearer ${N8N_API_KEY}` on every request — every `/api/n8n/*` and `/api/reminders/check` route checks for it and fails closed (HTTP 500) if `N8N_API_KEY` is unset in production.
 
 ## Project Structure
 

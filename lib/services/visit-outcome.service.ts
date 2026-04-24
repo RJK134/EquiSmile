@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import type { ActorContext } from '@/lib/types/actor';
 
 export interface CompleteAppointmentInput {
   notes?: string;
@@ -27,7 +28,9 @@ export const visitOutcomeService = {
   async completeAppointment(
     appointmentId: string,
     input: CompleteAppointmentInput,
+    context: ActorContext = {},
   ): Promise<CompleteResult> {
+    const actor = context.actor?.trim() || 'system';
     return prisma.$transaction(async (tx) => {
       // 1. Load appointment
       const appointment = await tx.appointment.findUnique({
@@ -79,7 +82,7 @@ export const visitOutcomeService = {
           appointmentId,
           fromStatus: priorStatus,
           toStatus: 'COMPLETED',
-          changedBy: 'system',
+          changedBy: actor,
         },
       });
 

@@ -9,6 +9,9 @@ import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
 import { logger } from '@/lib/utils/logger';
 import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
+import { rescheduleService } from '@/lib/services/reschedule.service';
+import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
+import type { AppointmentResponseKind } from '@prisma/client';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -259,7 +262,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         }
 
         // Create inbound message log
-        await messageLogService.logMessage({
+        const loggedMessage = await messageLogService.logMessage({
           enquiryId: enquiry.id,
           direction: 'INBOUND',
           channel: 'WHATSAPP',
@@ -267,6 +270,93 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           sentOrReceivedAt: timestamp,
           externalMessageId: message.id,
         });
+
+        // If this customer already has an open appointment, record the
+        // reply as an AppointmentResponse (AMBER-11) so the audit trail
+        // links the inbound message to the booking.
+        //
+        // We ONLY short-circuit for clearly-identified cancel /
+        // reschedule intent AND only when the message does NOT also
+        // contain urgent-care keywords. The intent parser is a simple
+        // keyword matcher — a message like "I can't make it Tuesday
+        // but my horse has colic, please come today" will match both
+        // the cancel keyword and an urgent-care keyword. In that case
+        // the safe default is to let the message fall through to the
+        // normal new-enquiry + auto-triage path so the urgent need is
+        // visible in the planning pool. The AppointmentResponse row is
+        // still recorded for the original booking.
+        //
+        // An "OTHER"-kind match (parser couldn't classify) always runs
+        // the normal new-enquiry path for the same reason.
+        const matchedAppointment = await recordAppointmentResponseIfAny({
+          customerId: customer.id,
+          messageText,
+          enquiryMessageId: loggedMessage.id,
+        });
+        if (
+          matchedAppointment &&
+          !parsed.isUrgent &&
+          (matchedAppointment.kind === 'CANCELLED' ||
+            matchedAppointment.kind === 'RESCHEDULE_REQUESTED')
+        ) {
+          // The reply has been routed (AppointmentResponse written);
+          // mark the Enquiry as TRIAGED so it doesn't sit in the
+          // operator triage queue as an unprocessed NEW item. The
+          // inbound message is still visible on the enquiry thread.
+          await prisma.enquiry
+            .update({
+              where: { id: enquiry.id },
+              data: { triageStatus: 'TRIAGED' },
+            })
+            .catch((err) => {
+              // Best-effort: a triage-status update failure must not
+              // cascade into the webhook failing the whole batch. Log
+              // and continue.
+              logger.warn('Failed to mark short-circuited enquiry as TRIAGED', {
+                service: 'whatsapp-webhook',
+                operation: 'mark-enquiry-triaged',
+                enquiryId: enquiry.id,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
+
+          logger.info(
+            'WhatsApp reply matched to open appointment with clear cancel/reschedule intent; skipping new visit-request creation',
+            {
+              service: 'whatsapp-webhook',
+              operation: 'match-appointment-response',
+              enquiryId: enquiry.id,
+              customerId: customer.id,
+              appointmentId: matchedAppointment.appointmentId,
+              intent: matchedAppointment.kind,
+            },
+          );
+          continue;
+        }
+        if (
+          matchedAppointment &&
+          parsed.isUrgent &&
+          (matchedAppointment.kind === 'CANCELLED' ||
+            matchedAppointment.kind === 'RESCHEDULE_REQUESTED')
+        ) {
+          // Log the override so operators reviewing the audit trail can
+          // see why a message that looks like a cancel/reschedule
+          // still produced a planning-pool entry. Only emitted when the
+          // override actually prevented a short-circuit — for OTHER
+          // intent the fall-through is the normal path and the log
+          // would be misleading.
+          logger.warn(
+            'WhatsApp reply matched cancel/reschedule intent but contains urgent-care keywords; falling through to new visit-request',
+            {
+              service: 'whatsapp-webhook',
+              operation: 'urgent-override-of-short-circuit',
+              enquiryId: enquiry.id,
+              customerId: customer.id,
+              appointmentId: matchedAppointment.appointmentId,
+              intent: matchedAppointment.kind,
+            },
+          );
+        }
 
         // Create visit request
         const visitRequest = await prisma.visitRequest.create({
@@ -316,5 +406,87 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         });
       }
     }
+  }
+}
+
+/**
+ * Map the parsed customer intent into one of the four
+ * AppointmentResponseKind values.
+ *
+ * Most replies will say "thanks!" or similar; we still record those as
+ * OTHER so operators can see the conversation thread against the
+ * appointment. CONFIRMED is reserved for explicit "yes / confirm / ok"
+ * style replies — we don't have a parser for that yet, so for now we
+ * only split cancel / reschedule / other.
+ */
+function mapIntentToResponseKind(
+  intent: 'cancel' | 'reschedule' | 'none',
+): AppointmentResponseKind {
+  if (intent === 'cancel') return 'CANCELLED';
+  if (intent === 'reschedule') return 'RESCHEDULE_REQUESTED';
+  return 'OTHER';
+}
+
+interface AppointmentMatch {
+  appointmentId: string;
+  kind: AppointmentResponseKind;
+}
+
+/**
+ * If the inbound message is a reply to an existing open appointment,
+ * record the AppointmentResponse row and return the match so the
+ * caller can skip the new-enquiry VisitRequest creation.
+ *
+ * Returns `null` when there is no open appointment for this customer
+ * — the webhook treats the message as a fresh enquiry in that case.
+ *
+ * Failures are swallowed so that a bad audit write never blocks
+ * intake; they return `null` too, which falls back to the original
+ * new-enquiry code path.
+ */
+async function recordAppointmentResponseIfAny(input: {
+  customerId: string;
+  messageText: string;
+  enquiryMessageId: string;
+}): Promise<AppointmentMatch | null> {
+  try {
+    // Pick the most recently created PROPOSED/CONFIRMED booking for
+    // this customer — i.e. the one whose confirmation message is most
+    // likely the one the customer is replying to. Only one outbound
+    // confirmation is live at a time in this operating model, so the
+    // newest open appointment is overwhelmingly the right match. If
+    // there isn't one, the reply is a fresh enquiry and no
+    // AppointmentResponse is created.
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        visitRequest: { customerId: input.customerId },
+        status: { in: ['PROPOSED', 'CONFIRMED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (!appointment) return null;
+
+    const { intent } = rescheduleService.parseCustomerIntent(input.messageText);
+    const kind = mapIntentToResponseKind(intent);
+    await appointmentAuditService.logResponse({
+      appointmentId: appointment.id,
+      kind,
+      channel: 'WHATSAPP',
+      rawText: input.messageText,
+      enquiryMessageId: input.enquiryMessageId,
+    });
+    return { appointmentId: appointment.id, kind };
+  } catch (error) {
+    // Best-effort: a failure here must not break enquiry intake. Fall
+    // back to `null` so the caller continues with the normal
+    // new-enquiry path.
+    logger.warn('AppointmentResponse logging failed for WhatsApp inbound', {
+      service: 'whatsapp-webhook',
+      operation: 'log-appointment-response',
+      customerId: input.customerId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
 }

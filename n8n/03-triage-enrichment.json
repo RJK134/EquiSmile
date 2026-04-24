@@ -16,7 +16,16 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.APP_URL}}/api/triage-ops/classify",
+        "url": "={{$env.APP_URL}}/api/n8n/triage/classify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_API_KEY}}"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -56,7 +65,16 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.APP_URL}}/api/triage-ops/follow-up",
+        "url": "={{$env.APP_URL}}/api/n8n/missing-info/follow-up",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_API_KEY}}"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [

@@ -16,7 +16,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.APP_URL }}/api/appointments/from-route/{{ $json.routeRunId }}",
+        "url": "={{ $env.APP_URL }}/api/n8n/appointments/from-route/{{ $json.routeRunId }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -131,7 +131,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.APP_URL }}/api/appointments/{{ $json.appointmentId }}/cancel",
+        "url": "={{ $env.APP_URL }}/api/n8n/appointments/{{ $json.appointmentId }}/cancel",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,

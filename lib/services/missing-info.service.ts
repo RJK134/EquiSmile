@@ -144,11 +144,15 @@ export const missingInfoService = {
 
     // Send via preferred channel
     if (vr.customer.preferredChannel === 'WHATSAPP' && vr.customer.mobilePhone) {
+      // One follow-up per (visitRequest × attempt counter) — so two cron
+      // triggers on the same attempt collapse, but genuinely-new follow
+      // ups on later attempts still go out.
       const result = await whatsappService.sendTextMessage(
         vr.customer.mobilePhone,
         message,
         enquiryId,
         language,
+        { operationKey: `wa-missing-info:${visitRequestId}:${vr.followUpAttempts}` },
       );
       sent = result.success;
     } else if (vr.customer.email) {

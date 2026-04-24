@@ -6,9 +6,11 @@
 
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
-import { messageLogService } from '@/lib/services/message-log.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
 import { logger } from '@/lib/utils/logger';
+import type { ActorContext } from '@/lib/types/actor';
+import type { ConfirmationChannel, PreferredChannel } from '@prisma/client';
 
 interface AppointmentWithDetails {
   id: string;
@@ -23,7 +25,7 @@ interface AppointmentWithDetails {
       fullName: string;
       mobilePhone: string | null;
       email: string | null;
-      preferredChannel: string;
+      preferredChannel: PreferredChannel;
       preferredLanguage: string;
     };
     yard: {
@@ -34,6 +36,31 @@ interface AppointmentWithDetails {
       postcode: string;
     } | null;
   };
+}
+
+/**
+ * Map Customer.preferredChannel (`PreferredChannel` enum) to the
+ * dispatch-log `ConfirmationChannel` enum. Today the two enums share
+ * the same values (WHATSAPP | EMAIL | PHONE) but they are independent
+ * types in the schema, so an explicit map both keeps TypeScript honest
+ * and insulates the audit write from a future divergence between the
+ * two vocabularies.
+ */
+function toConfirmationChannel(preferred: PreferredChannel): ConfirmationChannel {
+  switch (preferred) {
+    case 'WHATSAPP':
+      return 'WHATSAPP';
+    case 'EMAIL':
+      return 'EMAIL';
+    case 'PHONE':
+      return 'PHONE';
+    default: {
+      // Exhaustiveness guard: if a new PreferredChannel value is added,
+      // TypeScript will flag this branch until the switch is updated.
+      const _exhaustive: never = preferred;
+      throw new Error(`Unsupported PreferredChannel: ${String(_exhaustive)}`);
+    }
+  }
 }
 
 function formatDate(date: Date, lang: string): string {
@@ -101,7 +128,7 @@ EquiSmile`;
 interface ConfirmationResult {
   appointmentId: string;
   sent: boolean;
-  channel: string;
+  channel: ConfirmationChannel;
   error?: string;
 }
 
@@ -114,7 +141,11 @@ export const confirmationService = {
   /**
    * Send confirmation for a single appointment.
    */
-  async sendConfirmation(appointmentId: string): Promise<ConfirmationResult> {
+  async sendConfirmation(
+    appointmentId: string,
+    context: ActorContext = {},
+  ): Promise<ConfirmationResult> {
+    const actor = context.actor?.trim() || 'system';
     const appointment = await prisma.appointment.findUnique({
       where: { id: appointmentId },
       include: {
@@ -151,52 +182,156 @@ export const confirmationService = {
     const customer = appointment.visitRequest.customer;
     const lang = customer.preferredLanguage || 'en';
     const message = buildConfirmationMessage(appointment as unknown as AppointmentWithDetails);
-    const channel = customer.preferredChannel;
+    // Explicit `PreferredChannel → ConfirmationChannel` mapping. At
+    // runtime today the two enums share values (WHATSAPP | EMAIL |
+    // PHONE), but they are distinct Prisma types — piping the raw
+    // `preferredChannel` straight into the audit log relied on that
+    // coincidence. The exhaustiveness guard in `toConfirmationChannel`
+    // will trip at compile time if either enum gains a new member.
+    const channel: ConfirmationChannel = toConfirmationChannel(customer.preferredChannel);
 
     let sent = false;
     let error: string | undefined;
+    let externalMessageId: string | null = null;
 
-    if (channel === 'EMAIL' && customer.email) {
-      const subject = lang === 'fr'
-        ? 'Confirmation de rendez-vous — EquiSmile'
-        : 'Appointment Confirmation — EquiSmile';
+    // The outbound send is wrapped so that ANY exception still reaches
+    // the ConfirmationDispatch audit write below. Without this, an
+    // unexpected throw from the underlying Email/WhatsApp service would
+    // skip the status-transition AND the dispatch-failure audit row,
+    // defeating the AMBER-10 "every dispatch attempt is logged"
+    // guarantee. The underlying services already catch most failures
+    // internally and return success: false, but defence-in-depth here
+    // is cheap.
+    try {
+      if (channel === 'EMAIL' && customer.email) {
+        const subject = lang === 'fr'
+          ? 'Confirmation de rendez-vous — EquiSmile'
+          : 'Appointment Confirmation — EquiSmile';
 
-      const result = await emailService.sendBrandedEmail(
-        customer.email,
-        subject,
-        message,
-        lang,
-        appointment.visitRequest.enquiryId ?? undefined,
-      );
-      sent = result.success;
-      if (!sent) error = 'Email send failed';
-    } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
-      // WhatsApp sending is handled via n8n webhook — log the message for pickup
-      if (appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
+        const result = await emailService.sendBrandedEmail(
+          customer.email,
+          subject,
+          message,
+          lang,
+          appointment.visitRequest.enquiryId ?? undefined,
+        );
+        sent = result.success;
+        externalMessageId = result.messageId || null;
+        if (!sent) error = 'Email send failed';
+      } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
+        // Scope the WhatsApp idempotency key to the CURRENT dispatch
+        // attempt rather than the appointment lifetime. A static
+        // `wa-confirmation:<id>` key would silently deduplicate a
+        // legitimate operator-triggered resend (after the first send
+        // stamped the key in the 30-day TTL window). Counting existing
+        // ConfirmationDispatch rows gives us a monotonically-advancing
+        // component: a double-click inside a single attempt reads the
+        // same count and dedupes, while a second deliberate click
+        // after the first row has been written sees count+1 and goes
+        // out. Scoped to the WhatsApp branch so the email path does
+        // not pay the count round-trip.
+        const priorDispatches = await prisma.confirmationDispatch.count({
+          where: { appointmentId },
         });
+        const confirmationOperationKey = `wa-confirmation:${appointmentId}:${priorDispatches}`;
+
+        const result = await whatsappService.sendTextMessage(
+          customer.mobilePhone,
+          message,
+          appointment.visitRequest.enquiryId ?? undefined,
+          lang,
+          { operationKey: confirmationOperationKey },
+        );
+        sent = result.success;
+        externalMessageId = result.messageId || null;
+        if (!sent) error = 'WhatsApp send failed';
+        logger.info('WhatsApp confirmation dispatched', {
+          service: 'confirmation-service',
+          operation: 'send-whatsapp-confirmation',
+          appointmentId,
+          messageId: externalMessageId,
+          success: sent,
+        });
+      } else {
+        error = `No valid contact for channel ${channel}`;
       }
-      sent = true;
-      logger.info('WhatsApp confirmation message logged for dispatch', {
+    } catch (sendError) {
+      // Preserve sent=false and record the exception message so the
+      // ConfirmationDispatch row reflects the real failure rather than
+      // dropping the audit trail entirely.
+      sent = false;
+      error = sendError instanceof Error ? sendError.message : String(sendError);
+      logger.error('Confirmation send threw unexpectedly', sendError, {
         service: 'confirmation-service',
-        operation: 'log-whatsapp-dispatch',
+        operation: 'send-confirmation',
         appointmentId,
-        to: customer.mobilePhone,
+        channel,
       });
-    } else {
-      error = `No valid contact for channel ${channel}`;
     }
 
     if (sent) {
-      await prisma.appointment.update({
-        where: { id: appointmentId },
-        data: { confirmationSentAt: new Date() },
-      });
+      // The post-send status update uses an atomic compare-and-swap so
+      // it cannot overwrite a concurrent CANCELLED (or COMPLETED)
+      // transition that happened during the several-second HTTP send
+      // window. The read at the top of the function produced
+      // `priorStatus`, but by the time we get here the row may have
+      // moved — `cancelAppointment` running in a sibling request would
+      // otherwise be silently un-cancelled by a naive
+      // `update({ where: { id } })`.
+      const priorStatus = appointment.status;
+      if (priorStatus === 'PROPOSED') {
+        const { count } = await prisma.appointment.updateMany({
+          where: { id: appointmentId, status: 'PROPOSED' },
+          data: { status: 'CONFIRMED', confirmationSentAt: new Date() },
+        });
+        if (count === 1) {
+          await appointmentAuditService.logStatusChange({
+            appointmentId,
+            fromStatus: 'PROPOSED',
+            toStatus: 'CONFIRMED',
+            changedBy: actor,
+            reason: 'confirmation dispatched',
+          });
+        } else {
+          // Row moved to a terminal/non-PROPOSED state during the send.
+          // Do NOT stamp confirmationSentAt either — leaving the row as
+          // the other writer set it is the safe default.
+          logger.warn(
+            'Appointment status changed during confirmation send; skipping CONFIRMED transition',
+            {
+              service: 'confirmation-service',
+              operation: 'send-confirmation-race',
+              appointmentId,
+            },
+          );
+        }
+      } else {
+        // Already CONFIRMED (resend) or a later status — just stamp
+        // the send timestamp; no status-history row (resends should
+        // not churn the audit trail).
+        //
+        // Guard the timestamp write the same way as the PROPOSED →
+        // CONFIRMED transition above: if a concurrent writer flipped
+        // the row to CANCELLED / COMPLETED / NO_SHOW during the send
+        // window, we don't want to stamp `confirmationSentAt` onto a
+        // terminal-state appointment — it would be misleading in the
+        // dispatch-history view.
+        const { count } = await prisma.appointment.updateMany({
+          where: { id: appointmentId, status: priorStatus },
+          data: { confirmationSentAt: new Date() },
+        });
+        if (count === 0) {
+          logger.warn(
+            'Appointment status changed during confirmation resend; skipping confirmationSentAt stamp',
+            {
+              service: 'confirmation-service',
+              operation: 'send-confirmation-resend-race',
+              appointmentId,
+              priorStatus,
+            },
+          );
+        }
+      }
     }
 
     // AMBER-10: every dispatch attempt (success or failure) lands in the
@@ -205,6 +340,7 @@ export const confirmationService = {
       appointmentId,
       channel,
       success: sent,
+      externalMessageId,
       errorMessage: error ?? null,
     });
 
@@ -214,7 +350,10 @@ export const confirmationService = {
   /**
    * Send confirmations for all appointments from a route run.
    */
-  async sendConfirmationsForRouteRun(routeRunId: string): Promise<ConfirmationResult[]> {
+  async sendConfirmationsForRouteRun(
+    routeRunId: string,
+    context: ActorContext = {},
+  ): Promise<ConfirmationResult[]> {
     const appointments = await prisma.appointment.findMany({
       where: { routeRunId },
       select: { id: true },
@@ -222,7 +361,7 @@ export const confirmationService = {
 
     const results: ConfirmationResult[] = [];
     for (const appt of appointments) {
-      const result = await this.sendConfirmation(appt.id);
+      const result = await this.sendConfirmation(appt.id, context);
       results.push(result);
     }
     return results;
