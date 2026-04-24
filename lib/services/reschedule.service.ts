@@ -59,6 +59,17 @@ function sendRescheduleAcknowledgement(
   return `Hi ${customerName}, your appointment has been cancelled and will be rescheduled. We will contact you with a new date. Thank you, EquiSmile`;
 }
 
+/**
+ * Optional per-call controls for the cancel path. `notifyCustomer`
+ * exists so `rescheduleAppointment` can suppress the cancel-ack — the
+ * reschedule path sends its own "has been cancelled and will be
+ * rescheduled" message afterwards, and without this flag the customer
+ * would receive two contradictory WhatsApp texts in succession.
+ */
+export interface CancelOptions {
+  notifyCustomer?: boolean;
+}
+
 export const rescheduleService = {
   /**
    * Cancel an appointment, return visit request to planning pool.
@@ -67,8 +78,10 @@ export const rescheduleService = {
     appointmentId: string,
     reason?: string,
     context: ActorContext = {},
+    options: CancelOptions = {},
   ): Promise<CancelResult> {
     const actor = context.actor?.trim() || 'system';
+    const notifyCustomer = options.notifyCustomer ?? true;
 
     // 1. Do all DB work inside the transaction. External sends are
     //    deliberately excluded: whatsappService retries twice with a
@@ -160,30 +173,33 @@ export const rescheduleService = {
       };
     });
 
-    // 2. Post-commit: send the customer acknowledgement. The send is
-    //    idempotent (`wa-cancel:<appointmentId>` operation key), so if
-    //    the caller retries after a failure here we will not double-
-    //    message the customer.
-    const message = sendCancellationAcknowledgement(customer.fullName, lang);
-    if (customer.preferredChannel === 'EMAIL' && customer.email) {
-      const subject = lang === 'fr'
-        ? 'Annulation de rendez-vous — EquiSmile'
-        : 'Appointment Cancelled — EquiSmile';
-      await emailService.sendBrandedEmail(
-        customer.email,
-        subject,
-        message,
-        lang,
-        enquiryId,
-      );
-    } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
-      await whatsappService.sendTextMessage(
-        customer.mobilePhone,
-        message,
-        enquiryId,
-        lang,
-        { operationKey: `wa-cancel:${appointmentId}` },
-      );
+    // 2. Post-commit: send the customer acknowledgement, unless the
+    //    caller (e.g. the reschedule path) explicitly told us not to.
+    //    The send is idempotent (`wa-cancel:<appointmentId>` operation
+    //    key), so a retry after a transient failure here will not
+    //    double-message the customer.
+    if (notifyCustomer) {
+      const message = sendCancellationAcknowledgement(customer.fullName, lang);
+      if (customer.preferredChannel === 'EMAIL' && customer.email) {
+        const subject = lang === 'fr'
+          ? 'Annulation de rendez-vous — EquiSmile'
+          : 'Appointment Cancelled — EquiSmile';
+        await emailService.sendBrandedEmail(
+          customer.email,
+          subject,
+          message,
+          lang,
+          enquiryId,
+        );
+      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+        await whatsappService.sendTextMessage(
+          customer.mobilePhone,
+          message,
+          enquiryId,
+          lang,
+          { operationKey: `wa-cancel:${appointmentId}` },
+        );
+      }
     }
 
     return {
@@ -201,7 +217,16 @@ export const rescheduleService = {
     notes?: string,
     context: ActorContext = {},
   ): Promise<RescheduleResult> {
-    const cancelResult = await this.cancelAppointment(appointmentId, 'Rescheduled', context);
+    // Suppress the cancellation ack inside cancelAppointment — we send
+    // our own "cancelled and will be rescheduled" message below.
+    // Without this the customer receives two contradictory WhatsApp
+    // messages back-to-back (cancelled, then cancelled-and-rescheduled).
+    const cancelResult = await this.cancelAppointment(
+      appointmentId,
+      'Rescheduled',
+      context,
+      { notifyCustomer: false },
+    );
 
     // Update the visit request with rescheduling note
     const appointment = await prisma.appointment.findUnique({

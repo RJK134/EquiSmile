@@ -253,6 +253,73 @@ describe('rescheduleService', () => {
     });
   });
 
+  describe('rescheduleAppointment — does not double-message the customer', () => {
+    it('suppresses the cancellation ack and only sends the reschedule ack', async () => {
+      // Regression: rescheduleAppointment delegates to cancelAppointment
+      // for the DB work. When cancelAppointment was log-only, having it
+      // also "send" a cancellation ack was harmless — nothing went out.
+      // With real WhatsApp sending, the customer would receive BOTH a
+      // "your appointment is cancelled" message AND the intended
+      // "cancelled and will be rescheduled" follow-up. The reschedule
+      // path now passes { notifyCustomer: false } to collapse that to
+      // a single outbound.
+      const { whatsappService } = await import('@/lib/services/whatsapp.service');
+      const sendTextSpy = vi.mocked(whatsappService.sendTextMessage);
+      sendTextSpy.mockClear();
+
+      mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+        const tx = {
+          appointment: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: 'appt-r',
+              status: 'CONFIRMED',
+              visitRequestId: 'vr1',
+              routeRunId: null,
+              visitRequest: {
+                enquiryId: 'e1',
+                customer: {
+                  fullName: 'Jane',
+                  email: null,
+                  mobilePhone: '+44700',
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
+              },
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          visitRequest: { update: vi.fn().mockResolvedValue({}) },
+          routeRunStop: { updateMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+          routeRun: { update: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
+        };
+        return fn(tx);
+      });
+
+      mockAppointmentFindUnique.mockResolvedValue({
+        visitRequestId: 'vr1',
+        visitRequest: {
+          enquiryId: 'e1',
+          customer: {
+            fullName: 'Jane',
+            email: null,
+            mobilePhone: '+44700',
+            preferredChannel: 'WHATSAPP',
+            preferredLanguage: 'en',
+          },
+        },
+      });
+
+      await rescheduleService.rescheduleAppointment('appt-r', 'customer asked');
+
+      // Exactly one WhatsApp send, and it's the reschedule ack —
+      // identifiable by the operation key.
+      expect(sendTextSpy).toHaveBeenCalledTimes(1);
+      const [, , , , options] = sendTextSpy.mock.calls[0];
+      expect(options).toEqual({ operationKey: 'wa-reschedule:appt-r' });
+    });
+  });
+
   describe('cancelAppointment actor attribution', () => {
     it('threads the supplied actor into the status-history row', async () => {
       const statusHistoryCreateSpy = vi.fn();
