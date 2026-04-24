@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import type { Customer } from '@prisma/client';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
@@ -197,27 +198,23 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         // normalised number so simultaneous webhooks cannot race.
         let customer: Customer;
         let isNewCustomer = false;
+        const customerData = {
+          id: randomUUID(),
+          fullName: senderName,
+          mobilePhone: senderPhone,
+          preferredChannel: 'WHATSAPP' as const,
+          preferredLanguage: 'en',
+        };
         if (senderPhone) {
-          const preUpsertAt = new Date();
           customer = await prisma.customer.upsert({
             where: { mobilePhone: senderPhone },
             update: {},
-            create: {
-              fullName: senderName,
-              mobilePhone: senderPhone,
-              preferredChannel: 'WHATSAPP',
-              preferredLanguage: 'en',
-            },
+            create: customerData,
           });
-          isNewCustomer = customer.createdAt >= preUpsertAt;
+          isNewCustomer = customer.id === customerData.id;
         } else {
           customer = await prisma.customer.create({
-            data: {
-              fullName: senderName,
-              mobilePhone: senderPhone,
-              preferredChannel: 'WHATSAPP',
-              preferredLanguage: 'en',
-            },
+            data: customerData,
           });
           isNewCustomer = true;
         }

@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHmac } from 'crypto';
 
+const mockRandomUUID = vi.hoisted(() => vi.fn());
+
+vi.mock('crypto', async () => {
+  const actual = await vi.importActual<typeof import('crypto')>('crypto');
+  return {
+    ...actual,
+    randomUUID: mockRandomUUID,
+  };
+});
+
 // Mock env
 vi.mock('@/lib/env', () => ({
   env: {
@@ -51,6 +61,7 @@ function createRequest(url: string): NextRequest {
 describe('WhatsApp Webhook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRandomUUID.mockReturnValue('new-customer-id');
   });
 
   describe('GET - Webhook Verification', () => {
@@ -126,7 +137,7 @@ describe('WhatsApp Webhook', () => {
 
     it('returns 200 for valid signed payload', async () => {
       mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-      mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-1', createdAt: new Date() });
+      mockPrisma.customer.upsert.mockResolvedValue({ id: 'new-customer-id' });
       mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1' });
       mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 

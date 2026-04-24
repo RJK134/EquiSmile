@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
@@ -83,18 +84,19 @@ export async function POST(request: NextRequest) {
 
   // Match or create customer by email. Use upsert so concurrent inbound
   // emails for the same sender do not race into a unique-constraint error.
-  const preUpsertAt = new Date();
+  const createdCustomerId = randomUUID();
   const customer = await prisma.customer.upsert({
     where: { email },
     update: {},
     create: {
+      id: createdCustomerId,
       fullName: payload.fromName || email,
       email,
       preferredChannel: 'EMAIL',
       preferredLanguage: 'en',
     },
   });
-  const isNewCustomer = customer.createdAt >= preUpsertAt;
+  const isNewCustomer = customer.id === createdCustomerId;
 
   if (isNewCustomer) {
     logger.info('Email intake created new customer', {

@@ -78,6 +78,18 @@ describe('logger', () => {
     expect(output).toContain('"authorization":"***"');
   });
 
+  it('should mask non-contact identifiers in to/from fields', () => {
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    logger.info('Dispatch queued', {
+      to: 'wamid.abc123456789',
+      from: 'acct_internal_channel',
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const output = spy.mock.calls[0][0];
+    expect(output).toContain('"to":"wa***89"');
+    expect(output).toContain('"from":"ac***el"');
+  });
+
   it('should log warn messages', () => {
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     logger.warn('Warning message');

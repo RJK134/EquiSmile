@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const mockRandomUUID = vi.hoisted(() => vi.fn());
+
+vi.mock('crypto', async () => {
+  const actual = await vi.importActual<typeof import('crypto')>('crypto');
+  return {
+    ...actual,
+    randomUUID: mockRandomUUID,
+  };
+});
+
 vi.mock('@/lib/env', () => ({
   env: {
     N8N_API_KEY: 'test-api-key',
@@ -55,6 +65,7 @@ function createEmailRequest(body: unknown, apiKey: string = 'test-api-key'): Nex
 describe('Email Intake Endpoint', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRandomUUID.mockReturnValue('new-customer-id');
   });
 
   const validPayload = {
@@ -69,8 +80,7 @@ describe('Email Intake Endpoint', () => {
   it('creates enquiry from valid payload', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
     mockPrisma.customer.upsert.mockResolvedValue({
-      id: 'cust-1',
-      createdAt: new Date('2099-01-01T00:00:00Z'),
+      id: 'new-customer-id',
     });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'cust-1' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
@@ -117,10 +127,7 @@ describe('Email Intake Endpoint', () => {
 
   it('matches existing customer by email', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.upsert.mockResolvedValue({
-      id: 'existing-cust',
-      createdAt: new Date('2024-01-01T00:00:00Z'),
-    });
+    mockPrisma.customer.upsert.mockResolvedValue({ id: 'existing-cust' });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'existing-cust' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
