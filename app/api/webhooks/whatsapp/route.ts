@@ -312,10 +312,18 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           );
           continue;
         }
-        if (matchedAppointment && parsed.isUrgent) {
+        if (
+          matchedAppointment &&
+          parsed.isUrgent &&
+          (matchedAppointment.kind === 'CANCELLED' ||
+            matchedAppointment.kind === 'RESCHEDULE_REQUESTED')
+        ) {
           // Log the override so operators reviewing the audit trail can
           // see why a message that looks like a cancel/reschedule
-          // still produced a planning-pool entry.
+          // still produced a planning-pool entry. Only emitted when the
+          // override actually prevented a short-circuit — for OTHER
+          // intent the fall-through is the normal path and the log
+          // would be misleading.
           logger.warn(
             'WhatsApp reply matched cancel/reschedule intent but contains urgent-care keywords; falling through to new visit-request',
             {
