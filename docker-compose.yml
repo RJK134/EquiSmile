@@ -132,8 +132,16 @@ services:
     image: n8nio/n8n:latest
     container_name: equismile-n8n
     restart: unless-stopped
+    # n8n is fronted by Caddy on the `n8n.<domain>` subdomain (see
+    # Caddyfile) and by the `/webhook/*` path on the main domain. The
+    # app talks to n8n over the internal docker network, so there is no
+    # reason to publish port 5678 to every interface of the host.
+    # Bind to 127.0.0.1 only — operators who need a direct peek can use
+    # an SSH tunnel; anyone on the internet hitting :5678 directly is
+    # not someone we want talking to the n8n UI. Override the bind
+    # address via `N8N_BIND_ADDR` if you really need to expose it.
     ports:
-      - '${N8N_PORT:-5678}:5678'
+      - '${N8N_BIND_ADDR:-127.0.0.1}:${N8N_PORT:-5678}:5678'
     environment:
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: postgres

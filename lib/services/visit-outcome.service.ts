@@ -14,6 +14,10 @@ export interface CompleteAppointmentInput {
   nextDentalDueDate?: string;
 }
 
+export interface ActorContext {
+  actor?: string;
+}
+
 interface CompleteResult {
   appointmentId: string;
   visitOutcomeId: string;
@@ -27,7 +31,9 @@ export const visitOutcomeService = {
   async completeAppointment(
     appointmentId: string,
     input: CompleteAppointmentInput,
+    context: ActorContext = {},
   ): Promise<CompleteResult> {
+    const actor = context.actor?.trim() || 'system';
     return prisma.$transaction(async (tx) => {
       // 1. Load appointment
       const appointment = await tx.appointment.findUnique({
@@ -79,7 +85,7 @@ export const visitOutcomeService = {
           appointmentId,
           fromStatus: priorStatus,
           toStatus: 'COMPLETED',
-          changedBy: 'system',
+          changedBy: actor,
         },
       });
 

@@ -6,9 +6,13 @@
 
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
-import { messageLogService } from '@/lib/services/message-log.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
 import { logger } from '@/lib/utils/logger';
+
+export interface ActorContext {
+  actor?: string;
+}
 
 interface AppointmentWithDetails {
   id: string;
@@ -114,7 +118,11 @@ export const confirmationService = {
   /**
    * Send confirmation for a single appointment.
    */
-  async sendConfirmation(appointmentId: string): Promise<ConfirmationResult> {
+  async sendConfirmation(
+    appointmentId: string,
+    context: ActorContext = {},
+  ): Promise<ConfirmationResult> {
+    const actor = context.actor?.trim() || 'system';
     const appointment = await prisma.appointment.findUnique({
       where: { id: appointmentId },
       include: {
@@ -155,6 +163,7 @@ export const confirmationService = {
 
     let sent = false;
     let error: string | undefined;
+    let externalMessageId: string | null = null;
 
     if (channel === 'EMAIL' && customer.email) {
       const subject = lang === 'fr'
@@ -169,34 +178,53 @@ export const confirmationService = {
         appointment.visitRequest.enquiryId ?? undefined,
       );
       sent = result.success;
+      externalMessageId = result.messageId || null;
       if (!sent) error = 'Email send failed';
     } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
-      // WhatsApp sending is handled via n8n webhook — log the message for pickup
-      if (appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
-        });
-      }
-      sent = true;
-      logger.info('WhatsApp confirmation message logged for dispatch', {
+      // Real outbound: pass a deterministic operation key so retry /
+      // replay does not re-send the same confirmation.
+      const result = await whatsappService.sendTextMessage(
+        customer.mobilePhone,
+        message,
+        appointment.visitRequest.enquiryId ?? undefined,
+        lang,
+        { operationKey: `wa-confirmation:${appointmentId}` },
+      );
+      sent = result.success;
+      externalMessageId = result.messageId || null;
+      if (!sent) error = 'WhatsApp send failed';
+      logger.info('WhatsApp confirmation dispatched', {
         service: 'confirmation-service',
-        operation: 'log-whatsapp-dispatch',
+        operation: 'send-whatsapp-confirmation',
         appointmentId,
-        to: customer.mobilePhone,
+        messageId: externalMessageId,
+        success: sent,
       });
     } else {
       error = `No valid contact for channel ${channel}`;
     }
 
     if (sent) {
+      // Transition PROPOSED → CONFIRMED on first successful send; no-op
+      // otherwise so resending a confirmation for an already-CONFIRMED
+      // booking doesn't churn the status history.
+      const priorStatus = appointment.status;
       await prisma.appointment.update({
         where: { id: appointmentId },
-        data: { confirmationSentAt: new Date() },
+        data: {
+          confirmationSentAt: new Date(),
+          ...(priorStatus === 'PROPOSED' ? { status: 'CONFIRMED' } : {}),
+        },
       });
+      if (priorStatus === 'PROPOSED') {
+        await appointmentAuditService.logStatusChange({
+          appointmentId,
+          fromStatus: priorStatus,
+          toStatus: 'CONFIRMED',
+          changedBy: actor,
+          reason: 'confirmation dispatched',
+        });
+      }
     }
 
     // AMBER-10: every dispatch attempt (success or failure) lands in the
@@ -205,6 +233,7 @@ export const confirmationService = {
       appointmentId,
       channel,
       success: sent,
+      externalMessageId,
       errorMessage: error ?? null,
     });
 
@@ -214,7 +243,10 @@ export const confirmationService = {
   /**
    * Send confirmations for all appointments from a route run.
    */
-  async sendConfirmationsForRouteRun(routeRunId: string): Promise<ConfirmationResult[]> {
+  async sendConfirmationsForRouteRun(
+    routeRunId: string,
+    context: ActorContext = {},
+  ): Promise<ConfirmationResult[]> {
     const appointments = await prisma.appointment.findMany({
       where: { routeRunId },
       select: { id: true },
@@ -222,7 +254,7 @@ export const confirmationService = {
 
     const results: ConfirmationResult[] = [];
     for (const appt of appointments) {
-      const result = await this.sendConfirmation(appt.id);
+      const result = await this.sendConfirmation(appt.id, context);
       results.push(result);
     }
     return results;

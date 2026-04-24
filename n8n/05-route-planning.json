@@ -15,13 +15,14 @@
     },
     {
       "parameters": {
-        "url": "={{$env.APP_URL}}/api/route-planning/generate",
+        "url": "={{$env.APP_URL}}/api/n8n/route-planning/generate",
         "method": "POST",
         "body": {
           "targetDate": "={{$json.targetDate || ''}}"
         },
         "headers": {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": "=Bearer {{$env.N8N_API_KEY}}"
         },
         "options": {}
       },

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     appointment: {
-      update: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
     },
   },
 }));
@@ -14,19 +14,24 @@ vi.mock('@/lib/services/email.service', () => ({
   },
 }));
 
-vi.mock('@/lib/services/message-log.service', () => ({
-  messageLogService: {
-    logMessage: vi.fn(),
+vi.mock('@/lib/services/whatsapp.service', () => ({
+  whatsappService: {
+    sendTextMessage: vi.fn().mockResolvedValue({ messageId: 'wa-1', success: true }),
   },
 }));
 
+const findDueForReminderMock = vi.hoisted(() =>
+  vi.fn<(type: '24h' | '2h') => Promise<unknown[]>>().mockResolvedValue([]),
+);
 vi.mock('@/lib/repositories/appointment.repository', () => ({
   appointmentRepository: {
-    findDueForReminder: vi.fn().mockResolvedValue([]),
+    findDueForReminder: findDueForReminderMock,
   },
 }));
 
 import { reminderService } from '@/lib/services/reminder.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
+import { prisma } from '@/lib/prisma';
 
 describe('reminderService', () => {
   beforeEach(() => {
@@ -69,8 +74,60 @@ describe('reminderService', () => {
 
   describe('checkAndSendReminders', () => {
     it('returns empty array when no reminders are due', async () => {
+      findDueForReminderMock.mockResolvedValue([]);
       const results = await reminderService.checkAndSendReminders();
       expect(results).toEqual([]);
+    });
+  });
+
+  describe('sendReminder — real outbound (not log-only)', () => {
+    const whatsappAppt = {
+      id: 'appt-r1',
+      appointmentStart: new Date('2026-05-10T09:00:00Z'),
+      visitRequest: {
+        enquiryId: 'enq-r1',
+        customer: {
+          fullName: 'Jane',
+          mobilePhone: '+44700900111',
+          email: null,
+          preferredChannel: 'WHATSAPP',
+          preferredLanguage: 'en',
+        },
+        yard: { yardName: 'Hillside' },
+      },
+    };
+
+    it('calls whatsappService with a deterministic operationKey per reminder type', async () => {
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await reminderService.sendReminder(whatsappAppt as never, '24h');
+
+      expect(whatsappService.sendTextMessage).toHaveBeenCalledWith(
+        '+44700900111',
+        expect.stringContaining('tomorrow'),
+        'enq-r1',
+        'en',
+        { operationKey: 'wa-reminder-24h:appt-r1' },
+      );
+    });
+
+    it('stamps the 2h reminder column after a successful 2h send', async () => {
+      const updateSpy = vi.fn().mockResolvedValue({});
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockImplementation(updateSpy);
+
+      await reminderService.sendReminder(whatsappAppt as never, '2h');
+
+      expect(whatsappService.sendTextMessage).toHaveBeenCalledWith(
+        '+44700900111',
+        expect.stringContaining('in 2 hours'),
+        'enq-r1',
+        'en',
+        { operationKey: 'wa-reminder-2h:appt-r1' },
+      );
+      expect(updateSpy).toHaveBeenCalledWith({
+        where: { id: 'appt-r1' },
+        data: expect.objectContaining({ reminderSentAt2h: expect.any(Date) }),
+      });
     });
   });
 });

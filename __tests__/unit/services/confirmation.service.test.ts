@@ -16,13 +16,24 @@ vi.mock('@/lib/services/email.service', () => ({
   },
 }));
 
-vi.mock('@/lib/services/message-log.service', () => ({
-  messageLogService: {
-    logMessage: vi.fn(),
+vi.mock('@/lib/services/whatsapp.service', () => ({
+  whatsappService: {
+    sendTextMessage: vi.fn().mockResolvedValue({ messageId: 'wa-1', success: true }),
+  },
+}));
+
+const logConfirmationDispatchMock = vi.hoisted(() => vi.fn());
+const logStatusChangeMock = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/services/appointment-audit.service', () => ({
+  appointmentAuditService: {
+    logConfirmationDispatch: logConfirmationDispatchMock,
+    logStatusChange: logStatusChangeMock,
   },
 }));
 
 import { confirmationService } from '@/lib/services/confirmation.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
+import { prisma } from '@/lib/prisma';
 
 describe('confirmationService', () => {
   beforeEach(() => {
@@ -101,6 +112,97 @@ describe('confirmationService', () => {
 
       const message = confirmationService.buildConfirmationMessage(noHorseCount);
       expect(message).toContain('Horses: 1');
+    });
+  });
+
+  describe('sendConfirmation — real outbound + audit trail', () => {
+    const whatsappAppointment = {
+      id: 'appt-wa',
+      status: 'PROPOSED' as const,
+      appointmentStart: new Date('2026-05-01T09:00:00Z'),
+      appointmentEnd: new Date('2026-05-01T10:00:00Z'),
+      visitRequest: {
+        id: 'vr-wa',
+        horseCount: 2,
+        enquiryId: 'enq-wa',
+        customer: {
+          id: 'c-wa',
+          fullName: 'Jane Rider',
+          mobilePhone: '+44700900000',
+          email: null,
+          preferredChannel: 'WHATSAPP',
+          preferredLanguage: 'en',
+        },
+        yard: {
+          id: 'y-wa',
+          yardName: 'Hillside',
+          addressLine1: '1 Farm Ln',
+          town: 'Horsham',
+          postcode: 'RH1 1AA',
+        },
+      },
+    };
+
+    it('calls the real WhatsApp service with a deterministic operationKey (not a log-only path)', async () => {
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(whatsappAppointment);
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      const result = await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(result.sent).toBe(true);
+      expect(whatsappService.sendTextMessage).toHaveBeenCalledWith(
+        '+44700900000',
+        expect.stringContaining('Your equine dental appointment has been confirmed'),
+        'enq-wa',
+        'en',
+        { operationKey: 'wa-confirmation:appt-wa' },
+      );
+    });
+
+    it('logs a ConfirmationDispatch row capturing channel + success + external message id', async () => {
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(whatsappAppointment);
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(logConfirmationDispatchMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appointmentId: 'appt-wa',
+          channel: 'WHATSAPP',
+          success: true,
+          externalMessageId: 'wa-1',
+        }),
+      );
+    });
+
+    it('records the PROPOSED → CONFIRMED status transition with the real actor, not "system"', async () => {
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(whatsappAppointment);
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(logStatusChangeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appointmentId: 'appt-wa',
+          fromStatus: 'PROPOSED',
+          toStatus: 'CONFIRMED',
+          changedBy: 'rjk134',
+        }),
+      );
+    });
+
+    it('does not re-log a status transition when the appointment is already CONFIRMED (resend)', async () => {
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...whatsappAppointment,
+        status: 'CONFIRMED',
+      });
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(logStatusChangeMock).not.toHaveBeenCalled();
+      // Dispatch is still recorded — resend audit trail.
+      expect(logConfirmationDispatchMock).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -9,6 +9,9 @@ import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
 import { logger } from '@/lib/utils/logger';
 import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
+import { rescheduleService } from '@/lib/services/reschedule.service';
+import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
+import type { AppointmentResponseKind } from '@prisma/client';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -259,13 +262,23 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         }
 
         // Create inbound message log
-        await messageLogService.logMessage({
+        const loggedMessage = await messageLogService.logMessage({
           enquiryId: enquiry.id,
           direction: 'INBOUND',
           channel: 'WHATSAPP',
           messageText,
           sentOrReceivedAt: timestamp,
           externalMessageId: message.id,
+        });
+
+        // If this customer already has an open appointment, record the
+        // reply as an AppointmentResponse so the audit trail links the
+        // inbound message to the booking. Schema + service hook already
+        // exist (AMBER-11); we just wire the webhook to call them.
+        await recordAppointmentResponseIfAny({
+          customerId: customer.id,
+          messageText,
+          enquiryMessageId: loggedMessage.id,
         });
 
         // Create visit request
@@ -316,5 +329,63 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         });
       }
     }
+  }
+}
+
+/**
+ * Map the parsed customer intent into one of the four
+ * AppointmentResponseKind values.
+ *
+ * Most replies will say "thanks!" or similar; we still record those as
+ * OTHER so operators can see the conversation thread against the
+ * appointment. CONFIRMED is reserved for explicit "yes / confirm / ok"
+ * style replies — we don't have a parser for that yet, so for now we
+ * only split cancel / reschedule / other.
+ */
+function mapIntentToResponseKind(
+  intent: 'cancel' | 'reschedule' | 'none',
+): AppointmentResponseKind {
+  if (intent === 'cancel') return 'CANCELLED';
+  if (intent === 'reschedule') return 'RESCHEDULE_REQUESTED';
+  return 'OTHER';
+}
+
+async function recordAppointmentResponseIfAny(input: {
+  customerId: string;
+  messageText: string;
+  enquiryMessageId: string;
+}): Promise<void> {
+  try {
+    // Pick the most recent PROPOSED/CONFIRMED booking for this
+    // customer. Only one outbound confirmation is live at a time in
+    // this operating model, so the newest open appointment is the one
+    // the reply is about. If there isn't one, the reply is a fresh
+    // enquiry and no AppointmentResponse is created.
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        visitRequest: { customerId: input.customerId },
+        status: { in: ['PROPOSED', 'CONFIRMED'] },
+      },
+      orderBy: { appointmentStart: 'asc' },
+      select: { id: true },
+    });
+    if (!appointment) return;
+
+    const { intent } = rescheduleService.parseCustomerIntent(input.messageText);
+    await appointmentAuditService.logResponse({
+      appointmentId: appointment.id,
+      kind: mapIntentToResponseKind(intent),
+      channel: 'WHATSAPP',
+      rawText: input.messageText,
+      enquiryMessageId: input.enquiryMessageId,
+    });
+  } catch (error) {
+    // Best-effort: a failure here must not break enquiry intake.
+    logger.warn('AppointmentResponse logging failed for WhatsApp inbound', {
+      service: 'whatsapp-webhook',
+      operation: 'log-appointment-response',
+      customerId: input.customerId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

@@ -22,6 +22,15 @@
       "parameters": {
         "method": "GET",
         "url": "={{$env.APP_URL}}/api/reminders/check",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_API_KEY}}"
+            }
+          ]
+        },
         "options": {
           "timeout": 30000
         }

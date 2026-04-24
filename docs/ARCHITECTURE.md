@@ -241,9 +241,20 @@ At least one provider must be configured outside demo mode (enforced by `lib/uti
 - `/login` and `/{locale}/login` — the sign-in page itself (bare path covers Auth.js error redirects that lack a locale).
 - `/api/auth/*` — Auth.js's own handlers (callback, CSRF, session, verify-request). Protected by a per-IP rate limiter in `middleware.ts` (30 requests / minute) so the magic-link / OAuth callback path can't be cheaply abused.
 - `/api/webhooks/*` — n8n server-to-server webhooks, authenticated by `N8N_API_KEY` instead of a browser session via `lib/utils/signature.ts#requireN8nApiKey`. **Fail-closed in production**: returns HTTP 500 if `N8N_API_KEY` is unset and `DEMO_MODE` is off.
-- `/api/n8n/*` — n8n callbacks (triage-result, geocode-result, route-proposal, trigger/*). Same fail-closed API-key gate as above; each route also has its own per-IP rate limit (60–300 req/min).
+- `/api/n8n/*` — every n8n-triggered app endpoint lives under this prefix. Each route calls `requireN8nApiKey` (Bearer-token, fail-closed in production) and has its own per-IP rate limit (60–300 req/min). The current surface is:
+  - `/api/n8n/triage-result` — persist n8n's classification output
+  - `/api/n8n/triage/classify` — re-run the app's internal rules engine
+  - `/api/n8n/missing-info/follow-up` — send the missing-info customer prompt
+  - `/api/n8n/geocode-result` — persist a Google geocode result
+  - `/api/n8n/route-proposal` — persist a route proposal
+  - `/api/n8n/route-planning/generate` — trigger proposal generation
+  - `/api/n8n/appointments/from-route/[routeRunId]` — convert an approved route run to appointments (booking + fan-out confirmations)
+  - `/api/n8n/appointments/[id]/cancel` — cancel an appointment on customer request
+  - `/api/n8n/trigger/send-whatsapp` / `send-email` / `request-info` — outbound send helpers (accept an optional deterministic `operationKey` for idempotent retries)
 - `/api/reminders/check` — n8n-scheduled cron endpoint. Same API-key gate + rate limit.
 - `/api/health` — uptime probes.
+
+The session-gated twins of the appointment routes (`/api/appointments/[id]/confirm|cancel|reschedule|complete|no-show` and `/api/appointments/from-route/[routeRunId]`) are used only from the operator UI. They all call `requireRole(ROLES.VET)`: readonly sessions cannot mutate appointment state. n8n never carries a session cookie, so automation is required to call the `/api/n8n/appointments/*` mirrors — never the session-gated paths.
 
 ### Data model
 Auth tables live alongside the domain tables in `prisma/schema.prisma`:

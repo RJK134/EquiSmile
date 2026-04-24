@@ -46,10 +46,16 @@ N8N_BASIC_AUTH_ACTIVE=true
 N8N_BASIC_AUTH_USER=<admin-username>
 N8N_BASIC_AUTH_PASSWORD=<strong-password>
 N8N_PORT=5678
+# Loopback-only by default. Caddy publishes n8n at https://n8n.<domain>.
+# Set to 0.0.0.0 only if you intentionally want the host port exposed.
+N8N_BIND_ADDR=127.0.0.1
 N8N_PROTOCOL=https
-N8N_HOST=your-domain.com
-N8N_API_KEY=<generate-a-uuid>
-N8N_WEBHOOK_URL=https://your-domain.com:5678
+N8N_HOST=n8n.your-domain.com
+# REQUIRED in production. Generate with: openssl rand -base64 32
+# Every /api/n8n/* and /api/reminders/check endpoint refuses traffic
+# (HTTP 500) when this is unset and DEMO_MODE is off.
+N8N_API_KEY=<generate-a-long-random-string>
+N8N_WEBHOOK_URL=https://n8n.your-domain.com/webhook
 
 # WhatsApp (from Meta Business Manager)
 WHATSAPP_PHONE_NUMBER_ID=<your-phone-number-id>
@@ -125,8 +131,8 @@ All required checks should pass. Fix any failures before proceeding.
 
 ## 6. Import n8n Workflows
 
-1. Open n8n at `https://your-domain.com:5678`
-2. Log in with the admin credentials from `.env`
+1. Open n8n at `https://n8n.your-domain.com` (served by Caddy — see `Caddyfile`). Direct access to port 5678 is bound to `127.0.0.1` by default so it is **not** on the public internet; reach it via the subdomain or an SSH tunnel. Set `N8N_BIND_ADDR=0.0.0.0` only if you have a deliberate reason to open the port host-wide.
+2. Log in with the admin credentials from `.env` (rotate `N8N_BASIC_AUTH_PASSWORD` from `changeme` before going live).
 3. Import each workflow from the `n8n/` directory:
    - `01-whatsapp-intake.json`
    - `02-email-intake.json`

@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
-import { messageLogService } from '@/lib/services/message-log.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
 
 interface CancelResult {
   appointmentId: string;
@@ -25,6 +25,15 @@ interface RescheduleResult {
 interface ParseResult {
   intent: 'cancel' | 'reschedule' | 'none';
   confidence: 'high' | 'low';
+}
+
+/**
+ * Optional metadata the API layer can thread down so the audit trail
+ * records the real operator (or "n8n" / "customer-inbound") instead of
+ * falling back to "system".
+ */
+export interface ActorContext {
+  actor?: string;
 }
 
 const CANCEL_KEYWORDS_EN = ['cancel', "can't make it", 'cannot make it', 'unable to attend'];
@@ -56,7 +65,12 @@ export const rescheduleService = {
   /**
    * Cancel an appointment, return visit request to planning pool.
    */
-  async cancelAppointment(appointmentId: string, reason?: string): Promise<CancelResult> {
+  async cancelAppointment(
+    appointmentId: string,
+    reason?: string,
+    context: ActorContext = {},
+  ): Promise<CancelResult> {
+    const actor = context.actor?.trim() || 'system';
     return prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
@@ -94,17 +108,15 @@ export const rescheduleService = {
           cancellationReason: reason ?? null,
         },
       });
-      // AMBER-13 — status history row for the transition.
+      // AMBER-13 — status history row for the transition. Actor threads
+      // down from the route handler so operator-triggered cancellations
+      // record the real user rather than 'system'.
       await tx.appointmentStatusHistory.create({
         data: {
           appointmentId,
           fromStatus: priorStatus,
           toStatus: 'CANCELLED',
-          // Callers don't currently thread an actor through the cancel
-          // path. The domain wrapper (API route handler) should supply
-          // a real actor when it adopts this service; for now fall back
-          // to 'system'.
-          changedBy: 'system',
+          changedBy: actor,
           reason: reason ?? null,
         },
       });
@@ -155,14 +167,16 @@ export const rescheduleService = {
           lang,
           appointment.visitRequest.enquiryId ?? undefined,
         );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone && appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
-        });
+      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+        // Real outbound: deterministic operation key keeps retries idempotent
+        // per (appointment × status-change) without relying on wall-clock time.
+        await whatsappService.sendTextMessage(
+          customer.mobilePhone,
+          message,
+          appointment.visitRequest.enquiryId ?? undefined,
+          lang,
+          { operationKey: `wa-cancel:${appointmentId}` },
+        );
       }
 
       return {
@@ -176,8 +190,12 @@ export const rescheduleService = {
   /**
    * Reschedule an appointment: cancel and return to pool with note.
    */
-  async rescheduleAppointment(appointmentId: string, notes?: string): Promise<RescheduleResult> {
-    const cancelResult = await this.cancelAppointment(appointmentId, 'Rescheduled');
+  async rescheduleAppointment(
+    appointmentId: string,
+    notes?: string,
+    context: ActorContext = {},
+  ): Promise<RescheduleResult> {
+    const cancelResult = await this.cancelAppointment(appointmentId, 'Rescheduled', context);
 
     // Update the visit request with rescheduling note
     const appointment = await prisma.appointment.findUnique({
@@ -216,14 +234,14 @@ export const rescheduleService = {
           lang,
           appointment.visitRequest.enquiryId ?? undefined,
         );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone && appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
-        });
+      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+        await whatsappService.sendTextMessage(
+          customer.mobilePhone,
+          message,
+          appointment.visitRequest.enquiryId ?? undefined,
+          lang,
+          { operationKey: `wa-reschedule:${appointmentId}` },
+        );
       }
     }
 
@@ -258,7 +276,8 @@ export const rescheduleService = {
   /**
    * Mark an appointment as no-show (admin action).
    */
-  async markNoShow(appointmentId: string): Promise<void> {
+  async markNoShow(appointmentId: string, context: ActorContext = {}): Promise<void> {
+    const actor = context.actor?.trim() || 'system';
     const appointment = await prisma.appointment.findUnique({
       where: { id: appointmentId },
     });
@@ -281,7 +300,7 @@ export const rescheduleService = {
         appointmentId,
         fromStatus: priorStatus,
         toStatus: 'NO_SHOW',
-        changedBy: 'system',
+        changedBy: actor,
       },
     });
   },

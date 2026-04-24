@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
-import { messageLogService } from '@/lib/services/message-log.service';
+import { whatsappService } from '@/lib/services/whatsapp.service';
 import { appointmentRepository } from '@/lib/repositories/appointment.repository';
 
 interface ReminderResult {
@@ -113,20 +113,18 @@ export const reminderService = {
       sent = result.success;
       if (!sent) error = 'Email send failed';
     } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
-      if (appointment.visitRequest.enquiryId) {
-        await messageLogService.logMessage({
-          enquiryId: appointment.visitRequest.enquiryId,
-          direction: 'OUTBOUND',
-          channel: 'WHATSAPP',
-          messageText: message,
-          sentOrReceivedAt: new Date(),
-        });
-      }
-      sent = true;
-      console.log('[Reminder] WhatsApp reminder logged', {
-        appointmentId: appointment.id,
-        type,
-      });
+      // Real outbound: deterministic operation key per (appointment ×
+      // reminder-type) keeps retries idempotent across the 30-min cron
+      // cadence.
+      const result = await whatsappService.sendTextMessage(
+        customer.mobilePhone,
+        message,
+        appointment.visitRequest.enquiryId ?? undefined,
+        lang,
+        { operationKey: `wa-reminder-${type}:${appointment.id}` },
+      );
+      sent = result.success;
+      if (!sent) error = 'WhatsApp send failed';
     } else {
       error = `No valid contact for channel ${channel}`;
     }

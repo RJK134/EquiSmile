@@ -31,9 +31,9 @@ vi.mock('@/lib/services/email.service', () => ({
   },
 }));
 
-vi.mock('@/lib/services/message-log.service', () => ({
-  messageLogService: {
-    logMessage: vi.fn(),
+vi.mock('@/lib/services/whatsapp.service', () => ({
+  whatsappService: {
+    sendTextMessage: vi.fn().mockResolvedValue({ messageId: 'wa-1', success: true }),
   },
 }));
 
@@ -163,6 +163,79 @@ describe('rescheduleService', () => {
       expect(mockAppointmentUpdate).toHaveBeenCalledWith({
         where: { id: 'appt1' },
         data: { status: 'NO_SHOW' },
+      });
+    });
+
+    it('records the supplied actor on the status-history row, not "system"', async () => {
+      mockAppointmentFindUnique.mockResolvedValue({ id: 'appt1', status: 'CONFIRMED' });
+      mockAppointmentUpdate.mockResolvedValue({});
+
+      await rescheduleService.markNoShow('appt1', { actor: 'rjk134' });
+
+      expect(mockStatusHistoryCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          appointmentId: 'appt1',
+          fromStatus: 'CONFIRMED',
+          toStatus: 'NO_SHOW',
+          changedBy: 'rjk134',
+        }),
+      });
+    });
+
+    it('falls back to "system" when no actor is supplied', async () => {
+      mockAppointmentFindUnique.mockResolvedValue({ id: 'appt1', status: 'CONFIRMED' });
+      mockAppointmentUpdate.mockResolvedValue({});
+
+      await rescheduleService.markNoShow('appt1');
+
+      expect(mockStatusHistoryCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ changedBy: 'system' }),
+      });
+    });
+  });
+
+  describe('cancelAppointment actor attribution', () => {
+    it('threads the supplied actor into the status-history row', async () => {
+      const statusHistoryCreateSpy = vi.fn();
+      mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+        const tx = {
+          appointment: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: 'appt1',
+              status: 'PROPOSED',
+              visitRequestId: 'vr1',
+              routeRunId: null,
+              visitRequest: {
+                enquiryId: 'e1',
+                customer: {
+                  fullName: 'John',
+                  email: 'j@example.com',
+                  mobilePhone: null,
+                  preferredChannel: 'EMAIL',
+                  preferredLanguage: 'en',
+                },
+              },
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          visitRequest: { update: vi.fn().mockResolvedValue({}) },
+          routeRunStop: { updateMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+          routeRun: { update: vi.fn() },
+          appointmentStatusHistory: { create: statusHistoryCreateSpy },
+        };
+        return fn(tx);
+      });
+
+      await rescheduleService.cancelAppointment('appt1', 'no longer needed', {
+        actor: 'vet-1',
+      });
+
+      expect(statusHistoryCreateSpy).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          changedBy: 'vet-1',
+          reason: 'no longer needed',
+          toStatus: 'CANCELLED',
+        }),
       });
     });
   });

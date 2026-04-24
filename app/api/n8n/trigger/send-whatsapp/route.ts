@@ -13,6 +13,9 @@ const sendWhatsAppSchema = z.object({
   language: z.string().optional().default('en'),
   templateName: z.string().optional(),
   templateParams: z.array(z.string()).optional(),
+  // Deterministic operation token. Required when n8n retries the same
+  // logical send — without it duplicate customer messages can go out.
+  operationKey: z.string().min(1).max(200).optional(),
 });
 
 // Outbound WhatsApp is billable. Cap per-IP to catch runaway loops
@@ -49,14 +52,16 @@ export async function POST(request: NextRequest) {
         payload.templateName,
         payload.language,
         payload.templateParams || [],
-        payload.enquiryId
+        payload.enquiryId,
+        payload.operationKey ? { operationKey: payload.operationKey } : undefined,
       );
     } else {
       result = await whatsappService.sendTextMessage(
         payload.to,
         payload.message,
         payload.enquiryId,
-        payload.language
+        payload.language,
+        payload.operationKey ? { operationKey: payload.operationKey } : undefined,
       );
     }
 
