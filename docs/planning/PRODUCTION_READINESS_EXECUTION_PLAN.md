@@ -191,4 +191,4 @@ This phase is complete when:
 - [ ] backup/error tracking/rate limiting/log redaction are in place
 - [ ] docs updated
 - [ ] tests updated
-- [ ] PR ready for review with truthful verification notes.
+- [ ] PR ready for review with truthful verification notes
