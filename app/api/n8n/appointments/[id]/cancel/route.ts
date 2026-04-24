@@ -15,15 +15,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/env';
-import { z } from 'zod';
 import { rescheduleService } from '@/lib/services/reschedule.service';
+// Reuse the same validation schema as the session-gated twin
+// (/api/appointments/[id]/cancel) so the n8n mirror does not silently
+// diverge — otherwise a `reason: ""` would be accepted on the browser
+// path but rejected here.
+import { cancelAppointmentSchema } from '@/lib/validations/appointment.schema';
 import { successResponse, handleApiError } from '@/lib/api-utils';
 import { requireN8nApiKey } from '@/lib/utils/signature';
 import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
-
-const cancelSchema = z.object({
-  reason: z.string().min(1).max(500).optional(),
-});
 
 const limiter = rateLimiter({ windowMs: 60_000, max: 60 });
 
@@ -44,7 +44,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const { reason } = cancelSchema.parse(body);
+    const { reason } = cancelAppointmentSchema.parse(body);
     const result = await rescheduleService.cancelAppointment(id, reason, {
       actor: 'n8n',
     });

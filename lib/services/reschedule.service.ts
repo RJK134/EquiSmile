@@ -29,8 +29,6 @@ interface ParseResult {
   confidence: 'high' | 'low';
 }
 
-// ActorContext is imported from @/lib/types/actor above.
-
 const CANCEL_KEYWORDS_EN = ['cancel', "can't make it", 'cannot make it', 'unable to attend'];
 const CANCEL_KEYWORDS_FR = ['annuler', 'ne peux pas', 'ne pourrai pas', 'impossible de venir'];
 const RESCHEDULE_KEYWORDS_EN = ['reschedule', 'change date', 'change the date', 'move appointment', 'different day'];

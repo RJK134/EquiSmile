@@ -194,43 +194,65 @@ export const confirmationService = {
     let error: string | undefined;
     let externalMessageId: string | null = null;
 
-    if (channel === 'EMAIL' && customer.email) {
-      const subject = lang === 'fr'
-        ? 'Confirmation de rendez-vous — EquiSmile'
-        : 'Appointment Confirmation — EquiSmile';
+    // The outbound send is wrapped so that ANY exception still reaches
+    // the ConfirmationDispatch audit write below. Without this, an
+    // unexpected throw from the underlying Email/WhatsApp service would
+    // skip the status-transition AND the dispatch-failure audit row,
+    // defeating the AMBER-10 "every dispatch attempt is logged"
+    // guarantee. The underlying services already catch most failures
+    // internally and return success: false, but defence-in-depth here
+    // is cheap.
+    try {
+      if (channel === 'EMAIL' && customer.email) {
+        const subject = lang === 'fr'
+          ? 'Confirmation de rendez-vous — EquiSmile'
+          : 'Appointment Confirmation — EquiSmile';
 
-      const result = await emailService.sendBrandedEmail(
-        customer.email,
-        subject,
-        message,
-        lang,
-        appointment.visitRequest.enquiryId ?? undefined,
-      );
-      sent = result.success;
-      externalMessageId = result.messageId || null;
-      if (!sent) error = 'Email send failed';
-    } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
-      // Real outbound: pass a deterministic operation key so retry /
-      // replay does not re-send the same confirmation.
-      const result = await whatsappService.sendTextMessage(
-        customer.mobilePhone,
-        message,
-        appointment.visitRequest.enquiryId ?? undefined,
-        lang,
-        { operationKey: `wa-confirmation:${appointmentId}` },
-      );
-      sent = result.success;
-      externalMessageId = result.messageId || null;
-      if (!sent) error = 'WhatsApp send failed';
-      logger.info('WhatsApp confirmation dispatched', {
+        const result = await emailService.sendBrandedEmail(
+          customer.email,
+          subject,
+          message,
+          lang,
+          appointment.visitRequest.enquiryId ?? undefined,
+        );
+        sent = result.success;
+        externalMessageId = result.messageId || null;
+        if (!sent) error = 'Email send failed';
+      } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
+        // Real outbound: pass a deterministic operation key so retry /
+        // replay does not re-send the same confirmation.
+        const result = await whatsappService.sendTextMessage(
+          customer.mobilePhone,
+          message,
+          appointment.visitRequest.enquiryId ?? undefined,
+          lang,
+          { operationKey: `wa-confirmation:${appointmentId}` },
+        );
+        sent = result.success;
+        externalMessageId = result.messageId || null;
+        if (!sent) error = 'WhatsApp send failed';
+        logger.info('WhatsApp confirmation dispatched', {
+          service: 'confirmation-service',
+          operation: 'send-whatsapp-confirmation',
+          appointmentId,
+          messageId: externalMessageId,
+          success: sent,
+        });
+      } else {
+        error = `No valid contact for channel ${channel}`;
+      }
+    } catch (sendError) {
+      // Preserve sent=false and record the exception message so the
+      // ConfirmationDispatch row reflects the real failure rather than
+      // dropping the audit trail entirely.
+      sent = false;
+      error = sendError instanceof Error ? sendError.message : String(sendError);
+      logger.error('Confirmation send threw unexpectedly', sendError, {
         service: 'confirmation-service',
-        operation: 'send-whatsapp-confirmation',
+        operation: 'send-confirmation',
         appointmentId,
-        messageId: externalMessageId,
-        success: sent,
+        channel,
       });
-    } else {
-      error = `No valid contact for channel ${channel}`;
     }
 
     if (sent) {

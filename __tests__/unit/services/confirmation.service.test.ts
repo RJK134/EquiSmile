@@ -231,5 +231,32 @@ describe('confirmationService', () => {
       // Dispatch is still recorded — resend audit trail.
       expect(logConfirmationDispatchMock).toHaveBeenCalledTimes(1);
     });
+
+    it('still writes a ConfirmationDispatch(success=false) row when the send throws unexpectedly', async () => {
+      // AMBER-10 guarantees every dispatch attempt (success OR failure)
+      // lands in the audit log. A previous version of the code would
+      // let an exception from whatsappService escape, skipping both the
+      // status update AND the audit write. The send is now try-wrapped
+      // so the audit row is always written.
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(whatsappAppointment);
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+      vi.mocked(whatsappService.sendTextMessage).mockRejectedValueOnce(
+        new Error('send pipeline exploded'),
+      );
+
+      const result = await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(result.sent).toBe(false);
+      expect(logConfirmationDispatchMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appointmentId: 'appt-wa',
+          channel: 'WHATSAPP',
+          success: false,
+          errorMessage: 'send pipeline exploded',
+        }),
+      );
+      // No spurious status flip when the send fails.
+      expect(logStatusChangeMock).not.toHaveBeenCalled();
+    });
   });
 });
