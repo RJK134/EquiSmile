@@ -6,6 +6,7 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
 }));
@@ -38,6 +39,11 @@ import { prisma } from '@/lib/prisma';
 describe('confirmationService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: the atomic compare-and-swap succeeds — simulating the
+    // common case where no concurrent writer moved the row out of
+    // PROPOSED during the send. Individual tests can override to
+    // simulate the race.
+    (prisma.appointment.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
   });
 
   describe('buildConfirmationMessage', () => {
@@ -230,6 +236,35 @@ describe('confirmationService', () => {
       expect(logStatusChangeMock).not.toHaveBeenCalled();
       // Dispatch is still recorded — resend audit trail.
       expect(logConfirmationDispatchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT overwrite a CANCELLED state set concurrently during the send window', async () => {
+      // Regression: the old code read `appointment.status` up front
+      // and then wrote `status: 'CONFIRMED'` unconditionally after the
+      // (several-second) WhatsApp send. If a sibling request ran
+      // cancelAppointment during that window, the confirmation path
+      // would silently un-cancel the booking. The update is now an
+      // atomic updateMany with a status: 'PROPOSED' WHERE clause —
+      // simulate the race by returning count: 0 and assert no
+      // status-change row is logged.
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(whatsappAppointment);
+      (prisma.appointment.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 0 });
+
+      const result = await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(result.sent).toBe(true);
+      // The compare-and-swap went to the typed path...
+      expect(prisma.appointment.updateMany).toHaveBeenCalledWith({
+        where: { id: 'appt-wa', status: 'PROPOSED' },
+        data: expect.objectContaining({ status: 'CONFIRMED' }),
+      });
+      // ...but because count was 0, no status-history row was written.
+      expect(logStatusChangeMock).not.toHaveBeenCalled();
+      // The dispatch audit row still lands so the send itself is
+      // recorded.
+      expect(logConfirmationDispatchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ appointmentId: 'appt-wa', success: true }),
+      );
     });
 
     it('still writes a ConfirmationDispatch(success=false) row when the send throws unexpectedly', async () => {

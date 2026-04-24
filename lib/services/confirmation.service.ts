@@ -256,24 +256,48 @@ export const confirmationService = {
     }
 
     if (sent) {
-      // Transition PROPOSED → CONFIRMED on first successful send; no-op
-      // otherwise so resending a confirmation for an already-CONFIRMED
-      // booking doesn't churn the status history.
+      // The post-send status update uses an atomic compare-and-swap so
+      // it cannot overwrite a concurrent CANCELLED (or COMPLETED)
+      // transition that happened during the several-second HTTP send
+      // window. The read at the top of the function produced
+      // `priorStatus`, but by the time we get here the row may have
+      // moved — `cancelAppointment` running in a sibling request would
+      // otherwise be silently un-cancelled by a naive
+      // `update({ where: { id } })`.
       const priorStatus = appointment.status;
-      await prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          confirmationSentAt: new Date(),
-          ...(priorStatus === 'PROPOSED' ? { status: 'CONFIRMED' } : {}),
-        },
-      });
       if (priorStatus === 'PROPOSED') {
-        await appointmentAuditService.logStatusChange({
-          appointmentId,
-          fromStatus: priorStatus,
-          toStatus: 'CONFIRMED',
-          changedBy: actor,
-          reason: 'confirmation dispatched',
+        const { count } = await prisma.appointment.updateMany({
+          where: { id: appointmentId, status: 'PROPOSED' },
+          data: { status: 'CONFIRMED', confirmationSentAt: new Date() },
+        });
+        if (count === 1) {
+          await appointmentAuditService.logStatusChange({
+            appointmentId,
+            fromStatus: 'PROPOSED',
+            toStatus: 'CONFIRMED',
+            changedBy: actor,
+            reason: 'confirmation dispatched',
+          });
+        } else {
+          // Row moved to a terminal/non-PROPOSED state during the send.
+          // Do NOT stamp confirmationSentAt either — leaving the row as
+          // the other writer set it is the safe default.
+          logger.warn(
+            'Appointment status changed during confirmation send; skipping CONFIRMED transition',
+            {
+              service: 'confirmation-service',
+              operation: 'send-confirmation-race',
+              appointmentId,
+            },
+          );
+        }
+      } else {
+        // Already CONFIRMED (resend) or a later status — just stamp
+        // the send timestamp; no status-history row (resends should
+        // not churn the audit trail).
+        await prisma.appointment.update({
+          where: { id: appointmentId },
+          data: { confirmationSentAt: new Date() },
         });
       }
     }
