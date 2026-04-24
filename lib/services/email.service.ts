@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { deadLetterService } from '@/lib/services/dead-letter.service';
 import { withRetry, circuitBreakers } from '@/lib/utils/retry';
+import { logger } from '@/lib/utils/logger';
 
 interface SendEmailResult {
   messageId: string;
@@ -25,7 +26,10 @@ function getTransporter(): Transporter | null {
   if (transporter) return transporter;
 
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASSWORD) {
-    console.warn('[Email] Cannot create transporter: missing SMTP config');
+    logger.warn('Cannot create SMTP transporter because configuration is incomplete', {
+      service: 'email-service',
+      operation: 'create-transporter',
+    });
     return null;
   }
 
@@ -119,10 +123,20 @@ export const emailService = {
         });
       }
 
-      console.log('[Email] Sent', { to: options.to, messageId, subject: options.subject });
+      logger.info('Email sent', {
+        service: 'email-service',
+        operation: 'send-email',
+        to: options.to,
+        messageId,
+      });
       return { messageId, success: true };
     } catch (error) {
-      console.error('[Email] Send failed', error);
+      logger.error('Email send failed', error, {
+        service: 'email-service',
+        operation: 'send-email',
+        to: options.to,
+        enquiryId: options.enquiryId,
+      });
       await deadLetterService.enqueue({
         scope: 'email-send',
         payload: {

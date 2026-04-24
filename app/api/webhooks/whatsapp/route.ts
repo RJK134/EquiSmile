@@ -7,6 +7,7 @@ import { parseMessage } from '@/lib/utils/message-parser';
 import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
+import { logger } from '@/lib/utils/logger';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -24,11 +25,19 @@ export async function GET(request: NextRequest) {
   const challenge = searchParams.get('hub.challenge');
 
   if (mode === 'subscribe' && verifyWhatsAppVerifyToken(token, env.WHATSAPP_VERIFY_TOKEN)) {
-    console.log('[WhatsApp] Webhook verified');
+    logger.info('WhatsApp webhook verified', {
+      service: 'whatsapp-webhook',
+      operation: 'verify-webhook',
+    });
     return new NextResponse(challenge, { status: 200 });
   }
 
-  console.warn('[WhatsApp] Webhook verification failed', { mode, token: token ? '***' : 'missing' });
+  logger.warn('WhatsApp webhook verification failed', {
+    service: 'whatsapp-webhook',
+    operation: 'verify-webhook',
+    mode,
+    token: token ? 'present' : 'missing',
+  });
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 }
 
@@ -82,7 +91,14 @@ export async function POST(request: NextRequest) {
   // Verify signature — fail loudly in production if app secret is missing
   const isDemo = env.DEMO_MODE === 'true';
   if (!env.WHATSAPP_APP_SECRET && !isDemo) {
-    console.error('[WhatsApp] WHATSAPP_APP_SECRET is not set — refusing to process webhook without signature verification. Set WHATSAPP_APP_SECRET or enable DEMO_MODE.');
+    logger.error(
+      'WhatsApp webhook rejected because signature verification is unavailable',
+      undefined,
+      {
+        service: 'whatsapp-webhook',
+        operation: 'verify-signature',
+      },
+    );
     return NextResponse.json(
       { error: 'Server misconfiguration: WHATSAPP_APP_SECRET is required for webhook signature verification' },
       { status: 500 },
@@ -92,7 +108,10 @@ export async function POST(request: NextRequest) {
   if (env.WHATSAPP_APP_SECRET) {
     const signature = request.headers.get('x-hub-signature-256') || '';
     if (!verifyWhatsAppSignature(rawBody, signature, env.WHATSAPP_APP_SECRET)) {
-      console.warn('[WhatsApp] Invalid webhook signature');
+      logger.warn('WhatsApp webhook signature verification failed', {
+        service: 'whatsapp-webhook',
+        operation: 'verify-signature',
+      });
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
   }
@@ -107,7 +126,10 @@ export async function POST(request: NextRequest) {
   // Must respond 200 quickly — Meta requires fast acknowledgment
   // Process asynchronously but don't await
   processWebhookPayload(payload).catch((err) => {
-    console.error('[WhatsApp] Error processing webhook:', err);
+    logger.error('WhatsApp webhook processing failed', err, {
+      service: 'whatsapp-webhook',
+      operation: 'process-payload',
+    });
   });
 
   return NextResponse.json({ status: 'ok' }, { status: 200 });
@@ -115,7 +137,11 @@ export async function POST(request: NextRequest) {
 
 async function processWebhookPayload(payload: WhatsAppPayload) {
   if (payload.object !== 'whatsapp_business_account') {
-    console.log('[WhatsApp] Ignoring non-WhatsApp payload', { object: payload.object });
+    logger.info('Ignoring non-WhatsApp webhook payload', {
+      service: 'whatsapp-webhook',
+      operation: 'process-payload',
+      object: payload.object,
+    });
     return;
   }
 
@@ -130,7 +156,12 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
       for (const message of messages) {
         // Only process text messages for now
         if (message.type !== 'text' || !message.text?.body) {
-          console.log('[WhatsApp] Skipping non-text message', { type: message.type, id: message.id });
+          logger.info('Skipping non-text WhatsApp message', {
+            service: 'whatsapp-webhook',
+            operation: 'process-message',
+            type: message.type,
+            messageId: message.id,
+          });
           continue;
         }
 
@@ -140,10 +171,11 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         const messageText = message.text.body;
         const timestamp = new Date(parseInt(message.timestamp) * 1000);
 
-        console.log('[WhatsApp] Processing message', {
+        logger.info('Processing WhatsApp message', {
+          service: 'whatsapp-webhook',
+          operation: 'process-message',
           messageId: message.id,
           from: message.from,
-          senderName,
           timestamp: timestamp.toISOString(),
         });
 
@@ -152,7 +184,11 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           where: { externalMessageId: message.id },
         });
         if (existing) {
-          console.log('[WhatsApp] Duplicate message, skipping', { messageId: message.id });
+          logger.info('Skipping duplicate WhatsApp message', {
+            service: 'whatsapp-webhook',
+            operation: 'process-message',
+            messageId: message.id,
+          });
           continue;
         }
 
@@ -170,7 +206,12 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
               preferredLanguage: 'en',
             },
           });
-          console.log('[WhatsApp] Created new customer', { customerId: customer.id, name: senderName });
+          logger.info('WhatsApp intake created new customer', {
+            service: 'whatsapp-webhook',
+            operation: 'create-customer',
+            customerId: customer.id,
+            mobilePhone: senderPhone,
+          });
         }
 
         // Parse message for structured info
@@ -222,17 +263,26 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
             visitRequest.id,
             messageText,
           );
-          console.log('[WhatsApp] Auto-triage completed', {
+          logger.info('WhatsApp auto-triage completed', {
+            service: 'whatsapp-webhook',
+            operation: 'auto-triage',
             enquiryId: enquiry.id,
             urgency: triageResult.urgency,
             confidence: triageResult.confidence,
             tasksCreated: triageResult.tasksCreated.length,
           });
         } catch (triageErr) {
-          console.error('[WhatsApp] Auto-triage failed, enquiry still created', triageErr);
+          logger.error('WhatsApp auto-triage failed; enquiry still created', triageErr, {
+            service: 'whatsapp-webhook',
+            operation: 'auto-triage',
+            enquiryId: enquiry.id,
+            visitRequestId: visitRequest.id,
+          });
         }
 
-        console.log('[WhatsApp] Enquiry created', {
+        logger.info('WhatsApp enquiry created', {
+          service: 'whatsapp-webhook',
+          operation: 'create-enquiry',
           enquiryId: enquiry.id,
           customerId: customer.id,
           isUrgent: parsed.isUrgent,

@@ -40,6 +40,7 @@ Complete all items before go-live. Run `npm run validate-env` to verify automate
 ## Monitoring & Alerting
 
 - [ ] Application logging configured (structured JSON to file or log aggregator)
+- [ ] Structured logs verified to mask customer contact details and auth/API tokens before shipping off-box
 - [ ] Health check monitoring (uptime check on `/api/health`)
 - [ ] Database monitoring (connection count, query latency)
 - [ ] Disk space monitoring
