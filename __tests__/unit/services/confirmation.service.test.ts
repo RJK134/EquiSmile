@@ -54,7 +54,7 @@ describe('confirmationService', () => {
           fullName: 'John Smith',
           mobilePhone: '+447700900000',
           email: 'john@test.com',
-          preferredChannel: 'EMAIL',
+          preferredChannel: 'EMAIL' as const,
           preferredLanguage: 'en',
         },
         yard: {
@@ -130,7 +130,7 @@ describe('confirmationService', () => {
           fullName: 'Jane Rider',
           mobilePhone: '+44700900000',
           email: null,
-          preferredChannel: 'WHATSAPP',
+          preferredChannel: 'WHATSAPP' as const,
           preferredLanguage: 'en',
         },
         yard: {
@@ -188,6 +188,33 @@ describe('confirmationService', () => {
           toStatus: 'CONFIRMED',
           changedBy: 'rjk134',
         }),
+      );
+    });
+
+    it('logs the dispatch channel as a ConfirmationChannel enum value even when customer preferredChannel is PHONE', async () => {
+      // The audit write expects a ConfirmationChannel enum, not the
+      // Customer.preferredChannel enum. They share values today but
+      // they are distinct Prisma types — the service routes through a
+      // typed mapper so the two can diverge later without silently
+      // writing a bad value into the ConfirmationDispatch column.
+      (prisma.appointment.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...whatsappAppointment,
+        visitRequest: {
+          ...whatsappAppointment.visitRequest,
+          customer: {
+            ...whatsappAppointment.visitRequest.customer,
+            preferredChannel: 'PHONE' as const,
+            email: null,
+            mobilePhone: null,
+          },
+        },
+      });
+      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
+
+      expect(logConfirmationDispatchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'PHONE', success: false }),
       );
     });
 

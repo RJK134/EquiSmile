@@ -15,21 +15,36 @@
     },
     {
       "parameters": {
-        "url": "={{$env.APP_URL}}/api/n8n/route-planning/generate",
         "method": "POST",
-        "body": {
-          "targetDate": "={{$json.targetDate || ''}}"
+        "url": "={{$env.APP_URL}}/api/n8n/route-planning/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_API_KEY}}"
+            }
+          ]
         },
-        "headers": {
-          "Content-Type": "application/json",
-          "Authorization": "=Bearer {{$env.N8N_API_KEY}}"
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "targetDate",
+              "value": "={{$json.targetDate || ''}}"
+            }
+          ]
         },
         "options": {}
       },
       "id": "generate-proposals",
       "name": "Generate Route Proposals",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
+      "typeVersion": 4,
       "position": [450, 300]
     },
     {
@@ -62,22 +77,40 @@
     },
     {
       "parameters": {
-        "url": "={{$env.APP_URL}}/api/n8n/route-proposal",
         "method": "POST",
-        "body": {
-          "routeRunId": "={{$json.routeRunId}}",
-          "runDate": "={{$json.runDate}}",
-          "stops": []
+        "url": "={{$env.APP_URL}}/api/n8n/route-proposal",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_API_KEY}}"
+            }
+          ]
         },
-        "headers": {
-          "Authorization": "Bearer {{$env.N8N_API_KEY}}"
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "routeRunId",
+              "value": "={{$json.routeRunId}}"
+            },
+            {
+              "name": "runDate",
+              "value": "={{$json.runDate}}"
+            },
+            {
+              "name": "stops",
+              "value": "={{[]}}"
+            }
+          ]
         },
         "options": {}
       },
       "id": "store-route",
       "name": "Store Route Run",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
+      "typeVersion": 4,
       "position": [1050, 200]
     },
     {

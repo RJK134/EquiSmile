@@ -10,6 +10,7 @@ import { whatsappService } from '@/lib/services/whatsapp.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
 import { logger } from '@/lib/utils/logger';
 import type { ActorContext } from '@/lib/types/actor';
+import type { ConfirmationChannel, PreferredChannel } from '@prisma/client';
 
 interface AppointmentWithDetails {
   id: string;
@@ -24,7 +25,7 @@ interface AppointmentWithDetails {
       fullName: string;
       mobilePhone: string | null;
       email: string | null;
-      preferredChannel: string;
+      preferredChannel: PreferredChannel;
       preferredLanguage: string;
     };
     yard: {
@@ -35,6 +36,31 @@ interface AppointmentWithDetails {
       postcode: string;
     } | null;
   };
+}
+
+/**
+ * Map Customer.preferredChannel (`PreferredChannel` enum) to the
+ * dispatch-log `ConfirmationChannel` enum. Today the two enums share
+ * the same values (WHATSAPP | EMAIL | PHONE) but they are independent
+ * types in the schema, so an explicit map both keeps TypeScript honest
+ * and insulates the audit write from a future divergence between the
+ * two vocabularies.
+ */
+function toConfirmationChannel(preferred: PreferredChannel): ConfirmationChannel {
+  switch (preferred) {
+    case 'WHATSAPP':
+      return 'WHATSAPP';
+    case 'EMAIL':
+      return 'EMAIL';
+    case 'PHONE':
+      return 'PHONE';
+    default: {
+      // Exhaustiveness guard: if a new PreferredChannel value is added,
+      // TypeScript will flag this branch until the switch is updated.
+      const _exhaustive: never = preferred;
+      throw new Error(`Unsupported PreferredChannel: ${String(_exhaustive)}`);
+    }
+  }
 }
 
 function formatDate(date: Date, lang: string): string {
@@ -102,7 +128,7 @@ EquiSmile`;
 interface ConfirmationResult {
   appointmentId: string;
   sent: boolean;
-  channel: string;
+  channel: ConfirmationChannel;
   error?: string;
 }
 
@@ -156,7 +182,13 @@ export const confirmationService = {
     const customer = appointment.visitRequest.customer;
     const lang = customer.preferredLanguage || 'en';
     const message = buildConfirmationMessage(appointment as unknown as AppointmentWithDetails);
-    const channel = customer.preferredChannel;
+    // Explicit `PreferredChannel → ConfirmationChannel` mapping. At
+    // runtime today the two enums share values (WHATSAPP | EMAIL |
+    // PHONE), but they are distinct Prisma types — piping the raw
+    // `preferredChannel` straight into the audit log relied on that
+    // coincidence. The exhaustiveness guard in `toConfirmationChannel`
+    // will trip at compile time if either enum gains a new member.
+    const channel: ConfirmationChannel = toConfirmationChannel(customer.preferredChannel);
 
     let sent = false;
     let error: string | undefined;
