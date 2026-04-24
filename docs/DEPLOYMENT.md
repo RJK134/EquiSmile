@@ -72,6 +72,19 @@ GOOGLE_MAPS_API_KEY=<your-api-key>
 HOME_BASE_ADDRESS="Your Practice Address, Postcode"
 HOME_BASE_LAT=<latitude>
 HOME_BASE_LNG=<longitude>
+
+# Backups (built-in compose service; see BACKUP.md)
+BACKUP_CRON=30 2 * * *
+BACKUP_RETENTION_DAYS=14
+
+# Error tracking — point at any JSON-POST endpoint (Slack incoming
+# webhook, a self-hosted log-collector, a Sentry relay). Omit to run
+# without remote error tracking (stderr logs still work). See
+# OPERATIONS.md §3 + instrumentation.ts.
+EQUISMILE_ERROR_WEBHOOK_URL=https://hooks.slack.com/services/...
+# Optional bearer token for collectors that need auth.
+# EQUISMILE_ERROR_WEBHOOK_TOKEN=
+EQUISMILE_ENV=production
 ```
 
 Restrict file permissions:
@@ -240,40 +253,62 @@ docker compose up -d --build
 
 ## Backup and Restore
 
-### Automated backups
+Full runbook lives in [`BACKUP.md`](./BACKUP.md). Summary:
 
-Set up a cron job for daily database backups:
+### Automated backups (built-in compose service)
 
-```bash
-# /etc/cron.d/equismile-backup
-0 2 * * * root docker exec equismile-postgres pg_dump -U equismile equismile | gzip > /backups/equismile-$(date +\%Y\%m\%d).sql.gz
-```
-
-### Manual backup
+The `backup` service defined in `docker-compose.yml` runs `pg_dump` on
+an internal cron schedule and rotates gzipped dumps in the
+`backups_data` volume. No host cron needed.
 
 ```bash
-docker exec equismile-postgres pg_dump -U equismile equismile > backup.sql
+# Bring it up alongside the rest of the stack.
+docker compose up -d backup
+
+# Confirm the schedule (expect "[backup] scheduler online cron='…'").
+docker compose logs backup | head
+
+# List dumps currently held.
+docker compose exec backup ls -lh /backups
 ```
 
-### Restore from backup
+Tunables (see `.env.example`):
 
-```bash
-# Stop the application
-docker compose stop app
+| Variable | Default | What it controls |
+|---|---|---|
+| `BACKUP_CRON` | `30 2 * * *` | Schedule (UTC, 5-field cron) |
+| `BACKUP_RETENTION_DAYS` | `14` | Age-based rotation |
 
-# Restore
-docker exec -i equismile-postgres psql -U equismile equismile < backup.sql
+### Off-box copy
 
-# Restart
-docker compose start app
+A local backup does not survive a host compromise or disk failure.
+Copy the volume off-box nightly via rclone/rsync:
+
+```sh
+rclone sync /var/lib/docker/volumes/equismile_backups_data/_data \
+  b2:equismile-backups/ --fast-list
 ```
+
+### Weekly restore-verify (recommended)
+
+`scripts/backup-restore-verify.sh` restores the newest dump into a
+scratch DB and asserts schema + liveness, then drops the scratch DB.
+A backup you never restore is a wish, not a guarantee:
+
+```cron
+30 3 * * 0  /opt/equismile/scripts/backup-restore-verify.sh >> /var/log/equismile-backup.log 2>&1
+```
+
+### Manual restore
+
+See [`BACKUP.md`](./BACKUP.md) §4 for the full step-by-step (restore
+into scratch DB, validate, rename swap). Never restore directly over
+the live DB without a preceding backup snapshot.
 
 ### n8n workflow backup
 
-```bash
-# Export all workflows via n8n CLI or save from UI
-# Store in the n8n/ directory for version control
-```
+Workflows live in `n8n/` under version control. Export from the n8n
+UI or CLI after any change and commit the JSON.
 
 ---
 
@@ -286,9 +321,33 @@ Set up an external uptime monitor (e.g., UptimeRobot, Pingdom) to check:
 - `https://your-domain.com/api/health` — every 5 minutes
 - Alert on 2+ consecutive failures
 
+### Admin observability dashboard
+
+Signed-in admin users reach `/{en,fr}/admin/observability` (and the
+equivalent `GET /api/admin/observability` JSON for scripts). This
+surfaces, at a glance:
+
+- Dead-letter queue depth (permanent failures awaiting operator action)
+- `SecurityAuditLog` activity over the last 24 h and sign-in-denied count
+- Backup freshness — newest dump's age, size, total file count, stale flag
+
+Use it as the first port of call during an incident instead of sshing
+onto the VPS.
+
+### Error tracking sink
+
+Set `EQUISMILE_ERROR_WEBHOOK_URL` (+ optional `EQUISMILE_ERROR_WEBHOOK_TOKEN`)
+to forward every `logger.error()` to any JSON-POST endpoint — Slack
+incoming webhook, Sentry relay, self-hosted log aggregator. Events are
+fire-and-forget, deduped in a 60-second window, and PII-scrubbed via
+`redact()` before leaving the container. See
+[`OPERATIONS.md`](./OPERATIONS.md) §3.
+
 ### Log monitoring
 
-Application logs are structured JSON. Configure a log aggregator:
+Application logs are structured JSON on stdout, collected by Docker's
+json-file driver (rotated at 10 MB × 5 files per service — 50 MB
+ceiling). Configure a log aggregator if you want cross-service search:
 
 ```bash
 # View application logs
@@ -299,6 +358,9 @@ docker compose logs -f postgres
 
 # View n8n logs
 docker compose logs -f n8n
+
+# View the scheduled backup service logs (prints "ok backup=…" lines)
+docker compose logs -f backup
 ```
 
 ### Resource monitoring
@@ -309,8 +371,9 @@ Monitor server resources:
 # Docker resource usage
 docker stats
 
-# Disk usage
+# Disk usage (include the backups and attachments volumes)
 df -h
+docker system df -v
 ```
 
 ---

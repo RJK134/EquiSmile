@@ -1,15 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockRandomUUID = vi.hoisted(() => vi.fn());
-
-vi.mock('crypto', async () => {
-  const actual = await vi.importActual<typeof import('crypto')>('crypto');
-  return {
-    ...actual,
-    randomUUID: mockRandomUUID,
-  };
-});
-
 vi.mock('@/lib/env', () => ({
   env: {
     N8N_API_KEY: 'test-api-key',
@@ -21,22 +11,41 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-const mockPrisma = vi.hoisted(() => ({
-  enquiry: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  customer: {
-    upsert: vi.fn(),
-  },
-  visitRequest: {
-    create: vi.fn(),
-  },
-  enquiryMessage: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-  },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const surface = {
+    enquiry: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    customer: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
+    },
+    yard: {
+      updateMany: vi.fn(),
+    },
+    horse: {
+      updateMany: vi.fn(),
+    },
+    visitRequest: {
+      create: vi.fn(),
+    },
+    enquiryMessage: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+  };
+  return {
+    ...surface,
+    // Phase 16 — webhook handlers now wrap the customer lookup +
+    // enquiry create in `$transaction`. The mock just invokes the
+    // callback with the same prisma surface so the assertions keep
+    // working.
+    $transaction: vi.fn(async (cb: (tx: typeof surface) => unknown) => cb(surface)),
+  };
+});
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -65,7 +74,6 @@ function createEmailRequest(body: unknown, apiKey: string = 'test-api-key'): Nex
 describe('Email Intake Endpoint', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRandomUUID.mockReturnValue('new-customer-id');
   });
 
   const validPayload = {
@@ -79,10 +87,20 @@ describe('Email Intake Endpoint', () => {
 
   it('creates enquiry from valid payload', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.upsert.mockResolvedValue({
-      id: 'new-customer-id',
-    });
-    mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'cust-1' });
+    mockPrisma.customer.findUnique.mockResolvedValue(null);
+    // Phase 16 — the webhook now resolves a new customer via the
+    // race-safe `upsert` path. The helper pre-generates an `id`
+    // client-side and compares it to the returned row's id to
+    // distinguish INSERT from update:{}-no-op. Echo the caller's id
+    // back so the "fresh insert" branch fires.
+    mockPrisma.customer.upsert.mockImplementation(async ({ create }) => ({
+      id: create.id,
+      deletedAt: null,
+    }));
+    mockPrisma.enquiry.create.mockImplementation(async ({ data }) => ({
+      id: 'enq-1',
+      customerId: data.customerId,
+    }));
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
     const request = createEmailRequest(validPayload);
@@ -127,7 +145,7 @@ describe('Email Intake Endpoint', () => {
 
   it('matches existing customer by email', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.upsert.mockResolvedValue({ id: 'existing-cust' });
+    mockPrisma.customer.findUnique.mockResolvedValue({ id: 'existing-cust', deletedAt: null });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'existing-cust' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
@@ -136,6 +154,6 @@ describe('Email Intake Endpoint', () => {
     const data = await response.json();
 
     expect(data.isNew).toBe(false);
-    expect(mockPrisma.customer.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.customer.create).not.toHaveBeenCalled();
   });
 });

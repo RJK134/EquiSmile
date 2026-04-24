@@ -12,8 +12,15 @@ import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/r
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(ROLES.READONLY);
+    const subject = await requireRole(ROLES.READONLY);
     const query = customerQuerySchema.parse(parseSearchParams(request.nextUrl.searchParams));
+    // Soft-deleted PII must stay hidden from non-admin sessions.
+    // Silently downgrade the flag rather than 403-ing so an accidental
+    // URL paste doesn't leak "this customer was deleted" as a side
+    // channel. An admin gets the full tombstoned view.
+    if (query.includeDeleted && subject.role !== ROLES.ADMIN) {
+      query.includeDeleted = false;
+    }
     const result = await customerRepository.findMany(query);
     return successResponse(result);
   } catch (error) {

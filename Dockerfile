@@ -26,6 +26,18 @@ ENV NODE_ENV=production
 ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
 
+# NEXT_PUBLIC_* vars are inlined into the client JS bundle at build
+# time, so they must be in scope during `next build`. Setting them only
+# at container runtime leaves empty strings baked into the shipped
+# client code — this is what stopped interactive Google Maps working
+# in Docker before Phase 15.
+ARG NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY
+ENV NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY}
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ARG NEXT_PUBLIC_DEFAULT_LOCALE
+ENV NEXT_PUBLIC_DEFAULT_LOCALE=${NEXT_PUBLIC_DEFAULT_LOCALE}
+
 RUN npm run build
 
 # ─── Migrator ────────────────────────────────────────────────────────────────
@@ -54,6 +66,10 @@ COPY --from=builder /app/prisma ./prisma
 # Leverage Next.js standalone output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Phase 15 — pre-create the attachments directory owned by the nextjs
+# user so the mounted `attachments_data` volume is writable at runtime.
+RUN mkdir -p /app/data/attachments && chown -R nextjs:nodejs /app/data
 
 USER nextjs
 

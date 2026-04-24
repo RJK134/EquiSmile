@@ -6,8 +6,13 @@ import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/r
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(ROLES.READONLY);
+    const subject = await requireRole(ROLES.READONLY);
     const query = yardQuerySchema.parse(parseSearchParams(request.nextUrl.searchParams));
+    // Tombstoned yards reference customer PII via their address;
+    // non-admin sessions silently drop the flag (see customers/route.ts).
+    if (query.includeDeleted && subject.role !== ROLES.ADMIN) {
+      query.includeDeleted = false;
+    }
     const result = await yardRepository.findMany(query);
     return successResponse(result);
   } catch (error) {

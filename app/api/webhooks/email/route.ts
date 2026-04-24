@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
@@ -10,6 +9,7 @@ import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
 import { logger } from '@/lib/utils/logger';
+import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 
 // n8n typically batches a handful of emails per minute; cap generously
 // at 200/min per IP to catch misconfigured loops.
@@ -82,21 +82,46 @@ export async function POST(request: NextRequest) {
   const email = normaliseEmail(payload.from);
   const receivedAt = new Date(payload.receivedAt);
 
-  // Match or create customer by email. Use upsert so concurrent inbound
-  // emails for the same sender do not race into a unique-constraint error.
-  const createdCustomerId = randomUUID();
-  const customer = await prisma.customer.upsert({
-    where: { email },
-    update: {},
-    create: {
-      id: createdCustomerId,
-      fullName: payload.fromName || email,
-      email,
-      preferredChannel: 'EMAIL',
-      preferredLanguage: 'en',
-    },
-  });
-  const isNewCustomer = customer.id === createdCustomerId;
+  // Derive thread key from In-Reply-To or Message-ID
+  const threadKey = payload.inReplyTo
+    ? `email:${payload.inReplyTo}`
+    : `email:${payload.messageId}`;
+
+  // Parse message for structured info
+  const parsed = parseMessage(payload.textBody);
+
+  // Customer resolution + enquiry creation in ONE transaction, using
+  // the shared `resolveInboundCustomer` helper so the WhatsApp path
+  // gets the same semantics (see lib/services/inbound-customer.service.ts
+  // for the rationale behind upsert / in-transaction restore).
+  const { customer, enquiry, isNewCustomer, wasRestored } =
+    await prisma.$transaction(async (tx) => {
+      const resolved = await resolveInboundCustomer(tx, {
+        lookup: { by: 'email', value: email },
+        create: {
+          fullName: payload.fromName || email,
+          email,
+          preferredChannel: 'EMAIL',
+          preferredLanguage: 'en',
+        },
+      });
+
+      const enquiry = await tx.enquiry.create({
+        data: {
+          channel: 'EMAIL',
+          externalMessageId: payload.messageId,
+          customerId: resolved.customer.id,
+          sourceFrom: email,
+          subject: payload.subject || null,
+          rawText: payload.textBody,
+          receivedAt,
+          threadKey,
+          triageStatus: 'NEW',
+        },
+      });
+
+      return { ...resolved, enquiry };
+    });
 
   if (isNewCustomer) {
     logger.info('Email intake created new customer', {
@@ -106,29 +131,13 @@ export async function POST(request: NextRequest) {
       email,
     });
   }
-
-  // Derive thread key from In-Reply-To or Message-ID
-  const threadKey = payload.inReplyTo
-    ? `email:${payload.inReplyTo}`
-    : `email:${payload.messageId}`;
-
-  // Parse message for structured info
-  const parsed = parseMessage(payload.textBody);
-
-  // Create enquiry
-  const enquiry = await prisma.enquiry.create({
-    data: {
-      channel: 'EMAIL',
-      externalMessageId: payload.messageId,
+  if (wasRestored) {
+    logger.info('Email intake restored soft-deleted customer', {
+      service: 'email-webhook',
+      operation: 'restore-customer',
       customerId: customer.id,
-      sourceFrom: email,
-      subject: payload.subject || null,
-      rawText: payload.textBody,
-      receivedAt,
-      threadKey,
-      triageStatus: 'NEW',
-    },
-  });
+    });
+  }
 
   // Log inbound message
   await messageLogService.logMessage({

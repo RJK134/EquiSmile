@@ -1,5 +1,34 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Operational-readiness uplift (2026-04-23)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| PR16-NO-ERRSINK-IMPL | Medium | Phase 15 shipped a sink interface but no wireable implementation | Resolved — `lib/observability/webhook-error-sink.ts` + `instrumentation.ts` auto-register when `EQUISMILE_ERROR_WEBHOOK_URL` is set. |
+| PR16-BACKUP-MANUAL | High | Backup was a host cron the operator had to install by hand | Resolved — `backup` compose service runs `pg_dump` on an internal cron; no host setup required. |
+| PR16-NO-RESTORE-DRILL | Medium | No mechanical way to verify a backup is restorable | Resolved — `scripts/backup-restore-verify.sh` restores the newest dump into a scratch DB and asserts schema + row presence. |
+| PR16-NO-OPS-UI | Medium | No operator-visible view of DLQ depth, audit activity, backup freshness | Resolved — `/api/admin/observability` + `/[locale]/admin/observability` page (admin-only). |
+| PR16-PII-SWEEP | Low | Remaining raw phone in confirmation.service and n8n send-whatsapp trigger | Resolved — `maskPhone()` applied to all outbound logs. |
+
+## Phase 15 — Production-readiness uplift (2026-04-23)
+
+Filed and closed during the Phase 15 PR. See
+[PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the updated
+go-live checklist.
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| PR15-SOFT-DEL | High | Hard deletes on Customer/Yard/Horse cascaded clinical records | Resolved — `deletedAt` / `deletedById` tombstones + repo-level `deletedAt: null` default filter. |
+| PR15-DOCKER-ENV | High | Docker compose missing Auth.js / Anthropic / `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` pass-through | Resolved — `env_file: .env` + explicit `args:` for NEXT_PUBLIC_* build-time vars. |
+| PR15-NO-BACKUP | High | No backup script or restore runbook | Resolved — `scripts/backup-db.sh` + `docs/BACKUP.md`. |
+| PR15-API-RATE | Medium | Only webhook & vision endpoints rate-limited; no floor on authenticated write traffic | Resolved — middleware-level per-user API write-limit (60s / 120 writes). |
+| PR15-PII-LOGS | Medium | Raw phone/email in WhatsApp/email/n8n-trigger logs | Resolved — `maskPhone()` / `maskEmail()` wrapped around every outbound log. |
+| PR15-NO-ERRSINK | Low | No hook to forward errors to Sentry / log aggregator | Resolved — `registerErrorSink()` in `lib/utils/logger.ts`. |
+| PR15-NO-LEGAL | Low | No public privacy notice or terms page | Resolved — `/[locale]/privacy` + `/[locale]/terms` (EN + FR). |
+| PR15-NO-TOKENOPS | Low | WhatsApp token lifecycle not documented | Resolved — `docs/OPERATIONS.md` §1. |
+| PR15-NO-POOLTUNE | Low | Prisma pool tuning / `pool_timeout` not documented | Resolved — `docs/OPERATIONS.md` §2. |
+| PR15-WEAK-DBPW | High | `docker-compose.yml` used `equismile_dev` as a default POSTGRES_PASSWORD | Resolved — compose now fails loud via `${POSTGRES_PASSWORD:?}` with no default; `.env.example` uses an obvious `<strong-password-here>` placeholder. |
+
 ## Active Issues
 
 | ID | Phase | Severity | Description | Workaround |

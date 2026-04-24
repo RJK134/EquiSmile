@@ -17,7 +17,9 @@
     "sendingMagicLink": "Envoi en cours…",
     "checkInbox": "Consultez votre boîte de réception pour le lien de connexion. Il est valable pendant 15 minutes.",
     "emailRequired": "Veuillez saisir une adresse e-mail valide.",
-    "linkSendFailed": "Impossible d'envoyer le lien de connexion. Veuillez réessayer."
+    "linkSendFailed": "Impossible d'envoyer le lien de connexion. Veuillez réessayer.",
+    "privacyLink": "Confidentialité",
+    "termsLink": "Conditions"
   },
   "staff": {
     "title": "Personnel",
@@ -69,7 +71,8 @@
     "horses": "Chevaux",
     "staff": "Personnel",
     "completed": "Terminés",
-    "more": "Plus"
+    "more": "Plus",
+    "observability": "Observabilité"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -576,5 +579,125 @@
     "deleteSuccess": "Supprimé avec succès.",
     "deleteFailed": "Échec de la suppression. Veuillez réessayer.",
     "loadFailed": "Échec du chargement des données. Veuillez réessayer."
+  },
+  "observability": {
+    "title": "Observabilité",
+    "subtitle": "File d'opérations échouées, état des sauvegardes, activité d'audit récente",
+    "forbidden": "Vous devez être administrateur pour consulter cette page.",
+    "refreshError": "Échec du rafraîchissement",
+    "ops": {
+      "heading": "Signaux opérationnels",
+      "deadLetter": {
+        "label": "File d'échecs (en attente)",
+        "abandoned": "+{count} abandonnées"
+      },
+      "audit": {
+        "label": "Entrées d'audit (24 h)",
+        "signInDenied": "{count} connexions refusées"
+      },
+      "backup": {
+        "label": "Sauvegardes sur disque",
+        "newest": "plus récente : {age} h",
+        "none": "aucune sauvegarde trouvée",
+        "missingVolume": "volume de sauvegardes non monté"
+      }
+    },
+    "dlq": {
+      "heading": "Opérations échouées",
+      "empty": "Aucune opération échouée. Tout se rejoue correctement.",
+      "scope": "Périmètre",
+      "status": "Statut",
+      "attempts": "Tentatives",
+      "lastError": "Dernière erreur",
+      "created": "Créée",
+      "actions": "Actions",
+      "markReplayed": "Marquer rejouée",
+      "markAbandoned": "Abandonner"
+    },
+    "audit": {
+      "heading": "Activité d'audit récente",
+      "empty": "Aucune entrée d'audit pour le moment.",
+      "when": "Quand",
+      "event": "Événement",
+      "actor": "Acteur",
+      "target": "Cible",
+      "detail": "Détail"
+    }
+  },
+  "legal": {
+    "backHome": "Retour à l'accueil",
+    "privacy": {
+      "title": "Politique de confidentialité",
+      "lastUpdated": "Dernière mise à jour : avril 2026",
+      "controller": {
+        "heading": "1. Responsable du traitement",
+        "body": "EquiSmile est exploité par un cabinet vétérinaire équin basé en Suisse. Le cabinet est le responsable du traitement des données personnelles traitées via cette application et constitue le point de contact pour toute demande relative à ces données."
+      },
+      "data": {
+        "heading": "2. Données personnelles traitées",
+        "intro": "Nous ne traitons que les données nécessaires à la fourniture de services vétérinaires dentaires équins :",
+        "customer": "Identité et coordonnées du client (nom complet, numéro de mobile, e-mail, langue et canal préférés).",
+        "messages": "Messages WhatsApp et e-mail entrants et sortants concernant les rendez-vous, y compris le contenu et l'horodatage.",
+        "clinical": "Dossiers cliniques des chevaux soignés — notes, schémas dentaires, observations, prescriptions, images et PDF téléversés.",
+        "location": "Adresses des écuries et, lorsque le géocodage réussit, coordonnées latitude/longitude utilisées pour la planification des itinéraires.",
+        "audit": "Journaux d'audit (qui a fait quoi, quand) pour les opérations sensibles."
+      },
+      "lawful": {
+        "heading": "3. Base légale",
+        "body": "Ces données sont traitées sur la base de la LPD suisse et des articles 6(1)(b) et 6(1)(f) du RGPD (exécution du contrat vétérinaire et intérêts légitimes liés à la prestation et à la facturation du service). Les données cliniques relèvent le cas échéant de l'article 9(2)(h) (prestations de soins vétérinaires)."
+      },
+      "retention": {
+        "heading": "4. Conservation",
+        "body": "Les dossiers des clients, écuries et chevaux sont conservés pendant la durée de la relation active plus la période de conservation documentaire vétérinaire conforme aux standards suisses. Lorsqu'un client est retiré de la liste active, son dossier est marqué comme supprimé mais conservé (suppression logique) afin que l'historique clinique et la piste d'audit restent récupérables. Une suppression complète est effectuée sur demande (voir Vos droits)."
+      },
+      "sharing": {
+        "heading": "5. Sous-traitants et tiers",
+        "body": "Les données personnelles ne sont partagées qu'avec les sous-traitants nécessaires au fonctionnement du service :",
+        "whatsapp": "Meta Platforms Ireland Ltd. — API WhatsApp Business Cloud (acheminement des messages).",
+        "email": "Le fournisseur SMTP configuré par le cabinet — envoi des e-mails sortants.",
+        "maps": "Google — géocodage et optimisation d'itinéraires (coordonnées d'adresse uniquement ; aucune identité client n'est transmise).",
+        "anthropic": "Anthropic — analyse d'images cliniques, uniquement lorsque le vétérinaire déclenche explicitement l'analyse d'une image téléversée."
+      },
+      "rights": {
+        "heading": "6. Vos droits",
+        "body": "En vertu de la LPD suisse et du RGPD, vous avez le droit d'accéder, de rectifier, de limiter ou de supprimer vos données personnelles, et de vous opposer aux traitements fondés sur l'intérêt légitime. Contactez le cabinet via les coordonnées ci-dessous ; nous répondons dans un délai d'un mois."
+      },
+      "contact": {
+        "heading": "7. Contact",
+        "body": "Les demandes de confidentialité doivent être adressées au cabinet par WhatsApp ou e-mail via les mêmes canaux utilisés pour les rendez-vous. Le cabinet vérifiera l'identité avant toute divulgation ou suppression."
+      }
+    },
+    "terms": {
+      "title": "Conditions d'utilisation",
+      "lastUpdated": "Dernière mise à jour : avril 2026",
+      "scope": {
+        "heading": "1. Portée",
+        "body": "Ces conditions régissent l'utilisation de l'application interne EquiSmile par le personnel vétérinaire et les utilisateurs administratifs approuvés. Les clients n'utilisent pas directement cette application ; ils interagissent avec le cabinet par WhatsApp, e-mail ou téléphone."
+      },
+      "accounts": {
+        "heading": "2. Comptes et connexion",
+        "body": "La connexion est limitée au personnel nommé dont l'identifiant GitHub ou l'e-mail figure sur la liste d'autorisation du cabinet. Le partage d'identifiants est interdit. Le cabinet peut révoquer l'accès à tout moment."
+      },
+      "acceptableUse": {
+        "heading": "3. Usage acceptable",
+        "body": "L'application ne doit être utilisée que pour fournir et administrer les services vétérinaires dentaires équins. L'exportation massive, le scraping et tout usage susceptible de compromettre la confidentialité ou la disponibilité sont interdits."
+      },
+      "clinicalDisclaimer": {
+        "heading": "4. Responsabilité clinique",
+        "body": "Les classifications de triage automatisées, les propositions d'itinéraires et les analyses d'images assistées par IA sont des aides à la décision. Le vétérinaire conserve la pleine responsabilité de chaque décision clinique ; l'application ne se substitue pas au jugement professionnel."
+      },
+      "availability": {
+        "heading": "5. Disponibilité",
+        "body": "Le cabinet héberge l'application sur sa propre infrastructure. Elle est exploitée selon des standards opérationnels raisonnables mais sans garantie formelle de disponibilité. Les interventions de maintenance planifiées peuvent entraîner de brèves indisponibilités."
+      },
+      "changes": {
+        "heading": "6. Modifications",
+        "body": "Le cabinet peut mettre à jour ces conditions selon les besoins opérationnels. Les modifications substantielles sont communiquées aux utilisateurs actifs à la prochaine connexion."
+      },
+      "contact": {
+        "heading": "7. Contact",
+        "body": "Les questions opérationnelles et d'accès sont traitées par le cabinet via les canaux internes habituels."
+      }
+    }
   }
 }

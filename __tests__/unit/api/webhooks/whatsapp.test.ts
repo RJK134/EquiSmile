@@ -1,16 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHmac } from 'crypto';
 
-const mockRandomUUID = vi.hoisted(() => vi.fn());
-
-vi.mock('crypto', async () => {
-  const actual = await vi.importActual<typeof import('crypto')>('crypto');
-  return {
-    ...actual,
-    randomUUID: mockRandomUUID,
-  };
-});
-
 // Mock env
 vi.mock('@/lib/env', () => ({
   env: {
@@ -23,23 +13,37 @@ vi.mock('@/lib/env', () => ({
 }));
 
 // Mock prisma
-const mockPrisma = vi.hoisted(() => ({
-  enquiry: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  },
-  customer: {
-    upsert: vi.fn(),
-    create: vi.fn(),
-  },
-  visitRequest: {
-    create: vi.fn(),
-  },
-  enquiryMessage: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-  },
-}));
+const mockPrisma = vi.hoisted(() => {
+  const surface = {
+    enquiry: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    customer: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
+    },
+    yard: {
+      updateMany: vi.fn(),
+    },
+    horse: {
+      updateMany: vi.fn(),
+    },
+    visitRequest: {
+      create: vi.fn(),
+    },
+    enquiryMessage: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+  };
+  return {
+    ...surface,
+    $transaction: vi.fn(async (cb: (tx: typeof surface) => unknown) => cb(surface)),
+  };
+});
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
@@ -61,7 +65,6 @@ function createRequest(url: string): NextRequest {
 describe('WhatsApp Webhook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRandomUUID.mockReturnValue('new-customer-id');
   });
 
   describe('GET - Webhook Verification', () => {
@@ -137,7 +140,11 @@ describe('WhatsApp Webhook', () => {
 
     it('returns 200 for valid signed payload', async () => {
       mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-      mockPrisma.customer.upsert.mockResolvedValue({ id: 'new-customer-id' });
+      mockPrisma.customer.findUnique.mockResolvedValue(null);
+      mockPrisma.customer.upsert.mockImplementation(async ({ create }) => ({
+        id: create.id,
+        deletedAt: null,
+      }));
       mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1' });
       mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 

@@ -6,8 +6,13 @@ import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/r
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(ROLES.READONLY);
+    const subject = await requireRole(ROLES.READONLY);
     const query = horseQuerySchema.parse(parseSearchParams(request.nextUrl.searchParams));
+    // Tombstoned horse records carry clinical history; non-admin
+    // sessions silently drop the flag (see customers/route.ts).
+    if (query.includeDeleted && subject.role !== ROLES.ADMIN) {
+      query.includeDeleted = false;
+    }
     const result = await horseRepository.findMany(query);
     return successResponse(result);
   } catch (error) {

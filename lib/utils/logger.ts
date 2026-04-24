@@ -206,8 +206,61 @@ export const logger = {
     if (!shouldLog('error')) return;
     const entry = createLogEntry('error', message, context, error);
     console.error(formatEntry(entry));
+    // Phase 15 — forward to the error-tracking sink (Sentry, Highlight,
+    // a log-aggregator webhook — whatever is wired up at boot time).
+    // We never throw from the sink; observability must not cascade into
+    // a caller-visible failure.
+    for (const sink of errorSinks) {
+      try {
+        sink({ message, error, context: entry.context });
+      } catch (sinkError) {
+        console.error('[logger] error sink threw', sinkError);
+      }
+    }
   },
 };
+
+// ---------------------------------------------------------------------------
+// Pluggable error-tracking sink (Sentry / log-aggregator webhook / ...)
+// ---------------------------------------------------------------------------
+//
+// Why not a hard Sentry dependency:
+//   - Deployment shape is still single-VPS; pulling in @sentry/node +
+//     its transport forces a binary dependency + DSN before the operator
+//     has chosen a vendor.
+//   - A sink interface lets us wire up an HTTP post, a Sentry adapter,
+//     or an in-process ring buffer (for tests) without touching callers.
+//
+// Register a sink at app boot — typically in a top-level server file:
+//
+//     import { registerErrorSink } from '@/lib/utils/logger';
+//     registerErrorSink((event) => sentry.captureException(event.error ?? event.message));
+//
+// If no sink is registered, `logger.error()` still prints to stderr as
+// before — zero behavioural change for existing code.
+
+export interface ErrorSinkEvent {
+  message: string;
+  error?: unknown;
+  context?: LogContext;
+}
+
+export type ErrorSink = (event: ErrorSinkEvent) => void;
+
+const errorSinks: ErrorSink[] = [];
+
+export function registerErrorSink(sink: ErrorSink): () => void {
+  errorSinks.push(sink);
+  return () => {
+    const i = errorSinks.indexOf(sink);
+    if (i >= 0) errorSinks.splice(i, 1);
+  };
+}
+
+/** Test helper: drop all registered sinks. */
+export function __resetErrorSinks(): void {
+  errorSinks.length = 0;
+}
 
 // ---------------------------------------------------------------------------
 // Consistent error format

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'crypto';
-import type { Customer } from '@prisma/client';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { verifyWhatsAppSignature, verifyWhatsAppVerifyToken } from '@/lib/utils/signature';
@@ -10,6 +8,7 @@ import { messageLogService } from '@/lib/services/message-log.service';
 import { autoTriageService } from '@/lib/services/auto-triage.service';
 import { rateLimiter, rateLimitedResponse, clientKeyFromRequest } from '@/lib/utils/rate-limit';
 import { logger } from '@/lib/utils/logger';
+import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
 // order-of-magnitude headroom that still catches a misconfigured
@@ -194,30 +193,54 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           continue;
         }
 
-        // Match or create customer by phone. Use upsert when we have a
-        // normalised number so simultaneous webhooks cannot race.
-        let customer: Customer;
-        let isNewCustomer = false;
-        const customerData = {
-          id: randomUUID(),
-          fullName: senderName,
-          mobilePhone: senderPhone,
-          preferredChannel: 'WHATSAPP' as const,
-          preferredLanguage: 'en',
-        };
-        if (senderPhone) {
-          customer = await prisma.customer.upsert({
-            where: { mobilePhone: senderPhone },
-            update: {},
-            create: customerData,
+        // Parse message for structured info
+        const parsed = parseMessage(messageText);
+
+        // Customer resolution + enquiry creation in ONE transaction —
+        // see lib/services/inbound-customer.service.ts for rationale.
+        // Uses the shared helper so email + WhatsApp stay in lock-step.
+        const { customer, enquiry, isNewCustomer, wasRestored } =
+          await prisma.$transaction(async (tx) => {
+            let resolved: Awaited<ReturnType<typeof resolveInboundCustomer>>;
+            if (senderPhone) {
+              resolved = await resolveInboundCustomer(tx, {
+                lookup: { by: 'mobilePhone', value: senderPhone },
+                create: {
+                  fullName: senderName,
+                  mobilePhone: senderPhone,
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
+              });
+            } else {
+              // No phone means no unique key, so the race-safe upsert
+              // path doesn't apply. Fall back to a plain create.
+              const customer = await tx.customer.create({
+                data: {
+                  fullName: senderName,
+                  mobilePhone: senderPhone,
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
+              });
+              resolved = { customer, isNewCustomer: true, wasRestored: false };
+            }
+
+            const enquiry = await tx.enquiry.create({
+              data: {
+                channel: 'WHATSAPP',
+                externalMessageId: message.id,
+                customerId: resolved.customer.id,
+                sourceFrom: message.from,
+                rawText: messageText,
+                receivedAt: timestamp,
+                triageStatus: 'NEW',
+                threadKey: `wa:${message.from}`,
+              },
+            });
+
+            return { ...resolved, enquiry };
           });
-          isNewCustomer = customer.id === customerData.id;
-        } else {
-          customer = await prisma.customer.create({
-            data: customerData,
-          });
-          isNewCustomer = true;
-        }
 
         if (isNewCustomer) {
           logger.info('WhatsApp intake created new customer', {
@@ -227,23 +250,13 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
             mobilePhone: senderPhone,
           });
         }
-
-        // Parse message for structured info
-        const parsed = parseMessage(messageText);
-
-        // Create enquiry
-        const enquiry = await prisma.enquiry.create({
-          data: {
-            channel: 'WHATSAPP',
-            externalMessageId: message.id,
+        if (wasRestored) {
+          logger.info('WhatsApp intake restored soft-deleted customer', {
+            service: 'whatsapp-webhook',
+            operation: 'restore-customer',
             customerId: customer.id,
-            sourceFrom: message.from,
-            rawText: messageText,
-            receivedAt: timestamp,
-            triageStatus: 'NEW',
-            threadKey: `wa:${message.from}`,
-          },
-        });
+          });
+        }
 
         // Create inbound message log
         await messageLogService.logMessage({

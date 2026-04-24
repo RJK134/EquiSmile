@@ -102,8 +102,12 @@ export const YARD_COLUMNS: CsvColumn<YardRow>[] = [
 ];
 
 export const vetupExportService = {
+  // Phase 15 — exports explicitly skip tombstoned rows. Restoring a
+  // customer or horse before the next export is the operator-facing
+  // contract; exporters should never leak soft-deleted PII downstream.
   async horsesCsv(): Promise<string> {
     const horses = await prisma.horse.findMany({
+      where: { deletedAt: null },
       orderBy: { horseName: 'asc' },
       include: { customer: true, primaryYard: true },
     });
@@ -111,12 +115,16 @@ export const vetupExportService = {
   },
 
   async customersCsv(): Promise<string> {
-    const customers = await prisma.customer.findMany({ orderBy: { fullName: 'asc' } });
+    const customers = await prisma.customer.findMany({
+      where: { deletedAt: null },
+      orderBy: { fullName: 'asc' },
+    });
     return encodeCsv(customers as CustomerRow[], CUSTOMER_COLUMNS);
   },
 
   async yardsCsv(): Promise<string> {
     const yards = await prisma.yard.findMany({
+      where: { deletedAt: null },
       orderBy: { yardName: 'asc' },
       include: { customer: true },
     });
