@@ -251,6 +251,59 @@ describe('rescheduleService', () => {
         { operationKey: 'wa-cancel:appt-tx' },
       );
     });
+
+    it('returns success even if the post-commit notification throws unexpectedly', async () => {
+      // Regression: the cancel transaction has already committed by
+      // the time we try to send the customer ack. If the send path
+      // throws (network blip, or a future contributor changing the
+      // service signature), the API used to surface a 500 — which
+      // would trick a retrying operator into hitting "Cannot cancel
+      // appointment with status: CANCELLED" on the next attempt and
+      // mask the real outcome. The post-commit block now swallows
+      // throws and logs them; the cancellation result is returned.
+      const { whatsappService } = await import('@/lib/services/whatsapp.service');
+      const sendTextSpy = vi.mocked(whatsappService.sendTextMessage);
+      sendTextSpy.mockReset();
+      sendTextSpy.mockRejectedValueOnce(new Error('send pipeline crashed'));
+
+      mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+        const tx = {
+          appointment: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: 'appt-throw',
+              status: 'PROPOSED',
+              visitRequestId: 'vr1',
+              routeRunId: null,
+              visitRequest: {
+                enquiryId: 'e1',
+                customer: {
+                  fullName: 'Jane',
+                  email: null,
+                  mobilePhone: '+44700',
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
+              },
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          visitRequest: { update: vi.fn().mockResolvedValue({}) },
+          routeRunStop: { updateMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+          routeRun: { update: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
+        };
+        return fn(tx);
+      });
+
+      const result = await rescheduleService.cancelAppointment('appt-throw', 'reason');
+
+      expect(result).toEqual({
+        appointmentId: 'appt-throw',
+        cancelled: true,
+        returnedToPool: true,
+      });
+      expect(sendTextSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('rescheduleAppointment — does not double-message the customer', () => {

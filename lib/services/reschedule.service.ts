@@ -8,11 +8,8 @@
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
 import { whatsappService } from '@/lib/services/whatsapp.service';
+import { logger } from '@/lib/utils/logger';
 import type { ActorContext } from '@/lib/types/actor';
-// Re-export so existing import sites (`import { ActorContext } from
-// '@/lib/services/reschedule.service'`) keep working during the
-// transition.
-export type { ActorContext };
 
 interface CancelResult {
   appointmentId: string;
@@ -186,26 +183,48 @@ export const rescheduleService = {
     //    The send is idempotent (`wa-cancel:<appointmentId>` operation
     //    key), so a retry after a transient failure here will not
     //    double-message the customer.
+    //
+    //    The whole block is try-wrapped: the cancellation has already
+    //    been committed by this point, so any send-side failure must
+    //    NOT propagate and turn into a 500 — that would mask the
+    //    successful state change and trick the caller into retrying,
+    //    which would hit "Cannot cancel appointment with status:
+    //    CANCELLED" on the second attempt. Failed sends are already
+    //    captured by the underlying services (dead-letter queue +
+    //    ConfirmationDispatch); we just need to keep them out of the
+    //    success path.
     if (notifyCustomer) {
-      const message = sendCancellationAcknowledgement(customer.fullName, lang);
-      if (customer.preferredChannel === 'EMAIL' && customer.email) {
-        const subject = lang === 'fr'
-          ? 'Annulation de rendez-vous — EquiSmile'
-          : 'Appointment Cancelled — EquiSmile';
-        await emailService.sendBrandedEmail(
-          customer.email,
-          subject,
-          message,
-          lang,
-          enquiryId,
-        );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
-        await whatsappService.sendTextMessage(
-          customer.mobilePhone,
-          message,
-          enquiryId,
-          lang,
-          { operationKey: `wa-cancel:${appointmentId}` },
+      try {
+        const message = sendCancellationAcknowledgement(customer.fullName, lang);
+        if (customer.preferredChannel === 'EMAIL' && customer.email) {
+          const subject = lang === 'fr'
+            ? 'Annulation de rendez-vous — EquiSmile'
+            : 'Appointment Cancelled — EquiSmile';
+          await emailService.sendBrandedEmail(
+            customer.email,
+            subject,
+            message,
+            lang,
+            enquiryId,
+          );
+        } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+          await whatsappService.sendTextMessage(
+            customer.mobilePhone,
+            message,
+            enquiryId,
+            lang,
+            { operationKey: `wa-cancel:${appointmentId}` },
+          );
+        }
+      } catch (notifyError) {
+        logger.error(
+          'Cancellation acknowledgement failed AFTER cancel was committed; returning success',
+          notifyError,
+          {
+            service: 'reschedule-service',
+            operation: 'cancel-notify',
+            appointmentId,
+          },
         );
       }
     }
@@ -257,28 +276,45 @@ export const rescheduleService = {
     });
 
     if (appointment) {
-      const customer = appointment.visitRequest.customer;
-      const lang = customer.preferredLanguage || 'en';
-      const message = sendRescheduleAcknowledgement(customer.fullName, lang);
+      // Same try-wrap rationale as cancelAppointment: the underlying
+      // cancel transaction has already committed, so a send-side
+      // exception here must not be re-thrown — that would 500 the
+      // operator and trick a retry into hitting "Cannot cancel
+      // appointment with status: CANCELLED" on the second try.
+      try {
+        const customer = appointment.visitRequest.customer;
+        const lang = customer.preferredLanguage || 'en';
+        const message = sendRescheduleAcknowledgement(customer.fullName, lang);
 
-      if (customer.preferredChannel === 'EMAIL' && customer.email) {
-        const subject = lang === 'fr'
-          ? 'Report de rendez-vous — EquiSmile'
-          : 'Appointment Rescheduled — EquiSmile';
-        await emailService.sendBrandedEmail(
-          customer.email,
-          subject,
-          message,
-          lang,
-          appointment.visitRequest.enquiryId ?? undefined,
-        );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
-        await whatsappService.sendTextMessage(
-          customer.mobilePhone,
-          message,
-          appointment.visitRequest.enquiryId ?? undefined,
-          lang,
-          { operationKey: `wa-reschedule:${appointmentId}` },
+        if (customer.preferredChannel === 'EMAIL' && customer.email) {
+          const subject = lang === 'fr'
+            ? 'Report de rendez-vous — EquiSmile'
+            : 'Appointment Rescheduled — EquiSmile';
+          await emailService.sendBrandedEmail(
+            customer.email,
+            subject,
+            message,
+            lang,
+            appointment.visitRequest.enquiryId ?? undefined,
+          );
+        } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+          await whatsappService.sendTextMessage(
+            customer.mobilePhone,
+            message,
+            appointment.visitRequest.enquiryId ?? undefined,
+            lang,
+            { operationKey: `wa-reschedule:${appointmentId}` },
+          );
+        }
+      } catch (notifyError) {
+        logger.error(
+          'Reschedule acknowledgement failed AFTER reschedule was committed; returning success',
+          notifyError,
+          {
+            service: 'reschedule-service',
+            operation: 'reschedule-notify',
+            appointmentId,
+          },
         );
       }
     }
