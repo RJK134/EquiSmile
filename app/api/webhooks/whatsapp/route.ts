@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Customer } from '@prisma/client';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { verifyWhatsAppSignature, verifyWhatsAppVerifyToken } from '@/lib/utils/signature';
@@ -192,12 +193,24 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           continue;
         }
 
-        // Match or create customer by phone
-        let customer = senderPhone
-          ? await prisma.customer.findUnique({ where: { mobilePhone: senderPhone } })
-          : null;
-
-        if (!customer) {
+        // Match or create customer by phone. Use upsert when we have a
+        // normalised number so simultaneous webhooks cannot race.
+        let customer: Customer;
+        let isNewCustomer = false;
+        if (senderPhone) {
+          const preUpsertAt = new Date();
+          customer = await prisma.customer.upsert({
+            where: { mobilePhone: senderPhone },
+            update: {},
+            create: {
+              fullName: senderName,
+              mobilePhone: senderPhone,
+              preferredChannel: 'WHATSAPP',
+              preferredLanguage: 'en',
+            },
+          });
+          isNewCustomer = customer.createdAt >= preUpsertAt;
+        } else {
           customer = await prisma.customer.create({
             data: {
               fullName: senderName,
@@ -206,6 +219,10 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
               preferredLanguage: 'en',
             },
           });
+          isNewCustomer = true;
+        }
+
+        if (isNewCustomer) {
           logger.info('WhatsApp intake created new customer', {
             service: 'whatsapp-webhook',
             operation: 'create-customer',

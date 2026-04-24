@@ -17,8 +17,7 @@ const mockPrisma = vi.hoisted(() => ({
     create: vi.fn(),
   },
   customer: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
+    upsert: vi.fn(),
   },
   visitRequest: {
     create: vi.fn(),
@@ -69,8 +68,10 @@ describe('Email Intake Endpoint', () => {
 
   it('creates enquiry from valid payload', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.create.mockResolvedValue({ id: 'cust-1' });
+    mockPrisma.customer.upsert.mockResolvedValue({
+      id: 'cust-1',
+      createdAt: new Date('2099-01-01T00:00:00Z'),
+    });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'cust-1' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
@@ -116,7 +117,10 @@ describe('Email Intake Endpoint', () => {
 
   it('matches existing customer by email', async () => {
     mockPrisma.enquiry.findUnique.mockResolvedValue(null);
-    mockPrisma.customer.findUnique.mockResolvedValue({ id: 'existing-cust' });
+    mockPrisma.customer.upsert.mockResolvedValue({
+      id: 'existing-cust',
+      createdAt: new Date('2024-01-01T00:00:00Z'),
+    });
     mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1', customerId: 'existing-cust' });
     mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-1' });
 
@@ -125,6 +129,6 @@ describe('Email Intake Endpoint', () => {
     const data = await response.json();
 
     expect(data.isNew).toBe(false);
-    expect(mockPrisma.customer.create).not.toHaveBeenCalled();
+    expect(mockPrisma.customer.upsert).toHaveBeenCalledTimes(1);
   });
 });

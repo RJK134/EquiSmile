@@ -4,6 +4,7 @@ import { env } from '@/lib/env';
 import { requireN8nApiKey } from '@/lib/utils/signature';
 import { clientKeyFromRequest, rateLimitedResponse, rateLimiter } from '@/lib/utils/rate-limit';
 import { whatsappService } from '@/lib/services/whatsapp.service';
+import { logger } from '@/lib/utils/logger';
 
 const sendWhatsAppSchema = z.object({
   to: z.string().min(1),
@@ -33,7 +34,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = sendWhatsAppSchema.parse(body);
 
-    console.log('[n8n] Send WhatsApp triggered', { to: payload.to, enquiryId: payload.enquiryId });
+    logger.info('n8n send WhatsApp triggered', {
+      service: 'n8n-whatsapp-trigger',
+      operation: 'send-whatsapp',
+      to: payload.to,
+      enquiryId: payload.enquiryId,
+      hasTemplate: Boolean(payload.templateName),
+    });
 
     let result;
     if (payload.templateName) {

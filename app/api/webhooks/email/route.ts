@@ -81,22 +81,22 @@ export async function POST(request: NextRequest) {
   const email = normaliseEmail(payload.from);
   const receivedAt = new Date(payload.receivedAt);
 
-  // Match or create customer by email
-  let customer = await prisma.customer.findUnique({
+  // Match or create customer by email. Use upsert so concurrent inbound
+  // emails for the same sender do not race into a unique-constraint error.
+  const preUpsertAt = new Date();
+  const customer = await prisma.customer.upsert({
     where: { email },
+    update: {},
+    create: {
+      fullName: payload.fromName || email,
+      email,
+      preferredChannel: 'EMAIL',
+      preferredLanguage: 'en',
+    },
   });
-  let isNewCustomer = false;
+  const isNewCustomer = customer.createdAt >= preUpsertAt;
 
-  if (!customer) {
-    customer = await prisma.customer.create({
-      data: {
-        fullName: payload.fromName || email,
-        email,
-        preferredChannel: 'EMAIL',
-        preferredLanguage: 'en',
-      },
-    });
-    isNewCustomer = true;
+  if (isNewCustomer) {
     logger.info('Email intake created new customer', {
       service: 'email-webhook',
       operation: 'create-customer',
