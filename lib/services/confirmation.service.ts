@@ -202,20 +202,6 @@ export const confirmationService = {
     // guarantee. The underlying services already catch most failures
     // internally and return success: false, but defence-in-depth here
     // is cheap.
-    // Scope the WhatsApp idempotency key to the CURRENT dispatch
-    // attempt rather than the appointment lifetime. A static
-    // `wa-confirmation:<id>` key would silently deduplicate a
-    // legitimate operator-triggered resend (after the first send
-    // stamped the key in the 30-day TTL window). Counting existing
-    // ConfirmationDispatch rows gives us a monotonically-advancing
-    // component: a double-click inside a single attempt reads the
-    // same count and dedupes, while a second deliberate click after
-    // the first row has been written sees count+1 and goes out.
-    const priorDispatches = await prisma.confirmationDispatch.count({
-      where: { appointmentId },
-    });
-    const confirmationOperationKey = `wa-confirmation:${appointmentId}:${priorDispatches}`;
-
     try {
       if (channel === 'EMAIL' && customer.email) {
         const subject = lang === 'fr'
@@ -233,6 +219,22 @@ export const confirmationService = {
         externalMessageId = result.messageId || null;
         if (!sent) error = 'Email send failed';
       } else if (channel === 'WHATSAPP' && customer.mobilePhone) {
+        // Scope the WhatsApp idempotency key to the CURRENT dispatch
+        // attempt rather than the appointment lifetime. A static
+        // `wa-confirmation:<id>` key would silently deduplicate a
+        // legitimate operator-triggered resend (after the first send
+        // stamped the key in the 30-day TTL window). Counting existing
+        // ConfirmationDispatch rows gives us a monotonically-advancing
+        // component: a double-click inside a single attempt reads the
+        // same count and dedupes, while a second deliberate click
+        // after the first row has been written sees count+1 and goes
+        // out. Scoped to the WhatsApp branch so the email path does
+        // not pay the count round-trip.
+        const priorDispatches = await prisma.confirmationDispatch.count({
+          where: { appointmentId },
+        });
+        const confirmationOperationKey = `wa-confirmation:${appointmentId}:${priorDispatches}`;
+
         const result = await whatsappService.sendTextMessage(
           customer.mobilePhone,
           message,
