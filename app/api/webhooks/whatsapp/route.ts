@@ -272,14 +272,31 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         });
 
         // If this customer already has an open appointment, record the
-        // reply as an AppointmentResponse so the audit trail links the
-        // inbound message to the booking. Schema + service hook already
-        // exist (AMBER-11); we just wire the webhook to call them.
-        await recordAppointmentResponseIfAny({
+        // reply as an AppointmentResponse (AMBER-11) and short-circuit:
+        // a "cancel" / "reschedule" / "thanks" reply is a message about
+        // the existing booking, not a new booking request, so we must
+        // NOT create a second planning-pool VisitRequest for it. The
+        // thread still lives on the Enquiry + EnquiryMessage above; the
+        // appointment detail view surfaces the AppointmentResponse.
+        const matchedAppointment = await recordAppointmentResponseIfAny({
           customerId: customer.id,
           messageText,
           enquiryMessageId: loggedMessage.id,
         });
+        if (matchedAppointment) {
+          logger.info(
+            'WhatsApp reply matched to open appointment; skipping new visit-request creation',
+            {
+              service: 'whatsapp-webhook',
+              operation: 'match-appointment-response',
+              enquiryId: enquiry.id,
+              customerId: customer.id,
+              appointmentId: matchedAppointment.appointmentId,
+              intent: matchedAppointment.kind,
+            },
+          );
+          continue;
+        }
 
         // Create visit request
         const visitRequest = await prisma.visitRequest.create({
@@ -350,11 +367,28 @@ function mapIntentToResponseKind(
   return 'OTHER';
 }
 
+interface AppointmentMatch {
+  appointmentId: string;
+  kind: AppointmentResponseKind;
+}
+
+/**
+ * If the inbound message is a reply to an existing open appointment,
+ * record the AppointmentResponse row and return the match so the
+ * caller can skip the new-enquiry VisitRequest creation.
+ *
+ * Returns `null` when there is no open appointment for this customer
+ * — the webhook treats the message as a fresh enquiry in that case.
+ *
+ * Failures are swallowed so that a bad audit write never blocks
+ * intake; they return `null` too, which falls back to the original
+ * new-enquiry code path.
+ */
 async function recordAppointmentResponseIfAny(input: {
   customerId: string;
   messageText: string;
   enquiryMessageId: string;
-}): Promise<void> {
+}): Promise<AppointmentMatch | null> {
   try {
     // Pick the most recently created PROPOSED/CONFIRMED booking for
     // this customer — i.e. the one whose confirmation message is most
@@ -371,23 +405,28 @@ async function recordAppointmentResponseIfAny(input: {
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
-    if (!appointment) return;
+    if (!appointment) return null;
 
     const { intent } = rescheduleService.parseCustomerIntent(input.messageText);
+    const kind = mapIntentToResponseKind(intent);
     await appointmentAuditService.logResponse({
       appointmentId: appointment.id,
-      kind: mapIntentToResponseKind(intent),
+      kind,
       channel: 'WHATSAPP',
       rawText: input.messageText,
       enquiryMessageId: input.enquiryMessageId,
     });
+    return { appointmentId: appointment.id, kind };
   } catch (error) {
-    // Best-effort: a failure here must not break enquiry intake.
+    // Best-effort: a failure here must not break enquiry intake. Fall
+    // back to `null` so the caller continues with the normal
+    // new-enquiry path.
     logger.warn('AppointmentResponse logging failed for WhatsApp inbound', {
       service: 'whatsapp-webhook',
       operation: 'log-appointment-response',
       customerId: input.customerId,
       error: error instanceof Error ? error.message : String(error),
     });
+    return null;
   }
 }

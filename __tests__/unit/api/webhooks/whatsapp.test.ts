@@ -38,6 +38,12 @@ const mockPrisma = vi.hoisted(() => {
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    appointment: {
+      findFirst: vi.fn(),
+    },
+    appointmentResponse: {
+      create: vi.fn(),
+    },
   };
   return {
     ...surface,
@@ -181,6 +187,76 @@ describe('WhatsApp Webhook', () => {
       });
       const response = await POST(request);
       expect(response.status).toBe(400);
+    });
+
+    it('does NOT create a new VisitRequest when the reply matches an open appointment', async () => {
+      // Regression: recordAppointmentResponseIfAny used to run purely
+      // for the audit trail and then fall through to the normal
+      // new-enquiry path. That meant every "cancel"/"reschedule" reply
+      // to a confirmation spawned a phantom UNTRIAGED VisitRequest in
+      // the planning pool. The webhook now short-circuits when a
+      // match is found.
+      mockPrisma.enquiry.findUnique.mockResolvedValue(null);
+      mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-1', deletedAt: null });
+      mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-1' });
+      mockPrisma.appointment.findFirst.mockResolvedValue({ id: 'appt-1' });
+      mockPrisma.appointmentResponse.create.mockResolvedValue({ id: 'ar-1' });
+
+      const cancelPayload = {
+        ...validPayload,
+        entry: [{
+          ...validPayload.entry[0],
+          changes: [{
+            ...validPayload.entry[0].changes[0],
+            value: {
+              ...validPayload.entry[0].changes[0].value,
+              messages: [{
+                id: 'wamid.cancel-reply',
+                from: '447700900002',
+                timestamp: '1700000000',
+                type: 'text',
+                text: { body: 'Please cancel my appointment, thanks' },
+              }],
+            },
+          }],
+        }],
+      };
+
+      const response = await POST(makeSignedRequest(cancelPayload));
+      expect(response.status).toBe(200);
+
+      // Give the async `processWebhookPayload` a tick to run — the
+      // handler returns 200 immediately and processes in the
+      // background.
+      await new Promise((r) => setTimeout(r, 10));
+
+      // AppointmentResponse was logged...
+      expect(mockPrisma.appointmentResponse.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          appointmentId: 'appt-1',
+          kind: 'CANCELLED',
+          channel: 'WHATSAPP',
+        }),
+      });
+      // ...and the phantom new-enquiry VisitRequest was NOT created.
+      expect(mockPrisma.visitRequest.create).not.toHaveBeenCalled();
+    });
+
+    it('DOES create a new VisitRequest when the customer has no open appointment', async () => {
+      // Sanity check: the fresh-enquiry path is unchanged when there
+      // is no open appointment to match against.
+      mockPrisma.enquiry.findUnique.mockResolvedValue(null);
+      mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-2', deletedAt: null });
+      mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-2' });
+      mockPrisma.appointment.findFirst.mockResolvedValue(null);
+      mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-2' });
+
+      const response = await POST(makeSignedRequest(validPayload));
+      expect(response.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockPrisma.appointmentResponse.create).not.toHaveBeenCalled();
+      expect(mockPrisma.visitRequest.create).toHaveBeenCalledTimes(1);
     });
   });
 });
