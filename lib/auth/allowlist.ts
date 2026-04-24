@@ -37,8 +37,8 @@ function constantTimeEquals(a: string, b: string): boolean {
   if (ba.length !== bb.length) return false;
 
   let diff = 0;
-  for (let i = 0; i < ba.length; i += 1) {
-    diff |= ba[i] ^ bb[i];
+  for (let byteIndex = 0; byteIndex < ba.length; byteIndex += 1) {
+    diff |= ba[byteIndex] ^ bb[byteIndex];
   }
   return diff === 0;
 }
