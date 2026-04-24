@@ -356,17 +356,19 @@ async function recordAppointmentResponseIfAny(input: {
   enquiryMessageId: string;
 }): Promise<void> {
   try {
-    // Pick the most recent PROPOSED/CONFIRMED booking for this
-    // customer. Only one outbound confirmation is live at a time in
-    // this operating model, so the newest open appointment is the one
-    // the reply is about. If there isn't one, the reply is a fresh
-    // enquiry and no AppointmentResponse is created.
+    // Pick the most recently created PROPOSED/CONFIRMED booking for
+    // this customer — i.e. the one whose confirmation message is most
+    // likely the one the customer is replying to. Only one outbound
+    // confirmation is live at a time in this operating model, so the
+    // newest open appointment is overwhelmingly the right match. If
+    // there isn't one, the reply is a fresh enquiry and no
+    // AppointmentResponse is created.
     const appointment = await prisma.appointment.findFirst({
       where: {
         visitRequest: { customerId: input.customerId },
         status: { in: ['PROPOSED', 'CONFIRMED'] },
       },
-      orderBy: { appointmentStart: 'asc' },
+      orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
     if (!appointment) return;

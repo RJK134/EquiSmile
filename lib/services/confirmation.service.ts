@@ -9,10 +9,7 @@ import { emailService } from '@/lib/services/email.service';
 import { whatsappService } from '@/lib/services/whatsapp.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
 import { logger } from '@/lib/utils/logger';
-
-export interface ActorContext {
-  actor?: string;
-}
+import type { ActorContext } from '@/lib/types/actor';
 
 interface AppointmentWithDetails {
   id: string;

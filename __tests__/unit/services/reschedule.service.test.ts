@@ -194,6 +194,65 @@ describe('rescheduleService', () => {
     });
   });
 
+  describe('cancelAppointment — outbound sends land post-commit', () => {
+    it('dispatches the WhatsApp acknowledgement OUTSIDE the prisma transaction', async () => {
+      // Regression: previously the outbound send sat inside
+      // prisma.$transaction, so Meta's retry loop (~45s worst case)
+      // would blow past Prisma's 5s interactive-tx timeout and roll
+      // back the cancellation AFTER the customer had already been
+      // messaged. This test fails if the send drifts back inside.
+      const sendTextSpy = vi.mocked(
+        (await import('@/lib/services/whatsapp.service')).whatsappService.sendTextMessage,
+      );
+      sendTextSpy.mockClear();
+
+      let sawSendInsideTx = false;
+      mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+        const tx = {
+          appointment: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: 'appt-tx',
+              status: 'PROPOSED',
+              visitRequestId: 'vr1',
+              routeRunId: null,
+              visitRequest: {
+                enquiryId: 'e1',
+                customer: {
+                  fullName: 'Jane',
+                  email: null,
+                  mobilePhone: '+44700',
+                  preferredChannel: 'WHATSAPP',
+                  preferredLanguage: 'en',
+                },
+              },
+            }),
+            update: vi.fn().mockResolvedValue({}),
+          },
+          visitRequest: { update: vi.fn().mockResolvedValue({}) },
+          routeRunStop: { updateMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+          routeRun: { update: vi.fn() },
+          appointmentStatusHistory: { create: vi.fn() },
+        };
+        const result = await fn(tx);
+        // If the send had been invoked by the time the tx callback
+        // returns, it ran inside the transaction — that's the bug.
+        if (sendTextSpy.mock.calls.length > 0) sawSendInsideTx = true;
+        return result;
+      });
+
+      await rescheduleService.cancelAppointment('appt-tx', 'customer phoned');
+
+      expect(sawSendInsideTx).toBe(false);
+      expect(sendTextSpy).toHaveBeenCalledWith(
+        '+44700',
+        expect.stringContaining('cancelled'),
+        'e1',
+        'en',
+        { operationKey: 'wa-cancel:appt-tx' },
+      );
+    });
+  });
+
   describe('cancelAppointment actor attribution', () => {
     it('threads the supplied actor into the status-history row', async () => {
       const statusHistoryCreateSpy = vi.fn();

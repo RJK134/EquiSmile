@@ -8,6 +8,11 @@
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
 import { whatsappService } from '@/lib/services/whatsapp.service';
+import type { ActorContext } from '@/lib/types/actor';
+// Re-export so existing import sites (`import { ActorContext } from
+// '@/lib/services/reschedule.service'`) keep working during the
+// transition.
+export type { ActorContext };
 
 interface CancelResult {
   appointmentId: string;
@@ -27,14 +32,7 @@ interface ParseResult {
   confidence: 'high' | 'low';
 }
 
-/**
- * Optional metadata the API layer can thread down so the audit trail
- * records the real operator (or "n8n" / "customer-inbound") instead of
- * falling back to "system".
- */
-export interface ActorContext {
-  actor?: string;
-}
+// ActorContext is imported from @/lib/types/actor above.
 
 const CANCEL_KEYWORDS_EN = ['cancel', "can't make it", 'cannot make it', 'unable to attend'];
 const CANCEL_KEYWORDS_FR = ['annuler', 'ne peux pas', 'ne pourrai pas', 'impossible de venir'];
@@ -71,7 +69,15 @@ export const rescheduleService = {
     context: ActorContext = {},
   ): Promise<CancelResult> {
     const actor = context.actor?.trim() || 'system';
-    return prisma.$transaction(async (tx) => {
+
+    // 1. Do all DB work inside the transaction. External sends are
+    //    deliberately excluded: whatsappService retries twice with a
+    //    15s per-attempt timeout (~45s worst case) which would blow
+    //    past Prisma's 5s interactive-transaction timeout and roll
+    //    back the cancellation AFTER the customer has already received
+    //    the "your appointment is cancelled" message. Keep the outbound
+    //    dispatch strictly post-commit.
+    const { customer, lang, enquiryId } = await prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findUnique({
         where: { id: appointmentId },
         include: {
@@ -99,7 +105,6 @@ export const rescheduleService = {
         throw new Error(`Cannot cancel appointment with status: ${appointment.status}`);
       }
 
-      // 1. Cancel the appointment
       const priorStatus = appointment.status;
       await tx.appointment.update({
         where: { id: appointmentId },
@@ -121,13 +126,11 @@ export const rescheduleService = {
         },
       });
 
-      // 2. Return visit request to planning pool
       await tx.visitRequest.update({
         where: { id: appointment.visitRequestId },
         data: { planningStatus: 'PLANNING_POOL' },
       });
 
-      // 3. Update route run stop to SKIPPED (if linked)
       if (appointment.routeRunId) {
         await tx.routeRunStop.updateMany({
           where: {
@@ -137,7 +140,6 @@ export const rescheduleService = {
           data: { stopStatus: 'SKIPPED' },
         });
 
-        // 4. Recalculate route run totals
         const remainingStops = await tx.routeRunStop.count({
           where: {
             routeRunId: appointment.routeRunId,
@@ -151,40 +153,44 @@ export const rescheduleService = {
         });
       }
 
-      // 5. Send cancellation acknowledgement
-      const customer = appointment.visitRequest.customer;
-      const lang = customer.preferredLanguage || 'en';
-      const message = sendCancellationAcknowledgement(customer.fullName, lang);
-
-      if (customer.preferredChannel === 'EMAIL' && customer.email) {
-        const subject = lang === 'fr'
-          ? 'Annulation de rendez-vous — EquiSmile'
-          : 'Appointment Cancelled — EquiSmile';
-        await emailService.sendBrandedEmail(
-          customer.email,
-          subject,
-          message,
-          lang,
-          appointment.visitRequest.enquiryId ?? undefined,
-        );
-      } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
-        // Real outbound: deterministic operation key keeps retries idempotent
-        // per (appointment × status-change) without relying on wall-clock time.
-        await whatsappService.sendTextMessage(
-          customer.mobilePhone,
-          message,
-          appointment.visitRequest.enquiryId ?? undefined,
-          lang,
-          { operationKey: `wa-cancel:${appointmentId}` },
-        );
-      }
-
       return {
-        appointmentId,
-        cancelled: true,
-        returnedToPool: true,
+        customer: appointment.visitRequest.customer,
+        lang: appointment.visitRequest.customer.preferredLanguage || 'en',
+        enquiryId: appointment.visitRequest.enquiryId ?? undefined,
       };
     });
+
+    // 2. Post-commit: send the customer acknowledgement. The send is
+    //    idempotent (`wa-cancel:<appointmentId>` operation key), so if
+    //    the caller retries after a failure here we will not double-
+    //    message the customer.
+    const message = sendCancellationAcknowledgement(customer.fullName, lang);
+    if (customer.preferredChannel === 'EMAIL' && customer.email) {
+      const subject = lang === 'fr'
+        ? 'Annulation de rendez-vous — EquiSmile'
+        : 'Appointment Cancelled — EquiSmile';
+      await emailService.sendBrandedEmail(
+        customer.email,
+        subject,
+        message,
+        lang,
+        enquiryId,
+      );
+    } else if (customer.preferredChannel === 'WHATSAPP' && customer.mobilePhone) {
+      await whatsappService.sendTextMessage(
+        customer.mobilePhone,
+        message,
+        enquiryId,
+        lang,
+        { operationKey: `wa-cancel:${appointmentId}` },
+      );
+    }
+
+    return {
+      appointmentId,
+      cancelled: true,
+      returnedToPool: true,
+    };
   },
 
   /**

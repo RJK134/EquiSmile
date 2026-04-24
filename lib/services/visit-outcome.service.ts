@@ -6,16 +6,13 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import type { ActorContext } from '@/lib/types/actor';
 
 export interface CompleteAppointmentInput {
   notes?: string;
   followUpRequired?: boolean;
   followUpDueDate?: string;
   nextDentalDueDate?: string;
-}
-
-export interface ActorContext {
-  actor?: string;
 }
 
 interface CompleteResult {
