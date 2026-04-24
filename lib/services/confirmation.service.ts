@@ -295,10 +295,28 @@ export const confirmationService = {
         // Already CONFIRMED (resend) or a later status — just stamp
         // the send timestamp; no status-history row (resends should
         // not churn the audit trail).
-        await prisma.appointment.update({
-          where: { id: appointmentId },
+        //
+        // Guard the timestamp write the same way as the PROPOSED →
+        // CONFIRMED transition above: if a concurrent writer flipped
+        // the row to CANCELLED / COMPLETED / NO_SHOW during the send
+        // window, we don't want to stamp `confirmationSentAt` onto a
+        // terminal-state appointment — it would be misleading in the
+        // dispatch-history view.
+        const { count } = await prisma.appointment.updateMany({
+          where: { id: appointmentId, status: priorStatus },
           data: { confirmationSentAt: new Date() },
         });
+        if (count === 0) {
+          logger.warn(
+            'Appointment status changed during confirmation resend; skipping confirmationSentAt stamp',
+            {
+              service: 'confirmation-service',
+              operation: 'send-confirmation-resend-race',
+              appointmentId,
+              priorStatus,
+            },
+          );
+        }
       }
     }
 

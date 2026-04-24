@@ -18,6 +18,7 @@ const mockPrisma = vi.hoisted(() => {
     enquiry: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
     },
     customer: {
       findUnique: vi.fn(),
@@ -240,6 +241,12 @@ describe('WhatsApp Webhook', () => {
       });
       // ...and the phantom new-enquiry VisitRequest was NOT created.
       expect(mockPrisma.visitRequest.create).not.toHaveBeenCalled();
+      // ...and the Enquiry row was marked TRIAGED so it doesn't sit
+      // in the operator triage queue as an orphan NEW item.
+      expect(mockPrisma.enquiry.update).toHaveBeenCalledWith({
+        where: { id: 'enq-1' },
+        data: { triageStatus: 'TRIAGED' },
+      });
     });
 
     it('DOES create a new VisitRequest when the customer has no open appointment', async () => {

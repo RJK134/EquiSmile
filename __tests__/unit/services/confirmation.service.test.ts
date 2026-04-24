@@ -229,12 +229,18 @@ describe('confirmationService', () => {
         ...whatsappAppointment,
         status: 'CONFIRMED',
       });
-      (prisma.appointment.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
       await confirmationService.sendConfirmation('appt-wa', { actor: 'rjk134' });
 
       expect(logStatusChangeMock).not.toHaveBeenCalled();
-      // Dispatch is still recorded — resend audit trail.
+      // Resend path uses a status-guarded updateMany to stamp
+      // confirmationSentAt only if the row is still CONFIRMED — keeps
+      // a concurrent cancellation from being "resealed" by a stale
+      // timestamp.
+      expect(prisma.appointment.updateMany).toHaveBeenCalledWith({
+        where: { id: 'appt-wa', status: 'CONFIRMED' },
+        data: { confirmationSentAt: expect.any(Date) },
+      });
       expect(logConfirmationDispatchMock).toHaveBeenCalledTimes(1);
     });
 

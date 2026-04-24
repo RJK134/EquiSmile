@@ -299,6 +299,27 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           (matchedAppointment.kind === 'CANCELLED' ||
             matchedAppointment.kind === 'RESCHEDULE_REQUESTED')
         ) {
+          // The reply has been routed (AppointmentResponse written);
+          // mark the Enquiry as TRIAGED so it doesn't sit in the
+          // operator triage queue as an unprocessed NEW item. The
+          // inbound message is still visible on the enquiry thread.
+          await prisma.enquiry
+            .update({
+              where: { id: enquiry.id },
+              data: { triageStatus: 'TRIAGED' },
+            })
+            .catch((err) => {
+              // Best-effort: a triage-status update failure must not
+              // cascade into the webhook failing the whole batch. Log
+              // and continue.
+              logger.warn('Failed to mark short-circuited enquiry as TRIAGED', {
+                service: 'whatsapp-webhook',
+                operation: 'mark-enquiry-triaged',
+                enquiryId: enquiry.id,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
+
           logger.info(
             'WhatsApp reply matched to open appointment with clear cancel/reschedule intent; skipping new visit-request creation',
             {
