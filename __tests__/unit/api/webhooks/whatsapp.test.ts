@@ -260,13 +260,11 @@ describe('WhatsApp Webhook', () => {
     });
 
     it('DOES create a new VisitRequest for OTHER-intent replies (e.g. a new urgent enquiry from a customer with an open booking)', async () => {
-      // Regression: the short-circuit used to fire on ANY match,
-      // including OTHER intent. A customer with a pending routine
-      // appointment sending a genuinely new urgent enquiry ("My other
-      // horse has colic!") would have that request silently dropped
-      // from the planning pool. The short-circuit now requires an
-      // explicit cancel/reschedule intent, so OTHER-intent messages
-      // still reach auto-triage via a fresh VisitRequest.
+      // A customer with a pending routine appointment sending a
+      // genuinely new urgent enquiry ("My other horse has colic!")
+      // would, under the old audit-only version, have been classified
+      // as OTHER intent and would not short-circuit. Keep that
+      // guarantee locked in.
       mockPrisma.enquiry.findUnique.mockResolvedValue(null);
       mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-3', deletedAt: null });
       mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-3' });
@@ -274,7 +272,7 @@ describe('WhatsApp Webhook', () => {
       mockPrisma.appointmentResponse.create.mockResolvedValue({ id: 'ar-3' });
       mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-3' });
 
-      const urgentPayload = {
+      const otherIntentPayload = {
         ...validPayload,
         entry: [{
           ...validPayload.entry[0],
@@ -294,11 +292,10 @@ describe('WhatsApp Webhook', () => {
         }],
       };
 
-      const response = await POST(makeSignedRequest(urgentPayload));
+      const response = await POST(makeSignedRequest(otherIntentPayload));
       expect(response.status).toBe(200);
       await new Promise((r) => setTimeout(r, 10));
 
-      // AppointmentResponse is still recorded (OTHER intent, for audit)
       expect(mockPrisma.appointmentResponse.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           appointmentId: 'appt-3',
@@ -306,8 +303,60 @@ describe('WhatsApp Webhook', () => {
           channel: 'WHATSAPP',
         }),
       });
-      // AND a fresh VisitRequest is created so the urgent message
-      // actually lands in the planning pool.
+      expect(mockPrisma.visitRequest.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('DOES create a new VisitRequest when a cancel-intent reply ALSO contains urgent-care keywords', async () => {
+      // Regression: parseCustomerIntent is a blunt keyword matcher.
+      // "I can't make it Tuesday but my horse has colic, please help"
+      // matches the cancel keyword `can't make it` AND the urgent-care
+      // keyword `colic`. The short-circuit must NOT fire in that case
+      // — the urgent need has to land in the planning pool. The
+      // AppointmentResponse is still recorded against the existing
+      // booking, but a fresh VisitRequest is also created so auto-
+      // triage can classify the urgent part.
+      mockPrisma.enquiry.findUnique.mockResolvedValue(null);
+      mockPrisma.customer.upsert.mockResolvedValue({ id: 'cust-4', deletedAt: null });
+      mockPrisma.enquiry.create.mockResolvedValue({ id: 'enq-4' });
+      mockPrisma.appointment.findFirst.mockResolvedValue({ id: 'appt-4' });
+      mockPrisma.appointmentResponse.create.mockResolvedValue({ id: 'ar-4' });
+      mockPrisma.visitRequest.create.mockResolvedValue({ id: 'vr-4' });
+
+      const mixedIntentPayload = {
+        ...validPayload,
+        entry: [{
+          ...validPayload.entry[0],
+          changes: [{
+            ...validPayload.entry[0].changes[0],
+            value: {
+              ...validPayload.entry[0].changes[0].value,
+              messages: [{
+                id: 'wamid.mixed-intent',
+                from: '447700900002',
+                timestamp: '1700000000',
+                type: 'text',
+                text: {
+                  body: "Sorry I can't make it next Tuesday, but my horse has colic and is bleeding, please help today",
+                },
+              }],
+            },
+          }],
+        }],
+      };
+
+      const response = await POST(makeSignedRequest(mixedIntentPayload));
+      expect(response.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 10));
+
+      // AppointmentResponse recorded for the existing booking...
+      expect(mockPrisma.appointmentResponse.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          appointmentId: 'appt-4',
+          kind: 'CANCELLED',
+          channel: 'WHATSAPP',
+        }),
+      });
+      // ...AND a new VisitRequest so the urgent care lands in the pool.
       expect(mockPrisma.visitRequest.create).toHaveBeenCalledTimes(1);
     });
   });

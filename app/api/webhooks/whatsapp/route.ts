@@ -276,15 +276,18 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         // links the inbound message to the booking.
         //
         // We ONLY short-circuit for clearly-identified cancel /
-        // reschedule intent. An "OTHER"-kind match (parser couldn't
-        // classify) still runs the normal new-enquiry path: a message
-        // like "My other horse has colic" from a customer with a
-        // pending routine booking must NOT be silently dropped just
-        // because they happen to have an open appointment. Auto-triage
-        // on the new VisitRequest is the safe default — an operator
-        // can close the phantom VR if it turns out to be a benign ack
-        // like "thanks!", whereas an urgent-care message that never
-        // enters the planning pool is invisible.
+        // reschedule intent AND only when the message does NOT also
+        // contain urgent-care keywords. The intent parser is a simple
+        // keyword matcher — a message like "I can't make it Tuesday
+        // but my horse has colic, please come today" will match both
+        // the cancel keyword and an urgent-care keyword. In that case
+        // the safe default is to let the message fall through to the
+        // normal new-enquiry + auto-triage path so the urgent need is
+        // visible in the planning pool. The AppointmentResponse row is
+        // still recorded for the original booking.
+        //
+        // An "OTHER"-kind match (parser couldn't classify) always runs
+        // the normal new-enquiry path for the same reason.
         const matchedAppointment = await recordAppointmentResponseIfAny({
           customerId: customer.id,
           messageText,
@@ -292,6 +295,7 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
         });
         if (
           matchedAppointment &&
+          !parsed.isUrgent &&
           (matchedAppointment.kind === 'CANCELLED' ||
             matchedAppointment.kind === 'RESCHEDULE_REQUESTED')
         ) {
@@ -307,6 +311,22 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
             },
           );
           continue;
+        }
+        if (matchedAppointment && parsed.isUrgent) {
+          // Log the override so operators reviewing the audit trail can
+          // see why a message that looks like a cancel/reschedule
+          // still produced a planning-pool entry.
+          logger.warn(
+            'WhatsApp reply matched cancel/reschedule intent but contains urgent-care keywords; falling through to new visit-request',
+            {
+              service: 'whatsapp-webhook',
+              operation: 'urgent-override-of-short-circuit',
+              enquiryId: enquiry.id,
+              customerId: customer.id,
+              appointmentId: matchedAppointment.appointmentId,
+              intent: matchedAppointment.kind,
+            },
+          );
         }
 
         // Create visit request
