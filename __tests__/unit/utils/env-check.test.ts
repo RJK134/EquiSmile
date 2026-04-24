@@ -43,6 +43,14 @@ describe('checkEnvironment', () => {
   it('should fail when auth vars are missing in non-demo mode', () => {
     vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
     vi.stubEnv('DEMO_MODE', 'false');
+    vi.stubEnv('AUTH_SECRET', '');
+    vi.stubEnv('ALLOWED_GITHUB_LOGINS', '');
+    vi.stubEnv('AUTH_GITHUB_ID', '');
+    vi.stubEnv('AUTH_GITHUB_SECRET', '');
+    vi.stubEnv('AUTH_EMAIL_ENABLED', 'false');
+    vi.stubEnv('SMTP_HOST', '');
+    vi.stubEnv('SMTP_USER', '');
+    vi.stubEnv('SMTP_PASSWORD', '');
     const result = checkEnvironment();
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('AUTH_SECRET'))).toBe(true);
