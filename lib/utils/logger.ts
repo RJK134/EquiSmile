@@ -59,6 +59,26 @@ export function maskEmail(email: string): string {
   return local.slice(0, visible) + '***' + domain;
 }
 
+function looksSensitiveKey(lowerKey: string): boolean {
+  return [
+    'password',
+    'secret',
+    'token',
+    'authorization',
+    'api_key',
+    'apikey',
+    'api-key',
+    'signature',
+    'cookie',
+    'session',
+    'credential',
+  ].some((needle) => lowerKey.includes(needle));
+}
+
+function looksSensitiveValue(value: string): boolean {
+  return /^Bearer\s+\S+/i.test(value) || /^sk-[a-zA-Z0-9-]{10,}/.test(value);
+}
+
 /**
  * Recursively mask sensitive fields in an object.
  */
@@ -74,13 +94,21 @@ function maskSensitive(obj: unknown): unknown {
     if (typeof value === 'string') {
       if (lowerKey.includes('phone') || lowerKey.includes('mobile')) {
         result[key] = maskPhone(value);
-      } else if (lowerKey.includes('email') || lowerKey === 'to' || lowerKey === 'from') {
+      } else if (lowerKey.includes('email')) {
         if (value.includes('@')) {
           result[key] = maskEmail(value);
         } else {
+          result[key] = '***';
+        }
+      } else if (lowerKey === 'to' || lowerKey === 'from') {
+        if (value.includes('@')) {
+          result[key] = maskEmail(value);
+        } else if (/\d{6,}/.test(value)) {
+          result[key] = maskPhone(value);
+        } else {
           result[key] = value;
         }
-      } else if (lowerKey.includes('password') || lowerKey.includes('secret') || lowerKey.includes('token')) {
+      } else if (looksSensitiveKey(lowerKey) || looksSensitiveValue(value)) {
         result[key] = '***';
       } else {
         result[key] = value;
