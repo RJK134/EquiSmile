@@ -60,13 +60,22 @@ function sendRescheduleAcknowledgement(
 }
 
 /**
- * Optional per-call controls for the cancel path. `notifyCustomer`
- * exists so `rescheduleAppointment` can suppress the cancel-ack — the
- * reschedule path sends its own "has been cancelled and will be
- * rescheduled" message afterwards, and without this flag the customer
- * would receive two contradictory WhatsApp texts in succession.
+ * Optional per-call options for the cancel path.
+ *
+ * `actor` threads through to the AppointmentStatusHistory audit row.
+ * `notifyCustomer` exists so `rescheduleAppointment` can suppress the
+ * cancel-ack — the reschedule path sends its own "has been cancelled
+ * and will be rescheduled" message afterwards, and without this flag
+ * the customer would receive two contradictory WhatsApp texts in
+ * succession.
+ *
+ * The two settings live on the same bag so a caller cannot accidentally
+ * pass `{ notifyCustomer: false }` into the actor slot (or vice versa):
+ * with two adjacent optional-only object parameters they would be
+ * structurally compatible and TypeScript would not catch the mix-up
+ * except on direct object-literal calls.
  */
-export interface CancelOptions {
+export interface CancelOptions extends ActorContext {
   notifyCustomer?: boolean;
 }
 
@@ -77,10 +86,9 @@ export const rescheduleService = {
   async cancelAppointment(
     appointmentId: string,
     reason?: string,
-    context: ActorContext = {},
     options: CancelOptions = {},
   ): Promise<CancelResult> {
-    const actor = context.actor?.trim() || 'system';
+    const actor = options.actor?.trim() || 'system';
     const notifyCustomer = options.notifyCustomer ?? true;
 
     // 1. Do all DB work inside the transaction. External sends are
@@ -224,8 +232,7 @@ export const rescheduleService = {
     const cancelResult = await this.cancelAppointment(
       appointmentId,
       'Rescheduled',
-      context,
-      { notifyCustomer: false },
+      { actor: context.actor, notifyCustomer: false },
     );
 
     // Update the visit request with rescheduling note
