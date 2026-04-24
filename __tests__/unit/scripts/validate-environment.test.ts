@@ -29,6 +29,14 @@ describe('validate-environment checks', () => {
     it('fails when auth vars are missing outside demo mode', () => {
       vi.stubEnv('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
       vi.stubEnv('DEMO_MODE', 'false');
+      vi.stubEnv('AUTH_SECRET', '');
+      vi.stubEnv('ALLOWED_GITHUB_LOGINS', '');
+      vi.stubEnv('AUTH_GITHUB_ID', '');
+      vi.stubEnv('AUTH_GITHUB_SECRET', '');
+      vi.stubEnv('AUTH_EMAIL_ENABLED', 'false');
+      vi.stubEnv('SMTP_HOST', '');
+      vi.stubEnv('SMTP_USER', '');
+      vi.stubEnv('SMTP_PASSWORD', '');
       const result = checkEnvironment();
       expect(result.valid).toBe(false);
       expect(result.errors).toContainEqual(expect.stringContaining('AUTH_SECRET'));
