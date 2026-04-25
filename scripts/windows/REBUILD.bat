@@ -30,11 +30,18 @@ if errorlevel 1 (
 )
 
 echo.
+echo  Copying static assets into the standalone bundle...
+if not exist .next\standalone\.next mkdir .next\standalone\.next
+xcopy .next\static .next\standalone\.next\static /E /I /Y /Q >nul
+xcopy public .next\standalone\public /E /I /Y /Q >nul
+
 echo  Starting app... Wait for "Ready" then refresh your phone.
 echo.
-REM `call` is REQUIRED — without it, control transfers permanently
-REM to npm.cmd and the post-run pause below never executes.
-call npm run start
+set PORT=3000
+set HOSTNAME=0.0.0.0
+REM next.config.ts sets `output: 'standalone'`; `next start` does
+REM not serve standalone builds. Run the bundle directly.
+call node .next\standalone\server.js
 
 echo.
 echo  EquiSmile has stopped. Press any key to close this window.
