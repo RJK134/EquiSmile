@@ -141,6 +141,23 @@ export default async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Run middleware in the Node.js runtime, not the Edge runtime.
+  //
+  // The middleware imports `auth` from `@/auth`, which statically
+  // imports `next-auth/providers/nodemailer`. Nodemailer transitively
+  // pulls in Node-only modules (`stream`, `net`, `tls`, `fs`) at
+  // module-eval time, which the Edge runtime cannot load — every
+  // request 500s with:
+  //   "The edge runtime does not support Node.js 'stream' module"
+  //
+  // We deploy on a single self-hosted Docker box (not Vercel Edge),
+  // so Node middleware is the right trade-off here: full Node API,
+  // no per-request cold-start penalty, and the server already has a
+  // long-running process. If we later split auth into an edge-safe
+  // shell (`auth.config.ts`) + a full server config (`auth.ts`) per
+  // the next-auth v5 docs, this can be reverted to `edge` for
+  // slightly cheaper per-request middleware.
+  runtime: 'nodejs',
   matcher: [
     '/',
     '/login',
