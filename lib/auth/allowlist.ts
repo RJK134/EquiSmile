@@ -1,5 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
-
 /**
  * Parse the comma-separated allow-list env var into a normalised list.
  *
@@ -25,17 +23,24 @@ export interface AllowlistSubject {
 }
 
 /**
- * Constant-time equality for strings. Uses `crypto.timingSafeEqual` over
- * UTF-8 buffers. Lengths are compared first (which itself leaks only a
- * coarse length signal, acceptable here); if lengths differ the function
- * returns false without calling `timingSafeEqual` (which throws on
- * different-length buffers).
+ * Constant-time equality for strings. Uses byte-wise XOR over UTF-8
+ * encoded data so it works in both Node and the Edge runtime (where
+ * `node:crypto` and `Buffer` are unavailable to middleware/auth code).
+ *
+ * Lengths are compared first (which itself leaks only a coarse length
+ * signal, acceptable here); if lengths differ the function returns false.
  */
 function constantTimeEquals(a: string, b: string): boolean {
-  const ba = Buffer.from(a, 'utf8');
-  const bb = Buffer.from(b, 'utf8');
+  const encoder = new TextEncoder();
+  const ba = encoder.encode(a);
+  const bb = encoder.encode(b);
   if (ba.length !== bb.length) return false;
-  return timingSafeEqual(ba, bb);
+
+  let diff = 0;
+  for (let byteIndex = 0; byteIndex < ba.length; byteIndex += 1) {
+    diff |= ba[byteIndex] ^ bb[byteIndex];
+  }
+  return diff === 0;
 }
 
 /**
