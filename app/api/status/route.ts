@@ -6,6 +6,8 @@ import { smtpClient } from '@/lib/integrations/smtp.client';
 import { requireRole, authzErrorResponse, AuthzError, ROLES } from '@/lib/auth/rbac';
 import { opsStatusService } from '@/lib/services/ops-status.service';
 import { logger } from '@/lib/utils/logger';
+import { prisma } from '@/lib/prisma';
+import { env, getN8nBaseUrl } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,8 +42,22 @@ export async function GET() {
     logger.error('status: ops snapshot failed', error, { service: 'status' });
   }
 
+  // Phase 16 — active liveness probes. Each probe has its own try/catch
+  // so a single broken integration never blanks the whole status page.
+  const [database, n8n] = await Promise.all([probeDatabase(), probeN8n()]);
+  const whatsappReady = checkWhatsAppReadiness();
+  const smtpReady = checkSmtpReadiness();
+  const googleMapsReady = checkGoogleMapsReadiness();
+
   return NextResponse.json({
     demoMode: isDemoMode(),
+    probes: {
+      database,
+      n8n,
+      whatsapp: whatsappReady,
+      smtp: smtpReady,
+      googleMaps: googleMapsReady,
+    },
     integrations: {
       googleMaps: googleMapsClient.getMode(),
       whatsapp: whatsappClient.getMode(),
@@ -64,4 +80,110 @@ export async function GET() {
     ops,
     timestamp: new Date().toISOString(),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Probes — keep them cheap, bounded, and structured. No PII ever ends
+// up in the returned payload; failures are summarised, not echoed.
+// ---------------------------------------------------------------------------
+
+interface DatabaseProbe {
+  status: 'up' | 'down';
+  latencyMs: number;
+}
+
+async function probeDatabase(): Promise<DatabaseProbe> {
+  const start = Date.now();
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return { status: 'up', latencyMs: Date.now() - start };
+  } catch (error) {
+    logger.warn('status: database probe failed', {
+      service: 'status',
+      operation: 'db-probe',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { status: 'down', latencyMs: Date.now() - start };
+  }
+}
+
+interface N8nProbe {
+  status: 'up' | 'unreachable' | 'unconfigured';
+  url: string;
+  latencyMs: number;
+}
+
+async function probeN8n(): Promise<N8nProbe> {
+  const start = Date.now();
+  const url = getN8nBaseUrl();
+  if (!env.N8N_HOST) {
+    return { status: 'unconfigured', url, latencyMs: 0 };
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const response = await fetch(`${url}/healthz`, { signal: controller.signal });
+    clearTimeout(timeout);
+    return {
+      status: response.ok ? 'up' : 'unreachable',
+      url,
+      latencyMs: Date.now() - start,
+    };
+  } catch {
+    return { status: 'unreachable', url, latencyMs: Date.now() - start };
+  }
+}
+
+interface ReadinessProbe {
+  status: 'configured' | 'unconfigured';
+  /** Operator-friendly summary of which knobs are still missing. */
+  missing: string[];
+}
+
+function checkWhatsAppReadiness(): ReadinessProbe {
+  const required = {
+    WHATSAPP_PHONE_NUMBER_ID: env.WHATSAPP_PHONE_NUMBER_ID,
+    WHATSAPP_ACCESS_TOKEN: env.WHATSAPP_ACCESS_TOKEN || env.WHATSAPP_API_TOKEN,
+    WHATSAPP_APP_SECRET: env.WHATSAPP_APP_SECRET,
+    WHATSAPP_VERIFY_TOKEN: env.WHATSAPP_VERIFY_TOKEN,
+  };
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  return {
+    status: missing.length === 0 ? 'configured' : 'unconfigured',
+    missing,
+  };
+}
+
+function checkSmtpReadiness(): ReadinessProbe {
+  const required = {
+    SMTP_HOST: env.SMTP_HOST,
+    SMTP_USER: env.SMTP_USER,
+    SMTP_PASSWORD: env.SMTP_PASSWORD,
+  };
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  return {
+    status: missing.length === 0 ? 'configured' : 'unconfigured',
+    missing,
+  };
+}
+
+function checkGoogleMapsReadiness(): ReadinessProbe {
+  const required = {
+    GOOGLE_MAPS_API_KEY: env.GOOGLE_MAPS_API_KEY,
+    // Optional for the optimisation API specifically; flag separately
+    // so an operator who only needs geocoding doesn't see it as a
+    // blocker.
+    GCP_PROJECT_ID: env.GCP_PROJECT_ID,
+  };
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+  return {
+    status: missing.length === 0 ? 'configured' : 'unconfigured',
+    missing,
+  };
 }

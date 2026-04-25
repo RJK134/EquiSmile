@@ -3,11 +3,23 @@ import type { Prisma } from '@prisma/client';
 import type { CreateEnquiryInput, UpdateEnquiryInput, EnquiryQuery } from '@/lib/validations/enquiry.schema';
 import type { PaginatedResult } from '@/lib/types';
 
+/**
+ * Repository for Enquiry.
+ *
+ * Soft-delete invariant (Phase 16):
+ *   - `delete(id, actorId)` sets `deletedAt` / `deletedById`; the row stays.
+ *   - Every read (`findMany`, `findById`, `findRecent`, `countByStatus`)
+ *     filters `deletedAt: null` by default so callers cannot accidentally
+ *     surface tombstoned messages on the UI.
+ *   - `restore(id)` and `hardDelete(id)` are explicit, operator-only paths.
+ *     Hard delete is reserved for GDPR/FADP erasure requests.
+ */
 export const enquiryRepository = {
   async findMany(query: EnquiryQuery) {
-    const { customerId, triageStatus, channel, search, page, pageSize } = query;
+    const { customerId, triageStatus, channel, search, page, pageSize, includeDeleted } = query;
     const where: Prisma.EnquiryWhereInput = {};
 
+    if (!includeDeleted) where.deletedAt = null;
     if (customerId) where.customerId = customerId;
     if (triageStatus) where.triageStatus = triageStatus;
     if (channel) where.channel = channel;
@@ -45,9 +57,9 @@ export const enquiryRepository = {
     return result;
   },
 
-  async findById(id: string) {
-    return prisma.enquiry.findUnique({
-      where: { id },
+  async findById(id: string, options: { includeDeleted?: boolean } = {}) {
+    return prisma.enquiry.findFirst({
+      where: options.includeDeleted ? { id } : { id, deletedAt: null },
       include: {
         customer: true,
         yard: true,
@@ -67,12 +79,38 @@ export const enquiryRepository = {
   },
 
   async update(id: string, data: UpdateEnquiryInput) {
-    return prisma.enquiry.update({ where: { id }, data });
+    // Guard against updating a tombstoned enquiry via the standard path.
+    return prisma.enquiry.update({ where: { id, deletedAt: null }, data });
   },
 
-  async countByStatus() {
+  /**
+   * Soft delete — tombstones the enquiry. The cascading visitRequests
+   * are intentionally NOT tombstoned here: they may already be on a
+   * route run or in clinical history. An operator who needs to remove
+   * a visit request goes through the visit-request endpoints.
+   */
+  async delete(id: string, actorId?: string | null) {
+    return prisma.enquiry.update({
+      where: { id, deletedAt: null },
+      data: { deletedAt: new Date(), deletedById: actorId ?? null },
+    });
+  },
+
+  async restore(id: string) {
+    return prisma.enquiry.update({
+      where: { id },
+      data: { deletedAt: null, deletedById: null },
+    });
+  },
+
+  async hardDelete(id: string) {
+    return prisma.enquiry.delete({ where: { id } });
+  },
+
+  async countByStatus(options: { includeDeleted?: boolean } = {}) {
     const results = await prisma.enquiry.groupBy({
       by: ['triageStatus'],
+      where: options.includeDeleted ? undefined : { deletedAt: null },
       _count: { id: true },
     });
     return Object.fromEntries(
@@ -82,6 +120,7 @@ export const enquiryRepository = {
 
   async findRecent(limit: number = 5) {
     return prisma.enquiry.findMany({
+      where: { deletedAt: null },
       orderBy: { receivedAt: 'desc' },
       take: limit,
       include: {

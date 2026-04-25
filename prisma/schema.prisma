@@ -262,6 +262,13 @@ model Enquiry {
   triageStatus       TriageStatus @default(NEW)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+  // Phase 16 overnight hardening — Enquiry tombstones. The intake
+  // pipeline must never hard-delete a customer message: spam, opt-outs
+  // and erroneously-routed messages are removed via soft delete so
+  // the inbound audit trail (and the operator's ability to recover
+  // them) survives. Standard repository reads filter `deletedAt: null`.
+  deletedAt          DateTime?
+  deletedById        String?
 
   customer Customer? @relation(fields: [customerId], references: [id])
   yard     Yard?     @relation(fields: [yardId], references: [id])
@@ -272,6 +279,7 @@ model Enquiry {
   @@index([customerId])
   @@index([triageStatus])
   @@index([receivedAt])
+  @@index([deletedAt])
 }
 
 model EnquiryMessage {
@@ -585,6 +593,37 @@ model SecurityAuditLog {
   @@index([actor])
   @@index([createdAt])
   @@index([targetType, targetId])
+}
+
+// ---------------------------------------------------------------------------
+// Generic business audit trail — Phase 16 overnight hardening.
+//
+// Sits alongside SecurityAuditLog (security-relevant only) and the
+// model-specific TriageAuditLog/AppointmentStatusHistory tables. The
+// generic AuditLog is the catch-all we reach for when an operator
+// mutates a domain entity that does not yet have its own tamper-
+// evident trail (e.g. yard restore, enquiry tombstone, route-run
+// status flip). Append-only — never UPDATE or DELETE rows.
+//
+// `details` holds short JSON-serialisable context (already-redacted),
+// not the full payload. Anything sensitive (PII, free text customer
+// messages) MUST be summarised before it lands here. The redactor in
+// lib/utils/log-redact.ts is the right gate.
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String   // e.g. "ENQUIRY_DELETED", "ROUTE_RUN_STATUS_CHANGED"
+  entityType String   // model name as a free-text tag, e.g. "Enquiry"
+  entityId   String   // PK of the affected row
+  userId     String?  // Auth.js User.id; null for system/automation
+  details    Json?    // small redacted snapshot — schema-free
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------

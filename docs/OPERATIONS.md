@@ -160,3 +160,53 @@ for the duration.
 - Security audit entries in the `SecurityAuditLog` table capture every
   sensitive mutation (role changes, exports, deletions, vision
   analysis). Query it for compliance evidence.
+- Generic business mutations (enquiry tombstones, route-run status
+  flips, bulk operator actions) write to the `AuditLog` table via
+  `lib/services/audit-log.service.ts`. Append-only, redacted JSON
+  `details` column, indexed by `entityType + entityId` for fast
+  per-row history.
+
+### 3.1 `/api/status` probes (Phase 16 overnight hardening)
+
+`/api/status` (admin-only) runs three flavours of check on every call:
+
+1. **Active probes** — `SELECT 1` against Postgres, `GET /healthz`
+   against n8n with a 3-second timeout. Both report status + latency.
+2. **Readiness probes** — for WhatsApp / SMTP / Google Maps the route
+   reports `configured` vs `unconfigured` and lists each missing env
+   var (e.g. `WHATSAPP_APP_SECRET`) so the operator can fix the gap
+   without ssh-ing onto the box. No values are returned, only names.
+3. **Ops snapshot** — DLQ depth, audit volume in last 24 h, backup
+   freshness from the mounted `/backups` volume.
+
+Failures from any probe are logged via `logger.warn` / `logger.error`
+with the masking rules in `lib/utils/logger.ts` — never with raw
+secrets, request bodies, or PII.
+
+---
+
+## 4. Database restore drill
+
+The Phase 16 backup sidecar (`backup` service in `docker-compose.yml`)
+writes nightly `pg_dump` files into the `backups_data` volume on the
+schedule in `BACKUP_CRON`. To verify a backup is restorable:
+
+```sh
+# 1. List the dumps the sidecar holds.
+docker compose exec backup ls -lh /backups
+
+# 2. Restore the newest dump into a scratch DB and assert schema +
+#    row presence. Safe to run on production — never touches the
+#    `equismile` DB; it spins up a transient `equismile_restore_test`
+#    DB inside the same Postgres instance.
+./scripts/backup-restore-verify.sh
+```
+
+If the restore drill fails: do NOT keep running on the same Postgres
+instance until you understand why. The most common cause is a missed
+migration that landed on the running DB but not on the dump — fix by
+re-running `npx prisma migrate deploy` against the scratch DB and
+re-running the drill.
+
+For a true disaster recovery (the production DB is gone), see
+`docs/BACKUP.md` § 4 for the full restore-and-cutover procedure.

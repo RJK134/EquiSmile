@@ -65,7 +65,11 @@ export const enquiryService = {
         input.rawText,
       );
     } catch (err) {
-      console.error('[ManualEnquiry] Auto-triage failed', err);
+      // Auto-triage failure must never block enquiry creation. Log the
+      // error message only — never the raw `err` object, which may
+      // include the customer's free-text message in nested cause chains.
+      const message = err instanceof Error ? err.message : 'unknown error';
+      console.error('[ManualEnquiry] Auto-triage failed', { enquiryId: result.enquiry.id, message });
     }
 
     return result;

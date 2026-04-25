@@ -25,6 +25,10 @@ export const enquiryQuerySchema = z.object({
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  // Default false — list endpoints must hide tombstoned rows. Admin
+  // ops surfaces (audit trail, restore UI) can pass `true` to surface
+  // them.
+  includeDeleted: z.coerce.boolean().optional().default(false),
 });
 
 export type CreateEnquiryInput = z.infer<typeof createEnquirySchema>;

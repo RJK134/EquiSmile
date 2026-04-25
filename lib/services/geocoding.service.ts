@@ -100,7 +100,11 @@ export const geocodingService = {
 
     const partialMatch = result.partial_match ?? false;
     if (partialMatch) {
-      console.warn(`[geocoding] Partial match for address: ${address}`);
+      // Address strings are PII. Log the postcode prefix only — enough
+      // to triage which yards are returning fuzzy matches without
+      // pasting the customer's full address into the log stream.
+      const postcodeLike = address.match(/[A-Z]{1,2}[0-9][0-9A-Z]?/i)?.[0] ?? 'unknown';
+      console.warn(`[geocoding] Partial match (postcode prefix: ${postcodeLike})`);
     }
 
     return {

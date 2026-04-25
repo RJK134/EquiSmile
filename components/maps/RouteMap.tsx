@@ -88,6 +88,12 @@ export interface RouteMapProps {
   height?: string;
   /** Compact mode for list preview */
   compact?: boolean;
+  /**
+   * Force the static placeholder even when a browser key is configured.
+   * Used by parents that already know the runtime is in demo mode (via
+   * /api/demo/status) so we never need to read DEMO_MODE on the client.
+   */
+  forceStatic?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,9 +212,20 @@ function StaticMapPlaceholder({ stops, homeBase, height }: RouteMapProps & { hei
 // Main component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, homeBase, height = '400px', compact = false }: RouteMapProps) {
+export function RouteMap({
+  stops,
+  homeBase,
+  height = '400px',
+  compact = false,
+  forceStatic = false,
+}: RouteMapProps) {
+  // The browser key is the only client-visible signal we trust. Demo
+  // deploys leave it unset, which automatically routes us into the
+  // static placeholder below. There is deliberately no
+  // `NEXT_PUBLIC_DEMO_MODE` check here — runtime DEMO_MODE is a
+  // server-side concept and exposing it as a NEXT_PUBLIC_* would let
+  // build-time bake leak into a live bundle.
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.DEMO_MODE === 'true';
 
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
 
@@ -230,8 +247,10 @@ export function RouteMap({ stops, homeBase, height = '400px', compact = false }:
 
   const effectiveHeight = compact ? '200px' : height;
 
-  // Show static fallback when no API key or in demo mode
-  if (!apiKey || isDemoMode) {
+  // Show static fallback when no API key or when the parent has
+  // explicitly asked for it (e.g. demo-mode UI that already knows the
+  // runtime status from a server-rendered prop).
+  if (!apiKey || forceStatic) {
     return <StaticMapPlaceholder stops={stops} homeBase={homeBase} height={effectiveHeight} />;
   }
 
