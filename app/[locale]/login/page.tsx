@@ -60,14 +60,20 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
            * so this can never become a real sign-in bypass.
            */
           <form action="/api/demo/sign-in" method="POST" className="mb-4">
+            {/* Pass the active locale through so the API can land
+                the operator on /{locale}/dashboard rather than a
+                hard-coded English path. */}
+            <input type="hidden" name="locale" value={locale} />
             <button
               type="submit"
               className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 text-base font-medium text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
             >
-              Continue as Demo Vet
+              {locale === 'fr' ? 'Continuer comme vétérinaire démo' : 'Continue as Demo Vet'}
             </button>
             <p className="mt-2 text-center text-xs text-gray-500">
-              Demo mode — full admin access, all integrations simulated.
+              {locale === 'fr'
+                ? 'Mode démo — accès admin complet, intégrations simulées.'
+                : 'Demo mode — full admin access, all integrations simulated.'}
             </p>
           </form>
         )}

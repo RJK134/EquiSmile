@@ -18,11 +18,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
+import { routing } from '@/i18n/routing';
 
 const DEMO_USER_EMAIL = 'demo-vet@equismile.local';
 const DEMO_USER_NAME = 'Demo Vet';
 const DEMO_USER_LOGIN = 'demo-vet';
 const SESSION_DAYS = 30;
+
+/**
+ * Allow-list the form-supplied locale against the configured set so
+ * a crafted POST cannot redirect to an arbitrary path. Falls back to
+ * the project default when the value is missing or unknown.
+ */
+function resolveLocale(submitted: string | null): string {
+  const known: readonly string[] = routing.locales;
+  if (submitted && known.includes(submitted)) return submitted;
+  return routing.defaultLocale;
+}
 
 export async function POST(request: NextRequest) {
   if (env.DEMO_MODE !== 'true') {
@@ -31,6 +43,14 @@ export async function POST(request: NextRequest) {
       { status: 404 },
     );
   }
+
+  // Resolve the post-sign-in locale from the form payload so French
+  // users land on /fr/dashboard, English on /en/dashboard. Whitelisted
+  // against `routing.locales` so a crafted body cannot redirect off-
+  // origin.
+  const formData = await request.formData().catch(() => null);
+  const submittedLocale = formData?.get('locale');
+  const locale = resolveLocale(typeof submittedLocale === 'string' ? submittedLocale : null);
 
   // 1. Find or create the demo operator. Granted `admin` so the
   //    persona test can exercise every privileged route. The
@@ -64,7 +84,7 @@ export async function POST(request: NextRequest) {
   //    auth.ts configures for non-production: `authjs.session-token`.
   //    In demo mode IS_PRODUCTION is forced false (see auth.ts), so
   //    the unprefixed name is correct.
-  const response = NextResponse.redirect(new URL('/en/dashboard', request.url), 303);
+  const response = NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url), 303);
   response.cookies.set('authjs.session-token', sessionToken, {
     expires,
     httpOnly: true,
