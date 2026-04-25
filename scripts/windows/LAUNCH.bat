@@ -172,7 +172,10 @@ echo.
 echo  ======================================================
 echo.
 
-npm run start
+REM `call` is REQUIRED here — without it, control transfers
+REM permanently to npm.cmd and the post-run pause below never
+REM executes, so the window vanishes on Ctrl-C / crash anyway.
+call npm run start
 
 REM Always pause if `npm run start` exits — keeps the window open
 REM so you can see why instead of it vanishing on error.

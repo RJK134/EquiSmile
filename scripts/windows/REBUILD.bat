@@ -32,7 +32,9 @@ if errorlevel 1 (
 echo.
 echo  Starting app... Wait for "Ready" then refresh your phone.
 echo.
-npm run start
+REM `call` is REQUIRED — without it, control transfers permanently
+REM to npm.cmd and the post-run pause below never executes.
+call npm run start
 
 echo.
 echo  EquiSmile has stopped. Press any key to close this window.
