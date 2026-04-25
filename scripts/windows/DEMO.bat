@@ -17,7 +17,7 @@ pause >nul
 cd /d D:\Projects\Equismile\EquiSmile
 
 echo.
-echo  [1/7] Pulling latest code...
+echo  [1/8] Pulling latest code...
 echo  -------------------------------------------------------
 git pull
 if errorlevel 1 (
@@ -25,7 +25,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo  [2/7] Checking Docker...
+echo  [2/8] Checking Docker...
 echo  -------------------------------------------------------
 docker info >nul 2>&1
 if errorlevel 1 (
@@ -39,7 +39,7 @@ if errorlevel 1 (
 echo  Docker is running.
 
 echo.
-echo  [3/7] Starting PostgreSQL database...
+echo  [3/8] Starting PostgreSQL database...
 echo  -------------------------------------------------------
 docker compose up -d postgres
 echo  Waiting for database to be ready...
@@ -52,7 +52,7 @@ if errorlevel 1 (
 echo  Database is ready.
 
 echo.
-echo  [4/7] Loading environment from .env...
+echo  [4/8] Loading environment from .env...
 echo  -------------------------------------------------------
 REM Core settings (always set these)
 set DATABASE_URL=postgresql://equismile:equismile_dev@localhost:5433/equismile
@@ -79,7 +79,31 @@ if exist .env (
 )
 
 echo.
-echo  [5/7] Setting up database schema + demo data...
+echo  [5/8] Installing / updating Node dependencies...
+echo  -------------------------------------------------------
+REM Self-healing: re-sync node_modules to whatever main now expects.
+REM Without this step, a `git pull` that touches package.json or
+REM package-lock.json leaves the working tree in a broken state and
+REM the build at step 7 fails with "module not found" or a Prisma
+REM client mismatch. `npm ci` is strictly deterministic from the
+REM lockfile and faster than `npm install` once the cache is warm.
+call npm ci --no-audit --no-fund
+if errorlevel 1 (
+    echo.
+    echo  [WARN] npm ci failed - falling back to npm install...
+    call npm install --no-audit --no-fund
+    if errorlevel 1 (
+        echo.
+        echo  [ERROR] Could not install Node dependencies.
+        echo  Check your network connection, then re-run DEMO.bat.
+        echo.
+        pause
+        exit /b 1
+    )
+)
+
+echo.
+echo  [6/8] Setting up database schema + demo data...
 echo  -------------------------------------------------------
 call npx prisma generate
 call npx prisma migrate deploy
@@ -89,18 +113,21 @@ if errorlevel 1 (
 )
 
 echo.
-echo  [6/7] Building production app (required for mobile)...
+echo  [7/8] Building production app (required for mobile)...
 echo  -------------------------------------------------------
 call npm run build
 if errorlevel 1 (
     echo.
-    echo  [ERROR] Build failed! Check errors above.
+    echo  [ERROR] Build failed! Scroll up to see the actual error.
+    echo  Most common cause: dependency mismatch after `git pull`.
+    echo  Try re-running DEMO.bat - step 5 will reinstall.
+    echo.
     pause
     exit /b 1
 )
 
 echo.
-echo  [7/7] Starting EquiSmile...
+echo  [8/8] Starting EquiSmile...
 echo  -------------------------------------------------------
 echo.
 echo  ======================================================
@@ -114,9 +141,15 @@ echo.
 echo       For mobile access, open another terminal and run:
 echo       ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R0:localhost:3000 hXtmxAH6vAP@pro.pinggy.io
 echo.
-echo       To stop: press Ctrl+C
+echo       To stop: press Ctrl+C, or double-click STOP.bat
 echo.
 echo  ======================================================
 echo.
 
 npm run start
+
+REM Always pause if `npm run start` exits — keeps the window open
+REM so you can see why instead of it vanishing on error.
+echo.
+echo  EquiSmile has stopped. Press any key to close this window.
+pause >nul
