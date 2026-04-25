@@ -11,6 +11,7 @@ To run the app, **double-click the launcher at the repo root**. Those root-level
 | `DEMO.bat` | `scripts\windows\DEMO.bat` | Starts the full demo stack with simulated WhatsApp / email / Google integrations. Safe to share. |
 | `LAUNCH.bat` | `scripts\windows\LAUNCH.bat` | Starts with **live** `.env` credentials. Real Meta / Google / SMTP traffic. |
 | `STOP.bat` | `scripts\windows\DEMO-STOP.bat` | Stops the running demo stack. |
+| `RESET.bat` | `scripts\windows\RESET.bat` | **Hard reset.** Drops the Postgres volume, pulls latest code, reinstalls deps, recreates the DB, reseeds, rebuilds, restarts. Use when the app shows "Internal Server Error" after a big update — demo data is recreated each time so nothing real is lost. |
 
 The shims exist so a fresh clone Just Works on double-click without having to navigate three folders deep in File Explorer. Behaviour lives in the canonical files in this folder; the shims are intentionally one-liners — edit the canonical file, never the shim.
 
@@ -22,7 +23,8 @@ The shims exist so a fresh clone Just Works on double-click without having to na
 | `DEMO-STOP.bat` | Stops the demo stack. |
 | `LAUNCH.bat` | Live credentials from `.env`. For production-on-laptop work. |
 | `REBUILD.bat` | Pull, reinstall deps, rebuild Next.js bundle, relaunch. Use after a `package.json` change. |
-| `FIX.bat` | Nuke-and-restart — drops the database, recreates it, reseeds. Use if migrations drift. |
+| `RESET.bat` | **The real "nuke and start fresh."** Drops the Postgres volume, recreates the DB from migrations, reseeds, rebuilds, restarts. The recovery path when "Internal Server Error" appears after a big update. |
+| `FIX.bat` | Lightweight migrate + reseed (does NOT drop the volume). Kept for backwards compatibility — prefer `RESET.bat` for true recovery. |
 | `FIX-AND-LAUNCH.ps1` | PowerShell variant of `FIX.bat` with explicit error handling. |
 
 ## Self-healing on `git pull`
