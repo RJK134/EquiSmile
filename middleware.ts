@@ -43,6 +43,10 @@ const PUBLIC_PATH_PATTERNS = [
   /^\/api\/n8n(\/.*)?$/,
   /^\/api\/reminders\/check$/,
   /^\/api\/health(\/.*)?$/,
+  // Demo-only sign-in endpoint. The handler hard-blocks itself
+  // outside DEMO_MODE, so exempting it here is safe — and required,
+  // because it has to be reachable while the caller has no session.
+  /^\/api\/demo\/sign-in$/,
 ];
 
 /**
