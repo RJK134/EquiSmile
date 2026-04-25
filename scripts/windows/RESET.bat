@@ -164,7 +164,17 @@ echo.
 echo  ======================================================
 echo.
 
-call npm run start
+REM next.config.ts uses `output: 'standalone'`; `next start` does
+REM not serve standalone builds. Copy static assets into the bundle
+REM and run the standalone server entry point directly.
+echo  Copying static assets into the standalone bundle...
+if not exist .next\standalone\.next mkdir .next\standalone\.next
+xcopy .next\static .next\standalone\.next\static /E /I /Y /Q >nul
+xcopy public .next\standalone\public /E /I /Y /Q >nul
+
+set PORT=3000
+set HOSTNAME=0.0.0.0
+call node .next\standalone\server.js
 
 echo.
 echo  EquiSmile has stopped. Press any key to close this window.

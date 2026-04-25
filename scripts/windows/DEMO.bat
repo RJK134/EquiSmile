@@ -146,12 +146,27 @@ echo.
 echo  ======================================================
 echo.
 
-REM `call` is REQUIRED here — without it, control transfers
-REM permanently to npm.cmd and the post-run pause below never
-REM executes, so the window vanishes on Ctrl-C / crash anyway.
-call npm run start
+REM `next.config.ts` sets `output: 'standalone'` (for Docker), which
+REM means `next start` refuses to serve the build with the message
+REM:   "next start" does not work with "output: standalone"
+REM Instead we run the standalone server entry point directly. Two
+REM things need copying into .next/standalone first because the
+REM standalone bundle deliberately omits static assets:
+REM   - .next/static -> .next/standalone/.next/static
+REM   - public       -> .next/standalone/public
+echo  Copying static assets into the standalone bundle...
+if not exist .next\standalone\.next mkdir .next\standalone\.next
+xcopy .next\static .next\standalone\.next\static /E /I /Y /Q >nul
+xcopy public .next\standalone\public /E /I /Y /Q >nul
 
-REM Always pause if `npm run start` exits — keeps the window open
+set PORT=3000
+set HOSTNAME=0.0.0.0
+REM `call` is REQUIRED here — without it, control transfers
+REM permanently to node.exe and the post-run pause below never
+REM executes, so the window vanishes on Ctrl-C / crash anyway.
+call node .next\standalone\server.js
+
+REM Always pause if the server exits — keeps the window open
 REM so you can see why instead of it vanishing on error.
 echo.
 echo  EquiSmile has stopped. Press any key to close this window.
