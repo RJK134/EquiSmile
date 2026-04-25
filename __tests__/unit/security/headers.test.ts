@@ -57,8 +57,27 @@ describe('applySecurityHeaders', () => {
     expect(dev.headers.get('Strict-Transport-Security')).toBeNull();
   });
 
-  it('CSP blocks form submission off-site', () => {
-    expect(__internals.buildCsp()).toContain("form-action 'self'");
+  it('CSP blocks form submission off-site in production', () => {
+    vi.stubEnv('DEMO_MODE', 'false');
+    const csp = __internals.buildCsp();
+    expect(csp).toContain("form-action 'self'");
+    // form-action does not list any external origin in production.
+    expect(csp).not.toContain('http://localhost');
+    // upgrade-insecure-requests is the right call on a real HTTPS deploy.
+    expect(csp).toContain('upgrade-insecure-requests');
+  });
+
+  it('CSP relaxes form-action for plaintext localhost in demo mode', () => {
+    // Regression: with `form-action 'self'` + `upgrade-insecure-requests`
+    // on http://localhost:3000, Chrome blocks every same-origin form
+    // POST — including the demo sign-in form. Demo mode keeps the
+    // protective directive but adds explicit localhost http origins to
+    // the allow-list, and drops upgrade-insecure-requests since there
+    // is no TLS to upgrade to.
+    vi.stubEnv('DEMO_MODE', 'true');
+    const csp = __internals.buildCsp();
+    expect(csp).toContain("form-action 'self' http://localhost:3000 http://127.0.0.1:3000");
+    expect(csp).not.toContain('upgrade-insecure-requests');
   });
 
   it('CSP allows PWA service worker via blob: in worker-src', () => {
