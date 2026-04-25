@@ -11,6 +11,9 @@ echo.
 echo  This will:
 echo    1. Stop the running stack
 echo    2. DESTROY the local Postgres volume (all demo data)
+echo       NB: only the Postgres volume is dropped. Uploaded
+echo           attachments, n8n workflows, and Caddy certs are
+echo           preserved.
 echo    3. Pull the latest code
 echo    4. Reinstall Node dependencies
 echo    5. Recreate the database from scratch
@@ -27,19 +30,49 @@ pause >nul
 cd /d D:\Projects\Equismile\EquiSmile
 
 echo.
-echo  [1/7] Stopping running stack...
+echo  [1/7] Stopping running stack (containers only - volumes preserved)...
 echo  -------------------------------------------------------
-docker compose down 2>nul
+REM Plain `down` stops + removes containers and the default network.
+REM We deliberately do NOT use `down -v` here: that wipes ALL named
+REM volumes (n8n_data, attachments_data, caddy_data/config,
+REM backups_data) which the operator does not expect to lose. We
+REM target only postgres_data in step 2.
+docker compose down
+if errorlevel 1 (
+    echo.
+    echo  [ERROR] Could not stop the stack. Is Docker Desktop running?
+    pause
+    exit /b 1
+)
 echo  Stack stopped.
 
 echo.
-echo  [2/7] Destroying Postgres volume...
+echo  [2/7] Destroying ONLY the Postgres data volume...
 echo  -------------------------------------------------------
-REM `down -v` removes named volumes too, including postgres_data.
-REM This is the only path that genuinely resets a DB stuck on a
-REM half-applied migration or schema drift.
-docker compose down -v 2>nul
-echo  Volume destroyed.
+REM Compose project name is derived from the directory ("EquiSmile"
+REM lowercased by Docker), so the qualified volume name is
+REM "equismile_postgres_data". If the operator overrode
+REM COMPOSE_PROJECT_NAME this script falls back to a label-scoped
+REM lookup. We must NOT silently swallow failure here — a corrupt
+REM DB that the script can't drop is the exact scenario this
+REM launcher exists to fix.
+docker volume rm equismile_postgres_data
+if errorlevel 1 (
+    echo.
+    echo  [WARN] Direct volume removal failed - trying label lookup...
+    for /f "usebackq tokens=*" %%v in (`docker volume ls --filter "label=com.docker.compose.volume=postgres_data" --format "{{.Name}}"`) do (
+        echo  Found postgres volume: %%v
+        docker volume rm %%v
+        if errorlevel 1 (
+            echo.
+            echo  [ERROR] Could not remove %%v. The volume may be in use.
+            echo  Stop any container that mounts it, then re-run RESET.bat.
+            pause
+            exit /b 1
+        )
+    )
+)
+echo  Postgres volume destroyed.
 
 echo.
 echo  [3/7] Pulling latest code...
