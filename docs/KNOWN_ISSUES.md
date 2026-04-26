@@ -1,5 +1,17 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Overnight hardening (2026-04-25)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH-AUTH-COMPLETE | High | No mechanical proof that every business `app/api/*` route is gated by a session — relied on per-route audits | Resolved — `__tests__/unit/auth/auth-guard-completeness.test.ts` walks every `route.ts` under `app/api/` and asserts that any non-whitelisted path returns 401 unauthenticated. |
+| OVH-DEMO-LEAK-CLIENT | Medium | `RouteMap` read `process.env.NEXT_PUBLIC_DEMO_MODE`, baking demo-mode state into the live client bundle | Resolved — removed; client now uses absence-of-`NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` + an explicit `forceStatic` prop driven by server-side runtime status. |
+| OVH-ENQ-SOFTDEL | High | Phase 15 added soft-delete to Customer/Yard/Horse but Enquiry rows (inbound customer messages) were still hard-deletable | Resolved — `Enquiry.deletedAt` + `Enquiry.deletedById` migration `20260425000000_phase16_enquiry_softdelete_auditlog`; repository filters `deletedAt: null` by default. |
+| OVH-NO-AUDIT-GENERIC | Medium | `SecurityAuditLog` covers security events; `TriageAuditLog` covers visit-request fields; nothing covered generic operator mutations (enquiry tombstone, route-run flips) | Resolved — generic `AuditLog` model + `lib/services/audit-log.service.ts` with redacted JSON `details`, append-only writes, best-effort failure handling. |
+| OVH-CADDY-CSP | Medium | Caddy emitted basic security headers but no CSP — a request that bypassed the Next middleware (cached static, n8n subdomain, error page) had no CSP fallback | Resolved — Caddyfile now sets a CSP at the proxy layer mirroring `lib/security/headers.ts`, plus `Permissions-Policy`, COOP and CORP. |
+| OVH-STATUS-SHALLOW | Medium | `/api/status` reported integration *modes* but did not actively probe DB / n8n / messaging readiness | Resolved — `/api/status` now runs a live `SELECT 1`, n8n `/healthz` probe (3s timeout), and per-integration readiness summaries with `missing[]` lists. |
+| OVH-PII-RESIDUAL | Low | Two stray PII paths: full address in geocoding partial-match warning, raw error object in manual-enquiry auto-triage failure | Resolved — geocoding now logs postcode prefix only; auto-triage failure logs `error.message` against `enquiryId`. |
+
 ## Phase 16 — Operational-readiness uplift (2026-04-23)
 
 | ID | Severity | Description | Resolution |

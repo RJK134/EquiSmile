@@ -73,4 +73,21 @@ describe('Caddy configuration', () => {
     const content = readFileSync(resolve(ROOT, '.env.example'), 'utf-8');
     expect(content).toContain('DOMAIN=');
   });
+
+  it('Caddyfile enforces a Content-Security-Policy at the proxy layer', () => {
+    const content = readFileSync(resolve(ROOT, 'Caddyfile'), 'utf-8');
+    expect(content).toContain('Content-Security-Policy');
+    // The high-impact directives must be present even if specific
+    // sources change over time.
+    expect(content).toMatch(/frame-ancestors\s+'none'/);
+    expect(content).toMatch(/object-src\s+'none'/);
+    expect(content).toMatch(/base-uri\s+'self'/);
+  });
+
+  it('Caddyfile sets Permissions-Policy + COOP/CORP defaults', () => {
+    const content = readFileSync(resolve(ROOT, 'Caddyfile'), 'utf-8');
+    expect(content).toContain('Permissions-Policy');
+    expect(content).toContain('Cross-Origin-Opener-Policy same-origin');
+    expect(content).toContain('Cross-Origin-Resource-Policy same-origin');
+  });
 });

@@ -1,13 +1,26 @@
 {$DOMAIN:localhost} {
   # HTTPS auto-certs (automatic with Caddy when a real domain is set)
 
-  # Security headers
+  # Security headers (defence-in-depth — the Next.js middleware also
+  # sets these; Caddy enforces a baseline even on responses that bypass
+  # the app, e.g. cached static assets, error pages emitted by Caddy
+  # itself, or the n8n webhook subdomain).
   header {
     X-Content-Type-Options nosniff
     X-Frame-Options DENY
     X-XSS-Protection "1; mode=block"
     Referrer-Policy strict-origin-when-cross-origin
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Permissions-Policy "accelerometer=(), camera=(), geolocation=(self), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    Cross-Origin-Opener-Policy same-origin
+    Cross-Origin-Resource-Policy same-origin
+    # Pragmatic CSP. Mirrors lib/security/headers.ts so a request that
+    # somehow skips the Next middleware (static asset, custom error
+    # page) still ships a CSP. `unsafe-inline` + `unsafe-eval` are
+    # kept because Next.js RSC + the Serwist service worker need
+    # them; the high-impact protections — frame-ancestors 'none',
+    # object-src 'none', base-uri 'self' — are enforced.
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://maps.googleapis.com https://api.anthropic.com https://*.gstatic.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests"
     -Server
   }
 
