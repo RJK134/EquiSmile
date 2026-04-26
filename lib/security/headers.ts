@@ -44,6 +44,16 @@ const HSTS_VALUE = 'max-age=63072000; includeSubDomains; preload';
 // frame-ancestors 'none' is the equivalent of X-Frame-Options: DENY in
 // CSP2/3 — we set both so old browsers still get the X-Frame-Options.
 function buildCsp(): string {
+  // Demo mode runs over plaintext http://localhost. Two production CSP
+  // directives misbehave there:
+  //   - `upgrade-insecure-requests` rewrites form POSTs to https://
+  //     which never resolves on localhost.
+  //   - `form-action 'self'` enforcement on Chrome with mixed http/https
+  //     navigation rejects same-origin POSTs across the redirect chain.
+  // Both are correct in production (HTTPS, real domain), so we keep
+  // them for live deployments and only loosen in demo.
+  const isDemo = process.env.DEMO_MODE === 'true';
+
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",
@@ -60,9 +70,21 @@ function buildCsp(): string {
     "connect-src 'self' https://maps.googleapis.com https://api.anthropic.com https://*.gstatic.com",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
-    "form-action 'self'",
-    "upgrade-insecure-requests",
+    // form-action 'self' in production; demo loosens to also allow
+    // explicit localhost http origins so the demo sign-in form POST
+    // is not blocked over plaintext.
+    isDemo
+      ? "form-action 'self' http://localhost:3000 http://127.0.0.1:3000"
+      : "form-action 'self'",
   ];
+
+  // upgrade-insecure-requests rewrites every http URL to https. That's
+  // correct on a real HTTPS deployment but actively breaks the demo
+  // environment (no TLS on localhost).
+  if (!isDemo) {
+    directives.push('upgrade-insecure-requests');
+  }
+
   return directives.join('; ');
 }
 
