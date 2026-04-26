@@ -8,8 +8,15 @@ import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/r
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(ROLES.READONLY);
+    const subject = await requireRole(ROLES.READONLY);
     const query = enquiryQuerySchema.parse(parseSearchParams(request.nextUrl.searchParams));
+    // Soft-deleted enquiries hold inbound customer messages (PII).
+    // Admin-gate `includeDeleted` exactly the way customer/yard/horse
+    // do — silently downgrade rather than 403 so an accidental URL
+    // paste never leaks "this enquiry was deleted" as a side channel.
+    if (query.includeDeleted && subject.role !== ROLES.ADMIN) {
+      query.includeDeleted = false;
+    }
     const result = await enquiryRepository.findMany(query);
     return successResponse(result);
   } catch (error) {

@@ -63,4 +63,33 @@ describe('enquiryQuerySchema', () => {
     expect(result.triageStatus).toBe('NEEDS_INFO');
     expect(result.channel).toBe('EMAIL');
   });
+
+  describe('includeDeleted', () => {
+    it('defaults to false when absent', () => {
+      const result = enquiryQuerySchema.parse({});
+      expect(result.includeDeleted).toBe(false);
+    });
+
+    it('treats the literal string "false" as boolean false', () => {
+      // Regression for Bugbot #1 (High): the previous
+      // `z.coerce.boolean()` delegated to JS Boolean(), which returns
+      // true for any non-empty string — INCLUDING "false". A request
+      // like ?includeDeleted=false would have silently surfaced
+      // tombstoned enquiries (containing inbound customer messages /
+      // PII) to a caller who asked for the exact opposite.
+      const result = enquiryQuerySchema.parse({ includeDeleted: 'false' });
+      expect(result.includeDeleted).toBe(false);
+    });
+
+    it('parses the literal string "true" as boolean true', () => {
+      const result = enquiryQuerySchema.parse({ includeDeleted: 'true' });
+      expect(result.includeDeleted).toBe(true);
+    });
+
+    it('rejects any other string value (no silent coercion)', () => {
+      expect(() => enquiryQuerySchema.parse({ includeDeleted: '1' })).toThrow();
+      expect(() => enquiryQuerySchema.parse({ includeDeleted: 'yes' })).toThrow();
+      expect(() => enquiryQuerySchema.parse({ includeDeleted: '' })).toThrow();
+    });
+  });
 });

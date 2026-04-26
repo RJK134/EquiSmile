@@ -12,6 +12,16 @@
 | OVH-STATUS-SHALLOW | Medium | `/api/status` reported integration *modes* but did not actively probe DB / n8n / messaging readiness | Resolved — `/api/status` now runs a live `SELECT 1`, n8n `/healthz` probe (3s timeout), and per-integration readiness summaries with `missing[]` lists. |
 | OVH-PII-RESIDUAL | Low | Two stray PII paths: full address in geocoding partial-match warning, raw error object in manual-enquiry auto-triage failure | Resolved — geocoding now logs postcode prefix only; auto-triage failure logs `error.message` against `enquiryId`. |
 
+## Phase 16 — Overnight hardening, second slice (2026-04-25)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH2-COERCE-BOOL | High | `enquiryQuerySchema.includeDeleted` used `z.coerce.boolean()`. JS `Boolean()` returns true for any non-empty string — including `"false"`. `?includeDeleted=false` would have silently exposed tombstoned enquiries containing inbound customer messages. (Cursor Bugbot #c7a7eb5c.) | Resolved — replaced with `z.enum(['true','false']).transform(v => v === 'true')` matching the customer/yard/horse pattern, plus regression tests asserting `'false'` → `false` and rejection of `'1'`/`'yes'`/empty string. |
+| OVH2-ENQ-INC-DEL-GATE | Medium | The new `includeDeleted` flag flowed unguarded through `GET /api/enquiries`. A `READONLY` user could URL-hack `?includeDeleted=true` and read tombstoned enquiry PII. (Cursor Bugbot #99773815.) | Resolved — handler now silently downgrades the flag to `false` for non-admin sessions, mirroring `app/api/customers/route.ts`. Three new vitest cases lock this in. |
+| OVH2-N8N-PROBE-DEAD-BRANCH | Low | `probeN8n` returned `'unconfigured'` when `!env.N8N_HOST`, but `lib/env.ts` defaults `N8N_HOST` to `'localhost'` — making the branch dead code. Stacks with no n8n burned a 3-second timeout per `/api/status` poll and reported `'unreachable'`. (Cursor Bugbot #da88139d.) | Resolved — branch now keys on `!env.N8N_API_KEY`, the credential every n8n callback already fail-closes on. New regression test asserts no `fetch()` call when the key is absent. |
+| OVH2-ENQ-DELETE-ROUTE | High | The Enquiry repository gained `delete()` / `restore()` / `hardDelete()` in PR #51 but no HTTP entry point existed — admins could delete customers/yards/horses but not misrouted spam enquiries. | Resolved — `DELETE /api/enquiries/[id]` (admin-gated, soft-delete, writes both `SecurityAuditLog{event:'ENQUIRY_DELETED'}` and the generic `AuditLog{action:'ENQUIRY_DELETED'}`). Migration `20260425100000_phase16_enquiry_audit_events` adds the new enum values. |
+| OVH2-AUTOTRIAGE-LOG-PII | Low | Auto-triage failure log included `err.message`. Inner triage services occasionally embed raw inbound text in their error messages (e.g. `"failed to parse: '<customer message>'"`), bypassing the `maskPhone`/`maskEmail` utilities. | Resolved — log now records `errorClass` (e.g. `"ZodError"`) plus `enquiryId` only. Operators reach the full payload through redacted channels. |
+
 ## Phase 16 — Operational-readiness uplift (2026-04-23)
 
 | ID | Severity | Description | Resolution |
