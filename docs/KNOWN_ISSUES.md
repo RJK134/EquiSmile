@@ -12,6 +12,12 @@
 | OVH-STATUS-SHALLOW | Medium | `/api/status` reported integration *modes* but did not actively probe DB / n8n / messaging readiness | Resolved — `/api/status` now runs a live `SELECT 1`, n8n `/healthz` probe (3s timeout), and per-integration readiness summaries with `missing[]` lists. |
 | OVH-PII-RESIDUAL | Low | Two stray PII paths: full address in geocoding partial-match warning, raw error object in manual-enquiry auto-triage failure | Resolved — geocoding now logs postcode prefix only; auto-triage failure logs `error.message` against `enquiryId`. |
 
+## Phase 16 — Overnight hardening, third slice (2026-04-26)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH3-AUDITLOG-PARITY | Medium | The generic `AuditLog` table introduced in PR #51 had only one caller (`DELETE /api/enquiries/[id]` from PR #52). The pre-existing Customer / Yard / Horse soft-delete handlers (Phase 15) wrote only `SecurityAuditLog`, leaving the `AuditLog` table half-built — an operator looking up "everything that has happened to customer X" via `AuditLog.entityId` would see only enquiries. | Resolved — Customer / Yard / Horse `DELETE` handlers now dual-write to BOTH `SecurityAuditLog` (security-event timeline) AND `AuditLog` (per-entity index). New tests in `__tests__/unit/api/yards.test.ts` and `__tests__/unit/api/horses.test.ts` plus an extended `customers.test.ts` regression. Documented as a hard rule in `docs/ARCHITECTURE.md` → "Audit trail" so future contributors don't drift. |
+
 ## Phase 16 — Overnight hardening, second slice (2026-04-25)
 
 | ID | Severity | Description | Resolution |

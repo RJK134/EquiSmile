@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 
 const requireRoleMock = vi.hoisted(() => vi.fn());
 const securityAuditRecordMock = vi.hoisted(() => vi.fn());
+const auditLogRecordMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/auth', () => ({
   auth: vi.fn(),
@@ -18,6 +19,10 @@ vi.mock('@/lib/auth/rbac', async () => {
 
 vi.mock('@/lib/services/security-audit.service', () => ({
   securityAuditService: { record: securityAuditRecordMock },
+}));
+
+vi.mock('@/lib/services/audit-log.service', () => ({
+  auditLogService: { record: auditLogRecordMock, listForEntity: vi.fn(), recent: vi.fn() },
 }));
 
 const mockCustomerRepo = {
@@ -243,7 +248,11 @@ describe('DELETE /api/customers/[id]', () => {
     signedInAs('admin');
   });
 
-  it('deletes a customer and writes a security audit entry', async () => {
+  it('deletes a customer and dual-writes both audit trails', async () => {
+    // The dual-write rule (see docs/ARCHITECTURE.md → "Audit trail"):
+    //   - SecurityAuditLog: tamper-evident security-event timeline.
+    //   - AuditLog:         per-entity history at /admin/observability.
+    // Removing either is a regression — both must fire on every soft-delete.
     mockCustomerRepo.delete.mockResolvedValue({ id: '1' });
 
     const { DELETE } = await import('@/app/api/customers/[id]/route');
@@ -260,6 +269,13 @@ describe('DELETE /api/customers/[id]', () => {
         targetId: '1',
       }),
     );
+    expect(auditLogRecordMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'CUSTOMER_DELETED',
+        entityType: 'Customer',
+        entityId: '1',
+      }),
+    );
   });
 
   it('rejects deletion when role is below admin', async () => {
@@ -274,5 +290,6 @@ describe('DELETE /api/customers/[id]', () => {
     expect(response.status).toBe(403);
     expect(mockCustomerRepo.delete).not.toHaveBeenCalled();
     expect(securityAuditRecordMock).not.toHaveBeenCalled();
+    expect(auditLogRecordMock).not.toHaveBeenCalled();
   });
 });

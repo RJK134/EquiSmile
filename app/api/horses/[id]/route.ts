@@ -4,6 +4,7 @@ import { updateHorseSchema } from '@/lib/validations/horse.schema';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/rbac';
 import { securityAuditService } from '@/lib/services/security-audit.service';
+import { auditLogService } from '@/lib/services/audit-log.service';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -47,12 +48,20 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     const subject = await requireRole(ROLES.VET);
     const { id } = await context.params;
     await horseRepository.delete(id, subject.id);
+    // Dual-write per docs/ARCHITECTURE.md → "Audit trail".
     await securityAuditService.record({
       event: 'HORSE_DELETED',
       actor: subject,
       targetType: 'Horse',
       targetId: id,
       detail: 'soft-delete (deletedAt set)',
+    });
+    await auditLogService.record({
+      action: 'HORSE_DELETED',
+      entityType: 'Horse',
+      entityId: id,
+      actor: subject,
+      details: { reason: 'soft-delete' },
     });
     return successResponse({ deleted: true });
   } catch (error) {

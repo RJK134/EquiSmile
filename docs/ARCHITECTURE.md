@@ -272,6 +272,13 @@ DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside
 ### Audit trail
 `TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
+**Dual-write rule for soft-delete handlers.** Every PII-bearing soft-delete handler MUST write the same event to BOTH audit tables:
+
+- `SecurityAuditLog` — single tamper-evident timeline. The security-review query (`event = '*_DELETED'`) returns one row per deletion regardless of entity type. Add the matching `*_DELETED` enum value to `SecurityAuditEvent` if it doesn't yet exist.
+- `AuditLog` — per-entity history indexed by `(entityType, entityId)`. The operator observability page reads this to answer "show me everything that has ever happened to customer X". `action` is a free-text string; mirror the `SecurityAuditEvent` value so the two tables stay aligned.
+
+The canonical reference shape is `app/api/enquiries/[id]/route.ts` `DELETE`. Customer (`app/api/customers/[id]/route.ts`), Yard (`app/api/yards/[id]/route.ts`), Horse (`app/api/horses/[id]/route.ts`) and Enquiry handlers all follow the same pattern as of the Phase 16 third slice. Vitest in `__tests__/unit/api/{customers,yards,horses,enquiries}.test.ts` regresses the dual-write — removing either record call from any of these four handlers fails CI.
+
 ### Security hardening (Phase 14 PR A)
 
 - **Constant-time allow-list** — `lib/auth/allowlist.ts` uses `crypto.timingSafeEqual` and walks the full list for every candidate (no short-circuit) so matching latency does not leak the position of a hit.
