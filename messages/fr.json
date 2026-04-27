@@ -580,6 +580,25 @@
     "deleteFailed": "Échec de la suppression. Veuillez réessayer.",
     "loadFailed": "Échec du chargement des données. Veuillez réessayer."
   },
+  "softDelete": {
+    "softDeleteNote": "L'enregistrement est marqué comme supprimé et masqué des listes, mais les données sont conservées pour audit et récupération.",
+    "customer": {
+      "confirmTitle": "Supprimer le client",
+      "confirmBody": "Supprimer {name} ? Ses écuries et chevaux seront également masqués des listes."
+    },
+    "yard": {
+      "confirmTitle": "Supprimer l'écurie",
+      "confirmBody": "Supprimer {name} ? Les chevaux dont l'écurie principale est celle-ci seront également masqués."
+    },
+    "horse": {
+      "confirmTitle": "Supprimer le cheval",
+      "confirmBody": "Supprimer {name} ? L'historique clinique (fiches, observations, prescriptions) est conservé."
+    },
+    "enquiry": {
+      "confirmTitle": "Supprimer la demande",
+      "confirmBody": "Supprimer cette demande de {name} ? Les visites associées restent; seul le fil de messages entrants est masqué."
+    }
+  },
   "observability": {
     "title": "Observabilité",
     "subtitle": "File d'opérations échouées, état des sauvegardes, activité d'audit récente",

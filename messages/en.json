@@ -580,6 +580,25 @@
     "deleteFailed": "Failed to delete. Please try again.",
     "loadFailed": "Failed to load data. Please try again."
   },
+  "softDelete": {
+    "softDeleteNote": "The record is marked deleted and hidden from lists, but the data is retained for audit and recovery.",
+    "customer": {
+      "confirmTitle": "Delete customer",
+      "confirmBody": "Delete {name}? Their yards and horses will also be hidden from lists."
+    },
+    "yard": {
+      "confirmTitle": "Delete yard",
+      "confirmBody": "Delete {name}? Horses kept primarily at this yard will also be hidden."
+    },
+    "horse": {
+      "confirmTitle": "Delete horse",
+      "confirmBody": "Delete {name}? Clinical history (charts, findings, prescriptions) is retained."
+    },
+    "enquiry": {
+      "confirmTitle": "Delete enquiry",
+      "confirmBody": "Delete this enquiry from {name}? Linked visit requests stay; only the inbound message thread is hidden."
+    }
+  },
   "observability": {
     "title": "Observability",
     "subtitle": "Dead-letter queue, backup health, and recent audit activity",

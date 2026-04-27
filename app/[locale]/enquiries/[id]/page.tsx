@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DeleteEntityButton } from '@/components/ui/DeleteEntityButton';
 import { Link } from '@/i18n/navigation';
 import { MessageThread } from '@/components/ui/MessageThread';
 
@@ -113,7 +114,18 @@ export default function EnquiryDetailPage() {
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
           <div className="mb-4"><Link href="/enquiries" className="text-sm text-primary hover:underline">&larr; {tc('back')}</Link></div>
-          <PageHeader title={t('detail.title')} subtitle={enquiry.subject || undefined} />
+          <PageHeader
+            title={t('detail.title')}
+            subtitle={enquiry.subject || undefined}
+            action={
+              <DeleteEntityButton
+                endpoint={`/api/enquiries/${enquiry.id}`}
+                entityLabel={enquiry.customer?.fullName || enquiry.sourceFrom}
+                entityKind="enquiry"
+                afterDeletePath="/enquiries"
+              />
+            }
+          />
 
           {/* Status row */}
           <div className="mb-4 flex flex-wrap gap-2">
