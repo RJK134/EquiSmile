@@ -15,7 +15,8 @@ export const horseRepository = {
     const { customerId, primaryYardId, active, search, page, pageSize, includeDeleted } = query;
     const where: Prisma.HorseWhereInput = {};
 
-    if (!includeDeleted) where.deletedAt = null;
+    // Explicit opt-out for the soft-delete extension; see lib/prisma.ts.
+    where.deletedAt = includeDeleted ? undefined : null;
     if (customerId) where.customerId = customerId;
     if (primaryYardId) where.primaryYardId = primaryYardId;
     if (active !== undefined) where.active = active;
@@ -50,7 +51,7 @@ export const horseRepository = {
 
   async findById(id: string, options: { includeDeleted?: boolean } = {}) {
     return prisma.horse.findFirst({
-      where: options.includeDeleted ? { id } : { id, deletedAt: null },
+      where: { id, deletedAt: options.includeDeleted ? undefined : null },
       include: {
         customer: true,
         primaryYard: true,
