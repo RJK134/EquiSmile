@@ -65,11 +65,19 @@ export const enquiryService = {
         input.rawText,
       );
     } catch (err) {
-      // Auto-triage failure must never block enquiry creation. Log the
-      // error message only — never the raw `err` object, which may
-      // include the customer's free-text message in nested cause chains.
-      const message = err instanceof Error ? err.message : 'unknown error';
-      console.error('[ManualEnquiry] Auto-triage failed', { enquiryId: result.enquiry.id, message });
+      // Auto-triage failure must never block enquiry creation. Inner
+      // services occasionally surface raw inbound text inside
+      // `err.message` (e.g. "failed to parse: '<customer message>'"),
+      // so logging `message` here would leak PII past the masking
+      // utilities in lib/utils/logger.ts. Log the error CLASS only —
+      // it's enough for an operator to grep the dead-letter queue or
+      // open the relevant enquiry in the UI to see the full payload
+      // through the normal redacted channels.
+      const errorClass = err instanceof Error ? err.constructor.name : 'unknown';
+      console.error('[ManualEnquiry] Auto-triage failed', {
+        enquiryId: result.enquiry.id,
+        errorClass,
+      });
     }
 
     return result;

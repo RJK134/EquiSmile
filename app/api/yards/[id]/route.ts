@@ -4,6 +4,7 @@ import { updateYardSchema } from '@/lib/validations/yard.schema';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/rbac';
 import { securityAuditService } from '@/lib/services/security-audit.service';
+import { auditLogService } from '@/lib/services/audit-log.service';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -44,12 +45,20 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     const subject = await requireRole(ROLES.ADMIN);
     const { id } = await context.params;
     await yardRepository.delete(id, subject.id);
+    // Dual-write per docs/ARCHITECTURE.md → "Audit trail".
     await securityAuditService.record({
       event: 'YARD_DELETED',
       actor: subject,
       targetType: 'Yard',
       targetId: id,
       detail: 'soft-delete (deletedAt set)',
+    });
+    await auditLogService.record({
+      action: 'YARD_DELETED',
+      entityType: 'Yard',
+      entityId: id,
+      actor: subject,
+      details: { reason: 'soft-delete' },
     });
     return successResponse({ deleted: true });
   } catch (error) {

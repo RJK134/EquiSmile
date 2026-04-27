@@ -116,7 +116,15 @@ interface N8nProbe {
 async function probeN8n(): Promise<N8nProbe> {
   const start = Date.now();
   const url = getN8nBaseUrl();
-  if (!env.N8N_HOST) {
+  // `N8N_HOST` cannot be the unconfigured signal — `lib/env.ts` defaults
+  // it to `'localhost'`, so it is always truthy and that branch was
+  // dead code. The real "n8n is not set up" signal is the absence of
+  // `N8N_API_KEY`: every n8n-authenticated callback fails closed
+  // without it (see `lib/utils/signature.ts#requireN8nApiKey`), so
+  // running active probes against an n8n that has no key is wasted
+  // work — and a 3-second timeout per request rather than an honest
+  // "unconfigured".
+  if (!env.N8N_API_KEY) {
     return { status: 'unconfigured', url, latencyMs: 0 };
   }
   try {

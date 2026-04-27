@@ -25,10 +25,20 @@ export const enquiryQuerySchema = z.object({
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  // Default false — list endpoints must hide tombstoned rows. Admin
-  // ops surfaces (audit trail, restore UI) can pass `true` to surface
-  // them.
-  includeDeleted: z.coerce.boolean().optional().default(false),
+  // Soft-delete: list endpoints hide tombstoned rows by default. Admin
+  // ops surfaces (audit trail, restore UI) can pass `?includeDeleted=true`.
+  //
+  // NB: `z.coerce.boolean()` is unsafe here — it delegates to the JS
+  // Boolean() constructor, which returns true for any non-empty string
+  // INCLUDING "false". That would silently expose tombstoned enquiries
+  // (containing inbound customer PII) to a caller who asked for the
+  // exact opposite. Parse the string literally instead, matching the
+  // pattern in customer.schema.ts / yard.schema.ts / horse.schema.ts.
+  includeDeleted: z
+    .enum(['true', 'false'])
+    .optional()
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type CreateEnquiryInput = z.infer<typeof createEnquirySchema>;

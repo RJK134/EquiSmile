@@ -4,6 +4,7 @@ import { updateCustomerSchema } from '@/lib/validations/customer.schema';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-utils';
 import { AuthzError, ROLES, authzErrorResponse, requireRole } from '@/lib/auth/rbac';
 import { securityAuditService } from '@/lib/services/security-audit.service';
+import { auditLogService } from '@/lib/services/audit-log.service';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -47,12 +48,23 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     const subject = await requireRole(ROLES.ADMIN);
     const { id } = await context.params;
     await customerRepository.delete(id, subject.id);
+    // Dual-write per the convention spelled out in
+    // docs/ARCHITECTURE.md → "Audit trail":
+    //   - SecurityAuditLog: tamper-evident security-event timeline.
+    //   - AuditLog: per-entity history for /admin/observability.
     await securityAuditService.record({
       event: 'CUSTOMER_DELETED',
       actor: subject,
       targetType: 'Customer',
       targetId: id,
       detail: 'soft-delete (deletedAt set)',
+    });
+    await auditLogService.record({
+      action: 'CUSTOMER_DELETED',
+      entityType: 'Customer',
+      entityId: id,
+      actor: subject,
+      details: { reason: 'soft-delete' },
     });
     return successResponse({ deleted: true });
   } catch (error) {

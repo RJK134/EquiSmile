@@ -272,6 +272,13 @@ DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside
 ### Audit trail
 `TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
+**Dual-write rule for soft-delete handlers.** Every PII-bearing soft-delete handler MUST write the same event to BOTH audit tables:
+
+- `SecurityAuditLog` — single tamper-evident timeline. The security-review query (`event = '*_DELETED'`) returns one row per deletion regardless of entity type. Add the matching `*_DELETED` enum value to `SecurityAuditEvent` if it doesn't yet exist.
+- `AuditLog` — per-entity history indexed by `(entityType, entityId)`. The operator observability page reads this to answer "show me everything that has ever happened to customer X". `action` is a free-text string; mirror the `SecurityAuditEvent` value so the two tables stay aligned.
+
+The canonical reference shape is `app/api/enquiries/[id]/route.ts` `DELETE`. Customer (`app/api/customers/[id]/route.ts`), Yard (`app/api/yards/[id]/route.ts`), Horse (`app/api/horses/[id]/route.ts`) and Enquiry handlers all follow the same pattern as of the Phase 16 third slice. Vitest in `__tests__/unit/api/{customers,yards,horses,enquiries}.test.ts` regresses the dual-write — removing either record call from any of these four handlers fails CI.
+
 ### Security hardening (Phase 14 PR A)
 
 - **Constant-time allow-list** — `lib/auth/allowlist.ts` uses `crypto.timingSafeEqual` and walks the full list for every candidate (no short-circuit) so matching latency does not leak the position of a hit.
@@ -288,6 +295,16 @@ DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside
 - **Generic AuditLog** — `prisma.auditLog` (`{ action, entityType, entityId, userId, details, createdAt }`) is the catch-all for business mutations that don't yet have their own tamper-evident trail. Wrapped by `lib/services/audit-log.service.ts` with redaction-friendly JSON `details` and best-effort writes. Sits next to `SecurityAuditLog` (security events), `TriageAuditLog` (visit-request fields), and `AppointmentStatusHistory` (status transitions).
 - **CSP in Caddy** — Caddyfile now sets a CSP at the proxy layer mirroring `lib/security/headers.ts`, plus `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`. Defence in depth for any response that bypasses the Next middleware (cached static asset, n8n subdomain, Caddy-emitted error page).
 - **Status surface depth** — `/api/status` now runs an active `SELECT 1` against Postgres and a 3-second `GET /healthz` against n8n in addition to the existing integration-mode + ops snapshot. WhatsApp / SMTP / Google Maps readiness is reported as `{ status: 'configured' | 'unconfigured', missing: string[] }` so the operator sees exactly which env vars are still missing.
+
+### Security hardening (Phase 16 — overnight hardening, second slice)
+
+Closes three Cursor Bugbot findings on PR #51 plus the Enquiry HTTP gap that had no entry point.
+
+- **Safe boolean query parsing for `includeDeleted`** — `enquiryQuerySchema.includeDeleted` previously used `z.coerce.boolean()`, which delegates to JavaScript's `Boolean()` constructor and silently maps `"false"` → `true`. A `?includeDeleted=false` request would have surfaced tombstoned enquiries (inbound customer messages, PII). Now uses `z.enum(['true','false']).transform(v => v === 'true')`, matching the customer/yard/horse pattern. Regression locked by `__tests__/unit/validations/enquiry.schema.test.ts`. **Never use `z.coerce.boolean()` on a query-string field**; the comment in `lib/validations/customer.schema.ts` is the canonical warning.
+- **Admin-gated `includeDeleted` on `GET /api/enquiries`** — the new flag now silently downgrades to `false` for any session below `ROLES.ADMIN`, mirroring `app/api/customers/route.ts`. Silent downgrade (rather than 403) avoids leaking "this enquiry was deleted" as a side channel via accidental URL paste.
+- **`DELETE /api/enquiries/[id]` HTTP route** — admin-gated soft-delete that calls `enquiryRepository.delete()` and writes both a `SecurityAuditLog{event: 'ENQUIRY_DELETED'}` row and a generic `AuditLog{action: 'ENQUIRY_DELETED'}` row. Migration `20260425100000_phase16_enquiry_audit_events` adds the new enum values. Exercises the generic `AuditLog` infrastructure introduced in PR #51.
+- **`probeN8n` unconfigured branch keys on `N8N_API_KEY`** — the previous `!env.N8N_HOST` check was dead code (env defaults the host to `'localhost'`). Stacks with no n8n burned a 3 s timeout per `/api/status` poll. The new check matches the credential every n8n callback already fail-closes on; regression test asserts `fetch()` is never invoked when the key is absent.
+- **Auto-triage failure log redaction** — the manual-enquiry path no longer logs `err.message`. Inner triage services occasionally embed raw inbound text in error messages, bypassing `maskPhone`/`maskEmail`. Log now records `errorClass` (e.g. `"ZodError"`) plus `enquiryId` only.
 
 ### Security hardening (Phase 14 PR E — overnight gap-closure)
 
