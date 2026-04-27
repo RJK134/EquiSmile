@@ -1,5 +1,11 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Overnight hardening, fifth slice (2026-04-27)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH5-AUDITLOG-PII-REDACT | Medium | PR #51 known risk #2 — `AuditLog.details` PII redaction was convention only, not enforcement. A future caller passing a domain object (e.g. `{ before: customer }`) would leak the customer's name / phone / message text into the per-entity audit history surfaced on `/admin/observability`. | Resolved — new `lib/utils/audit-redact.ts` (`redactAuditDetails`) is a single chokepoint that runs every `details` payload through `lib/utils/log-redact` (tokens / auth headers) AND a PII pass that scrubs values of PII-named keys (mobilePhone, email, fullName, rawText, …) and pattern-matches phone-shaped, email-shaped, and 80+ char free-text values. `auditLogService.record()` now applies it automatically; safe payloads like `{ reason: 'soft-delete' }` pass through unchanged. 19 new test cases lock the contract in. |
+
 ## Phase 16 — Overnight hardening (2026-04-25)
 
 | ID | Severity | Description | Resolution |
