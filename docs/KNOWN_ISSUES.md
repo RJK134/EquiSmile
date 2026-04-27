@@ -1,5 +1,11 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Overnight hardening, sixth slice (2026-04-27)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH6-PUBLIC-PROBES | Medium | PR #51 known risk #3 — the new active probes (DB `SELECT 1`, n8n `/healthz`) lived only on admin-gated `/api/status`; uptime monitors and Kubernetes-style orchestrators couldn't get dependency-aware liveness/readiness without a session. `/api/health` returned the right shape but was a single aggregate endpoint with no /live vs /ready split. | Resolved — new `/api/health/live` (cheap, no DB hit, always 200 when process up; `HEAD` supported) and `/api/health/ready` (active DB + n8n probes, 200 ready / 503 not-ready, minimal response shape, no env-var leak; `HEAD` supported). Both public via the existing `^/api/health(/.*)?$` middleware whitelist. 10 new test cases regressing cheap-by-design liveness, dependency-aware readiness, n8n-skipped path when unconfigured, and the no-attack-surface guarantee. |
+
 ## Phase 16 — Overnight hardening (2026-04-25)
 
 | ID | Severity | Description | Resolution |
