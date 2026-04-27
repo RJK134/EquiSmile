@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Modal } from '@/components/ui/Modal';
 import { FormField, inputStyles } from '@/components/ui/FormField';
+import { DeleteEntityButton } from '@/components/ui/DeleteEntityButton';
 import { Link } from '@/i18n/navigation';
 
 interface YardDetail {
@@ -79,7 +80,21 @@ export default function YardDetailPage() {
           <div className="mb-4">
             <Link href="/yards" className="text-sm text-primary hover:underline">&larr; {tc('back')}</Link>
           </div>
-          <PageHeader title={yard.yardName} subtitle={t('form.editTitle')} action={<Button onClick={() => setEditing(true)} size="sm" variant="secondary">{tc('edit')}</Button>} />
+          <PageHeader
+            title={yard.yardName}
+            subtitle={t('form.editTitle')}
+            action={
+              <div className="flex gap-2">
+                <Button onClick={() => setEditing(true)} size="sm" variant="secondary">{tc('edit')}</Button>
+                <DeleteEntityButton
+                  endpoint={`/api/yards/${yard.id}`}
+                  entityLabel={yard.yardName}
+                  entityKind="yard"
+                  afterDeletePath="/yards"
+                />
+              </div>
+            }
+          />
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
