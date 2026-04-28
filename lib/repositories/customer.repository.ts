@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import type { PrismaTransactionClient } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import type { CreateCustomerInput, UpdateCustomerInput, CustomerQuery } from '@/lib/validations/customer.schema';
 import type { PaginatedResult } from '@/lib/types';
@@ -17,9 +18,13 @@ export const customerRepository = {
     const { search, preferredChannel, page, pageSize, includeDeleted } = query;
     const where: Prisma.CustomerWhereInput = {};
 
-    if (!includeDeleted) {
-      where.deletedAt = null;
-    }
+    // Always set `deletedAt` explicitly (`null` for live-only,
+    // `undefined` for include-deleted). The Prisma soft-delete
+    // extension in `lib/prisma.ts` uses *key presence* as the opt-out
+    // signal — leaving the key absent would trigger an auto-injected
+    // `deletedAt: null` filter even when the caller asked to see
+    // tombstoned rows.
+    where.deletedAt = includeDeleted ? undefined : null;
 
     if (search) {
       where.OR = [
@@ -74,8 +79,10 @@ export const customerRepository = {
     // With the default (includeDeleted: false) we still hide deleted
     // children — the standard UI list invariant.
     const childWhere = options.includeDeleted ? undefined : { deletedAt: null };
+    // `deletedAt` key is always present (see findMany comment above on
+    // the extension's opt-out semantics).
     return prisma.customer.findFirst({
-      where: options.includeDeleted ? { id } : { id, deletedAt: null },
+      where: { id, deletedAt: options.includeDeleted ? undefined : null },
       include: {
         yards: { where: childWhere },
         horses: {
@@ -142,7 +149,7 @@ export const customerRepository = {
    * re-query.
    */
   async cascadeRestoreWithin(
-    tx: Prisma.TransactionClient,
+    tx: PrismaTransactionClient,
     id: string,
     parentDeletedAt: Date | null,
   ) {
@@ -191,7 +198,8 @@ export const customerRepository = {
 
   async count(options: { includeDeleted?: boolean } = {}) {
     return prisma.customer.count({
-      where: options.includeDeleted ? undefined : { deletedAt: null },
+      // Always present; see findMany comment.
+      where: { deletedAt: options.includeDeleted ? undefined : null },
     });
   },
 };
