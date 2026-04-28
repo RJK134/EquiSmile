@@ -150,10 +150,26 @@ for the duration.
 
 ## 3. Observability surface
 
-- `/api/health` — Liveness + dependency check. Returns 200 when healthy,
-  503 when any required dependency is unreachable. Point an uptime
-  monitor here.
-- `/api/status` — Diagnostic snapshot (operator-only, session gated).
+- `/api/health/live` — **Liveness probe** (Phase 16, sixth slice).
+  Cheapest possible answer: 200 if the process is up. No DB hit, no
+  fetch, ~stable response shape. Use this from a Kubernetes
+  livenessProbe, or from an uptime monitor that should ONLY alert on
+  process death (not transient dependency flake). Supports `HEAD`.
+- `/api/health/ready` — **Readiness probe**. Active `SELECT 1` against
+  Postgres + 3-second `GET /healthz` against n8n (skipped when
+  `N8N_API_KEY` is unset). Returns 200 with `status: 'ready'` when both
+  dependencies are up; 503 with `status: 'not-ready'` otherwise. Use
+  this from a Kubernetes readinessProbe (gates traffic) or from an
+  uptime monitor that needs dependency-aware alerting. Response is
+  deliberately minimal — no env-var names, n8n URLs, or other
+  attack-surface signals leak to anonymous callers. Supports `HEAD`.
+- `/api/health` — Aggregate health endpoint. Returns 200 when healthy,
+  503 when any required dependency is unreachable. Kept for backwards
+  compatibility with existing monitors; new deployments should prefer
+  the `/live` and `/ready` split above.
+- `/api/status` — Diagnostic snapshot (admin-only, session gated). Adds
+  the readiness signals plus per-integration `missing[]` env-var lists
+  and the ops snapshot (DLQ depth, audit volume, backup freshness).
 - Structured JSON logs on stdout (production). Pipe into a log
   aggregator; `lib/utils/logger.ts` supports an `ErrorSink` for
   Sentry/Highlight integration.
