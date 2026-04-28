@@ -19,7 +19,8 @@ export const enquiryRepository = {
     const { customerId, triageStatus, channel, search, page, pageSize, includeDeleted } = query;
     const where: Prisma.EnquiryWhereInput = {};
 
-    if (!includeDeleted) where.deletedAt = null;
+    // Explicit opt-out for the soft-delete extension; see lib/prisma.ts.
+    where.deletedAt = includeDeleted ? undefined : null;
     if (customerId) where.customerId = customerId;
     if (triageStatus) where.triageStatus = triageStatus;
     if (channel) where.channel = channel;
@@ -59,7 +60,7 @@ export const enquiryRepository = {
 
   async findById(id: string, options: { includeDeleted?: boolean } = {}) {
     return prisma.enquiry.findFirst({
-      where: options.includeDeleted ? { id } : { id, deletedAt: null },
+      where: { id, deletedAt: options.includeDeleted ? undefined : null },
       include: {
         customer: true,
         yard: true,
@@ -110,7 +111,7 @@ export const enquiryRepository = {
   async countByStatus(options: { includeDeleted?: boolean } = {}) {
     const results = await prisma.enquiry.groupBy({
       by: ['triageStatus'],
-      where: options.includeDeleted ? undefined : { deletedAt: null },
+      where: { deletedAt: options.includeDeleted ? undefined : null },
       _count: { id: true },
     });
     return Object.fromEntries(
