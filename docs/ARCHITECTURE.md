@@ -272,25 +272,19 @@ DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside
 ### Audit trail
 `TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
-### Soft-delete enforcement at the data-access layer (Phase 16, fourth slice)
+### AuditLog `details` redaction (Phase 16, fifth slice)
 
-Repositories filter `deletedAt: null` on every read of the four PII-bearing tables (`Customer`, `Yard`, `Horse`, `Enquiry`). The Prisma client extension in `lib/prisma.ts` (`buildSoftDeleteExtension`) is the defence-in-depth: a future contributor calling `prisma.customer.findMany()` directly — bypassing the repository — still gets an auto-injected `deletedAt: null` filter, so tombstoned PII never surfaces by accident.
+The generic `AuditLog.details` JSON column is operator-supplied context (action reason, summary diffs, ID lists). To stop a future caller leaking PII into the per-entity audit history surfaced on `/admin/observability`, `auditLogService.record()` runs every `details` payload through `lib/utils/audit-redact.ts → redactAuditDetails(...)`.
 
-Contract:
+The redactor is two-pass:
 
-- The extension intercepts **read** operations on those four models: `findMany`, `findFirst`, `findFirstOrThrow`, `count`, `aggregate`, `groupBy`. **Writes** (`update`, `delete`, `*Many` variants) are intentionally *not* intercepted; repositories use `where: { id, deletedAt: null }` explicitly so they refuse to mutate tombstoned rows. **`findUnique` is exempt** — by-PK lookups are used by `restore()` paths to find the very rows the soft-delete filter would hide. Repositories that need the filter on a by-id read use `findFirst({ where: { id, deletedAt: null } })`, which IS intercepted.
-- **Caller opt-out is by key presence**, not value. To skip the auto-inject, set `where.deletedAt = undefined` (the key is present but Prisma treats it as no filter). Repositories use `where.deletedAt = includeDeleted ? undefined : null` so the key is always present and the extension's behaviour is deterministic.
-- Adding a new soft-delete model is a one-line edit to `SOFT_DELETE_MODELS` in `lib/prisma.ts`.
+1. **Secret scrub** — `lib/utils/log-redact.redact()`: strips `Authorization`, `Cookie`, `x-api-key`, `x-hub-signature-256`, bearer-shaped values, etc.
+2. **PII scrub** —
+   - **Key-based:** any string value under a PII-named key (`mobilePhone`, `email`, `fullName`, `horseName`, `yardName`, `rawText`, `message`, `subject`, `notes`, `description`, `address`, …) is replaced with `[pii-redacted]`. Substring match, case-insensitive.
+   - **Value-pattern:** strings under non-PII keys are checked against three sentinels — `[phone]` for phone-shaped values, `[email]` for email-shaped, `[free-text]` for 80+ chars (likely a customer message body).
+   - Recurses into nested objects and arrays. Handles circular references (`[circular]`).
 
-Type wiring:
-
-- `ExtendedPrismaClient` and `PrismaTransactionClient` are exported from `lib/prisma.ts`. Repository helpers that take a `tx` parameter (e.g. `customerRepository.cascadeRestoreWithin`) use `PrismaTransactionClient`; `Prisma.TransactionClient` no longer matches what `prisma.$transaction(async tx => …)` actually passes.
-- `lib/services/inbound-customer.service.ts` aliases the same type as `TxClient` for ergonomic use inside the resolve-or-restore flow.
-
-Regression coverage:
-
-- `__tests__/unit/lib/prisma-soft-delete.test.ts` verifies the helpers (`shouldFilterSoftDelete`, `injectSoftDeleteFilter`) the extension dispatches to. It locks in the "key presence is the opt-out signal" semantics and the closed set of soft-delete models.
-- `__tests__/unit/repositories/{customer,yard,horse,enquiry}.repository.test.ts` already assert the repository sets `deletedAt: null` on default reads and `deletedAt: undefined` on `includeDeleted: true` reads.
+Safe payloads like `{ reason: 'soft-delete' }`, `{ action: 'STATUS_CHANGED', from: 'PROPOSED', to: 'CONFIRMED' }`, or arrays of UUIDs pass through unchanged. The redaction layer is enforcement, not convention — bypassing it requires bypassing the service.
 
 **Dual-write rule for soft-delete handlers.** Every PII-bearing soft-delete handler MUST write the same event to BOTH audit tables:
 

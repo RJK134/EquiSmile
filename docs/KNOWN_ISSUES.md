@@ -1,10 +1,10 @@
 # EquiSmile Known Issues
 
-## Phase 16 — Overnight hardening, fourth slice (2026-04-26)
+## Phase 16 — Overnight hardening, fifth slice (2026-04-27)
 
 | ID | Severity | Description | Resolution |
 |----|----------|-------------|------------|
-| OVH4-PRISMA-EXT-SOFTDEL | Medium | PR #51 known risk #1 — repositories filter `deletedAt: null`, but a future contributor calling `prisma.customer.findMany()` directly bypassed the soft-delete invariant and could surface tombstoned PII. Convention only, no enforcement. | Resolved — `lib/prisma.ts` now wraps the client in a `$extends` query callback that auto-injects `deletedAt: null` on `findMany` / `findFirst` / `findFirstOrThrow` / `count` / `aggregate` / `groupBy` for the four soft-delete models. Caller opt-out is by key presence (`where.deletedAt = undefined`). Writes and `findUnique` are intentionally exempt — see `docs/ARCHITECTURE.md` → "Soft-delete enforcement at the data-access layer". 12 new helper tests in `__tests__/unit/lib/prisma-soft-delete.test.ts` lock in the contract. |
+| OVH5-AUDITLOG-PII-REDACT | Medium | PR #51 known risk #2 — `AuditLog.details` PII redaction was convention only, not enforcement. A future caller passing a domain object (e.g. `{ before: customer }`) would leak the customer's name / phone / message text into the per-entity audit history surfaced on `/admin/observability`. | Resolved — new `lib/utils/audit-redact.ts` (`redactAuditDetails`) is a single chokepoint that runs every `details` payload through `lib/utils/log-redact` (tokens / auth headers) AND a PII pass that scrubs values of PII-named keys (mobilePhone, email, fullName, rawText, …) and pattern-matches phone-shaped, email-shaped, and 80+ char free-text values. `auditLogService.record()` now applies it automatically; safe payloads like `{ reason: 'soft-delete' }` pass through unchanged. 19 new test cases lock the contract in. |
 
 ## Phase 16 — Overnight hardening (2026-04-25)
 
