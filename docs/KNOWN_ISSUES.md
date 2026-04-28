@@ -1,10 +1,10 @@
 # EquiSmile Known Issues
 
-## Phase 16 — Overnight hardening, fifth slice (2026-04-27)
+## Phase 16 — Overnight hardening, sixth slice (2026-04-27)
 
 | ID | Severity | Description | Resolution |
 |----|----------|-------------|------------|
-| OVH5-AUDITLOG-PII-REDACT | Medium | PR #51 known risk #2 — `AuditLog.details` PII redaction was convention only, not enforcement. A future caller passing a domain object (e.g. `{ before: customer }`) would leak the customer's name / phone / message text into the per-entity audit history surfaced on `/admin/observability`. | Resolved — new `lib/utils/audit-redact.ts` (`redactAuditDetails`) is a single chokepoint that runs every `details` payload through `lib/utils/log-redact` (tokens / auth headers) AND a PII pass that scrubs values of PII-named keys (mobilePhone, email, fullName, rawText, …) and pattern-matches phone-shaped, email-shaped, and 80+ char free-text values. `auditLogService.record()` now applies it automatically; safe payloads like `{ reason: 'soft-delete' }` pass through unchanged. 19 new test cases lock the contract in. |
+| OVH6-PUBLIC-PROBES | Medium | PR #51 known risk #3 — the new active probes (DB `SELECT 1`, n8n `/healthz`) lived only on admin-gated `/api/status`; uptime monitors and Kubernetes-style orchestrators couldn't get dependency-aware liveness/readiness without a session. `/api/health` returned the right shape but was a single aggregate endpoint with no /live vs /ready split. | Resolved — new `/api/health/live` (cheap, no DB hit, always 200 when process up; `HEAD` supported) and `/api/health/ready` (active DB + n8n probes, 200 ready / 503 not-ready, minimal response shape, no env-var leak; `HEAD` supported). Both public via the existing `^/api/health(/.*)?$` middleware whitelist. 10 new test cases regressing cheap-by-design liveness, dependency-aware readiness, n8n-skipped path when unconfigured, and the no-attack-surface guarantee. |
 
 ## Phase 16 — Overnight hardening (2026-04-25)
 
