@@ -1,10 +1,10 @@
 # EquiSmile Known Issues
 
-## Phase 16 — Overnight hardening, sixth slice (2026-04-27)
+## Phase 16 — Overnight hardening, seventh slice (2026-04-27)
 
 | ID | Severity | Description | Resolution |
 |----|----------|-------------|------------|
-| OVH6-PUBLIC-PROBES | Medium | PR #51 known risk #3 — the new active probes (DB `SELECT 1`, n8n `/healthz`) lived only on admin-gated `/api/status`; uptime monitors and Kubernetes-style orchestrators couldn't get dependency-aware liveness/readiness without a session. `/api/health` returned the right shape but was a single aggregate endpoint with no /live vs /ready split. | Resolved — new `/api/health/live` (cheap, no DB hit, always 200 when process up; `HEAD` supported) and `/api/health/ready` (active DB + n8n probes, 200 ready / 503 not-ready, minimal response shape, no env-var leak; `HEAD` supported). Both public via the existing `^/api/health(/.*)?$` middleware whitelist. 10 new test cases regressing cheap-by-design liveness, dependency-aware readiness, n8n-skipped path when unconfigured, and the no-attack-surface guarantee. |
+| OVH7-SETUP-EXECSYNC | Medium | PR #51 known risk #4 — `/api/setup` invoked `execSync('npx prisma migrate deploy')` and `execSync('npx tsx prisma/seed-demo.ts')` from an HTTP handler. Three problems: (1) child-process spawn from a request handler is a code-execution vector if the `DEMO_MODE` gate ever weakens; (2) `execSync` blocks the Node event loop for the full duration of the migration/seed, starving every other in-flight request; (3) error handling worked off raw stderr text, which can carry DB credentials in failure modes. | Resolved — handler rewritten to a stable 410 Gone response with operator guidance. The compose stack already runs migrations correctly via the `migrator` service; local-dev callers see `npx prisma migrate deploy && npx tsx prisma/seed-demo.ts` in the response body. `DEMO_MODE` gate retained as defence-in-depth. New `__tests__/unit/api/setup.test.ts` (5 cases) including a static-analysis regression that fails CI if `child_process`, `execSync`, `spawn`, or `fork` ever return to the route. |
 
 ## Phase 16 — Overnight hardening (2026-04-25)
 
