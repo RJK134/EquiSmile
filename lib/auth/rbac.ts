@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 
 import { auth } from '@/auth';
 import { errorResponse } from '@/lib/api-utils';
+import {
+  ROLES,
+  KNOWN_ROLES,
+  RANK,
+  normaliseRole,
+  hasRole,
+  type Role,
+} from '@/lib/auth/role-rank';
 
 /**
  * Phase 14 PR B — role-based access control.
@@ -20,39 +28,15 @@ import { errorResponse } from '@/lib/api-utils';
  *  - Explicit role hierarchy: ADMIN > VET > NURSE > READONLY.
  *  - Fail closed: any error in the auth/lookup path returns 403, not
  *    200.
+ *
+ * The pure rank logic (`ROLES`, `RANK`, `hasRole`, `normaliseRole`)
+ * lives in `lib/auth/role-rank.ts` so client components can import
+ * it without dragging in Auth.js. Re-exported here for
+ * backwards-compatible callers.
  */
 
-export const ROLES = {
-  ADMIN: 'admin',
-  VET: 'vet',
-  NURSE: 'nurse',
-  READONLY: 'readonly',
-} as const;
-
-export type Role = (typeof ROLES)[keyof typeof ROLES];
-
-const KNOWN_ROLES = new Set<Role>(Object.values(ROLES));
-
-/**
- * Numeric rank, higher = more privilege. Unknown roles default to 0
- * (below READONLY) so they cannot satisfy any `requireRole` check.
- */
-const RANK: Record<Role, number> = {
-  readonly: 1,
-  nurse: 2,
-  vet: 3,
-  admin: 4,
-};
-
-export function normaliseRole(raw: string | null | undefined): Role {
-  if (!raw) return ROLES.READONLY;
-  const candidate = raw.trim().toLowerCase();
-  return KNOWN_ROLES.has(candidate as Role) ? (candidate as Role) : ROLES.READONLY;
-}
-
-export function hasRole(actual: Role, required: Role): boolean {
-  return RANK[actual] >= RANK[required];
-}
+export { ROLES, normaliseRole, hasRole };
+export type { Role };
 
 export interface AuthenticatedSubject {
   id: string;

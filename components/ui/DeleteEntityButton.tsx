@@ -8,6 +8,7 @@ import { useRouter } from '@/i18n/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { hasRole } from '@/lib/auth/role-rank';
 
 /**
  * Phase 16, eighth slice — operator-facing soft-delete trigger.
@@ -57,11 +58,13 @@ export interface DeleteEntityButtonProps {
    * Lowest role allowed to delete. Defaults to `'admin'` (matches
    * customer / yard / enquiry); `'vet'` for horses (clinical
    * mutation). Anything below renders the component as null.
+   *
+   * The hierarchy itself comes from `lib/auth/role-rank.ts` so this
+   * UX gate cannot drift from the server-side `requireRole` check
+   * (Bugbot #b323faef on PR #57).
    */
   requiredRole?: 'admin' | 'vet';
 }
-
-const ROLE_RANK: Record<string, number> = { readonly: 1, nurse: 2, vet: 3, admin: 4 };
 
 export function DeleteEntityButton({
   endpoint,
@@ -72,6 +75,12 @@ export function DeleteEntityButton({
 }: DeleteEntityButtonProps) {
   const t = useTranslations('softDelete');
   const tc = useTranslations('common');
+  // Toast keys live under `errors.*` in messages/{en,fr}.json — using
+  // `tc` here would cause `next-intl` to surface the literal key
+  // names instead of the translated text (Bugbot #8cb5e879 on PR
+  // #57). The errors namespace is also where saveSuccess/saveFailed
+  // live, so the conventions are consistent.
+  const te = useTranslations('errors');
   const { data: session } = useSession();
   const { addToast } = useToast();
   const router = useRouter();
@@ -79,8 +88,7 @@ export function DeleteEntityButton({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const sessionRole = session?.user?.role ?? 'readonly';
-  const allowed = (ROLE_RANK[sessionRole] ?? 0) >= ROLE_RANK[requiredRole];
+  const allowed = hasRole(session?.user?.role, requiredRole);
   // Always render-null below the bar, BEFORE returning any markup,
   // so the button never flashes during hydration for a non-admin
   // operator.
@@ -91,18 +99,30 @@ export function DeleteEntityButton({
     try {
       const response = await fetch(endpoint, { method: 'DELETE' });
       if (!response.ok) {
-        addToast(tc('deleteFailed'), 'error');
+        addToast(te('deleteFailed'), 'error');
         setBusy(false);
         return;
       }
-      addToast(tc('deleteSuccess'), 'success');
+      addToast(te('deleteSuccess'), 'success');
       // Use `replace` so the operator's back-button doesn't bring
       // them back to the now-404 detail page.
       router.replace(afterDeletePath);
     } catch {
-      addToast(tc('deleteFailed'), 'error');
+      addToast(te('deleteFailed'), 'error');
       setBusy(false);
     }
+  }
+
+  function handleModalClose() {
+    // Native <dialog> closes itself on Escape BEFORE firing onClose,
+    // so React state must always be brought back into sync — even
+    // when busy. Trying to "block" the close by skipping setOpen
+    // stranded `open=true` while the dialog was visually closed,
+    // permanently breaking the confirmation flow until reload
+    // (Bugbot #395dfb62 on PR #57). A cancelled mid-flight delete
+    // is still safe: the fetch keeps running and the success/error
+    // toast still fires from `handleConfirm`.
+    setOpen(false);
   }
 
   return (
@@ -118,7 +138,7 @@ export function DeleteEntityButton({
 
       <Modal
         open={open}
-        onClose={() => (busy ? undefined : setOpen(false))}
+        onClose={handleModalClose}
         title={t(`${entityKind}.confirmTitle`)}
       >
         <p className="text-sm text-foreground">
