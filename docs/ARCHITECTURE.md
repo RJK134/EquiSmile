@@ -272,6 +272,20 @@ DELETEs on Customer, Yard, Horse now write a row to `SecurityAuditLog` alongside
 ### Audit trail
 `TriageAuditLog.performedBy` is written from the authenticated session using `AuthenticatedSubject.actorLabel` (from `lib/auth/rbac.ts`). The DB default of `"admin"` remains as a last-resort fallback for any path that legitimately runs without a user context.
 
+### AuditLog `details` redaction (Phase 16, fifth slice)
+
+The generic `AuditLog.details` JSON column is operator-supplied context (action reason, summary diffs, ID lists). To stop a future caller leaking PII into the per-entity audit history surfaced on `/admin/observability`, `auditLogService.record()` runs every `details` payload through `lib/utils/audit-redact.ts → redactAuditDetails(...)`.
+
+The redactor is two-pass:
+
+1. **Secret scrub** — `lib/utils/log-redact.redact()`: strips `Authorization`, `Cookie`, `x-api-key`, `x-hub-signature-256`, bearer-shaped values, etc.
+2. **PII scrub** —
+   - **Key-based:** any string value under a PII-named key (`mobilePhone`, `email`, `fullName`, `horseName`, `yardName`, `rawText`, `message`, `subject`, `notes`, `description`, `address`, …) is replaced with `[pii-redacted]`. Substring match, case-insensitive.
+   - **Value-pattern:** strings under non-PII keys are checked against three sentinels — `[phone]` for phone-shaped values, `[email]` for email-shaped, `[free-text]` for 80+ chars (likely a customer message body).
+   - Recurses into nested objects and arrays. Handles circular references (`[circular]`).
+
+Safe payloads like `{ reason: 'soft-delete' }`, `{ action: 'STATUS_CHANGED', from: 'PROPOSED', to: 'CONFIRMED' }`, or arrays of UUIDs pass through unchanged. The redaction layer is enforcement, not convention — bypassing it requires bypassing the service.
+
 **Dual-write rule for soft-delete handlers.** Every PII-bearing soft-delete handler MUST write the same event to BOTH audit tables:
 
 - `SecurityAuditLog` — single tamper-evident timeline. The security-review query (`event = '*_DELETED'`) returns one row per deletion regardless of entity type. Add the matching `*_DELETED` enum value to `SecurityAuditEvent` if it doesn't yet exist.

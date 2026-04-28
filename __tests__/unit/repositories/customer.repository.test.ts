@@ -243,9 +243,15 @@ describe('customerRepository', () => {
     });
 
     it('includes tombstoned rows when includeDeleted=true', async () => {
+      // Phase 16 — repository contract is `deletedAt: undefined` (key
+      // present, value undefined) so the soft-delete extension in
+      // lib/prisma.ts skips its auto-inject. See lib/prisma.ts →
+      // injectSoftDeleteFilter.
       mockPrisma.customer.count.mockResolvedValue(50);
       await customerRepository.count({ includeDeleted: true });
-      expect(mockPrisma.customer.count).toHaveBeenCalledWith({ where: undefined });
+      const call = mockPrisma.customer.count.mock.calls[0][0];
+      expect(Object.prototype.hasOwnProperty.call(call.where, 'deletedAt')).toBe(true);
+      expect(call.where.deletedAt).toBeUndefined();
     });
   });
 });
