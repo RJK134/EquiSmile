@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Customer, Prisma } from '@prisma/client';
+import type { Customer } from '@prisma/client';
 
 import { customerRepository } from '@/lib/repositories/customer.repository';
+import type { PrismaTransactionClient } from '@/lib/prisma';
 
 /**
  * Resolve the customer a webhook handler should attach an inbound
@@ -33,7 +34,11 @@ import { customerRepository } from '@/lib/repositories/customer.repository';
  *     enough for that.
  */
 
-type TxClient = Prisma.TransactionClient;
+// The extension applied to `prisma` (lib/prisma.ts) reshapes the type
+// of the `$transaction` callback parameter, so `Prisma.TransactionClient`
+// no longer matches what callers actually pass. Use the extension-aware
+// alias re-exported from `@/lib/prisma`.
+type TxClient = PrismaTransactionClient;
 
 export interface InboundCustomerBase {
   fullName: string;

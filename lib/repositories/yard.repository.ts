@@ -15,7 +15,10 @@ export const yardRepository = {
     const { customerId, areaLabel, postcode, search, page, pageSize, includeDeleted } = query;
     const where: Prisma.YardWhereInput = {};
 
-    if (!includeDeleted) where.deletedAt = null;
+    // Set `deletedAt` explicitly so the soft-delete extension in
+    // `lib/prisma.ts` recognises the opt-out (key presence) and skips
+    // its auto-inject. See lib/prisma.ts → buildSoftDeleteExtension.
+    where.deletedAt = includeDeleted ? undefined : null;
     if (customerId) where.customerId = customerId;
     if (areaLabel) where.areaLabel = { contains: areaLabel, mode: 'insensitive' };
     if (postcode) where.postcode = { startsWith: postcode, mode: 'insensitive' };
@@ -62,7 +65,7 @@ export const yardRepository = {
     // explicitly asks (e.g. a restore-preview UI).
     const childWhere = options.includeDeleted ? undefined : { deletedAt: null };
     return prisma.yard.findFirst({
-      where: options.includeDeleted ? { id } : { id, deletedAt: null },
+      where: { id, deletedAt: options.includeDeleted ? undefined : null },
       include: {
         customer: true,
         horses: { where: childWhere },
