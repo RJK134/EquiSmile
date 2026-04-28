@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import type { AuthenticatedSubject } from '@/lib/auth/rbac';
 import { logger } from '@/lib/utils/logger';
+import { redactAuditDetails } from '@/lib/utils/audit-redact';
 
 /**
  * Phase 16 overnight hardening — generic business audit trail.
@@ -38,6 +39,16 @@ function toUserId(actor: RecordAuditInput['actor']): string | null {
 
 export const auditLogService = {
   async record(input: RecordAuditInput): Promise<void> {
+    // The `details` JSON column is operator-supplied. Run it through
+    // the audit-specific redactor (`lib/utils/audit-redact.ts`) so a
+    // future caller passing a domain object — `{ before: customer }`
+    // — cannot leak the customer's name / phone / message text into
+    // the per-entity audit history. Safe payloads like
+    // `{ reason: 'soft-delete' }` pass through unchanged.
+    const safeDetails =
+      input.details === undefined
+        ? undefined
+        : (redactAuditDetails(input.details) as Prisma.InputJsonValue);
     try {
       await prisma.auditLog.create({
         data: {
@@ -45,7 +56,7 @@ export const auditLogService = {
           entityType: input.entityType,
           entityId: input.entityId,
           userId: toUserId(input.actor),
-          details: input.details ?? undefined,
+          details: safeDetails,
         },
       });
     } catch (error) {

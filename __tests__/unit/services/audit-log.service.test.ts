@@ -96,4 +96,51 @@ describe('auditLogService', () => {
     expect(call.orderBy).toEqual({ createdAt: 'desc' });
     expect(call.take).toBe(10);
   });
+
+  it('redacts PII from details before persisting (defence-in-depth)', async () => {
+    // A future caller passes the customer object directly. The
+    // service must scrub fullName / mobilePhone / email before the
+    // payload reaches `prisma.auditLog.create`.
+    mockPrisma.auditLog.create.mockResolvedValue({ id: 'a1' });
+
+    await auditLogService.record({
+      action: 'CUSTOMER_DELETED',
+      entityType: 'Customer',
+      entityId: 'cust-1',
+      actor: null,
+      details: {
+        reason: 'duplicate',
+        before: {
+          fullName: 'Sarah Jones',
+          mobilePhone: '+447911123456',
+          email: 'sarah@example.com',
+        },
+      },
+    });
+
+    const call = mockPrisma.auditLog.create.mock.calls[0][0];
+    expect(call.data.details).toEqual({
+      reason: 'duplicate',
+      before: {
+        fullName: '[pii-redacted]',
+        mobilePhone: '[pii-redacted]',
+        email: '[pii-redacted]',
+      },
+    });
+  });
+
+  it('preserves a safe operator-supplied details object verbatim', async () => {
+    mockPrisma.auditLog.create.mockResolvedValue({ id: 'a1' });
+
+    await auditLogService.record({
+      action: 'YARD_DELETED',
+      entityType: 'Yard',
+      entityId: 'y1',
+      actor: null,
+      details: { reason: 'soft-delete' },
+    });
+
+    const call = mockPrisma.auditLog.create.mock.calls[0][0];
+    expect(call.data.details).toEqual({ reason: 'soft-delete' });
+  });
 });
