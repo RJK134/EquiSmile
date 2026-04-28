@@ -1,5 +1,11 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Overnight hardening, fourth slice (2026-04-26)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH4-PRISMA-EXT-SOFTDEL | Medium | PR #51 known risk #1 — repositories filter `deletedAt: null`, but a future contributor calling `prisma.customer.findMany()` directly bypassed the soft-delete invariant and could surface tombstoned PII. Convention only, no enforcement. | Resolved — `lib/prisma.ts` now wraps the client in a `$extends` query callback that auto-injects `deletedAt: null` on `findMany` / `findFirst` / `findFirstOrThrow` / `count` / `aggregate` / `groupBy` for the four soft-delete models. Caller opt-out is by key presence (`where.deletedAt = undefined`). Writes and `findUnique` are intentionally exempt — see `docs/ARCHITECTURE.md` → "Soft-delete enforcement at the data-access layer". 12 new helper tests in `__tests__/unit/lib/prisma-soft-delete.test.ts` lock in the contract. |
+
 ## Phase 16 — Overnight hardening (2026-04-25)
 
 | ID | Severity | Description | Resolution |
