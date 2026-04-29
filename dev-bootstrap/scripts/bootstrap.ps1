@@ -46,10 +46,21 @@ Copy-IfMissing "env-templates/.env.n8n.template" ".env.n8n"
 function Import-DotEnv($Path) {
     if (-not (Test-Path $Path)) { return }
     foreach ($line in Get-Content $Path) {
-        if ($line -match '^\s*([^#=\s]+)\s*=\s*(.*?)\s*$') {
-            $val = $Matches[2] -replace '^"|"$', '' -replace "^'|'$", ""
-            Set-Item -Path "Env:$($Matches[1])" -Value $val
+        if ($line -match '^\s*$' -or $line -match '^\s*#') { continue }
+        if ($line -notmatch '^\s*([^#=\s]+)\s*=\s*(.*)$') { continue }
+        $key = $Matches[1]
+        $raw = $Matches[2]
+        # Match bash `source` semantics: quoted values are literal (so `#` inside
+        # them is preserved); unquoted values have any inline `\s+#...` comment
+        # stripped.
+        if ($raw -match '^"([^"]*)"') {
+            $val = $Matches[1]
+        } elseif ($raw -match "^'([^']*)'") {
+            $val = $Matches[1]
+        } else {
+            $val = ($raw -replace '\s+#.*$', '').TrimEnd()
         }
+        Set-Item -Path "Env:$key" -Value $val
     }
 }
 Import-DotEnv ".env"
