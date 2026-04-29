@@ -1,0 +1,14 @@
+version: 2
+
+# Scope: this file only adds allowlist entries for the dev-bootstrap pack.
+# Existing scanning behaviour for the rest of the EquiSmile repo is unchanged.
+#
+# Rationale: dev-bootstrap/ ships intentionally weak local dev credentials
+# (devuser / devpass / devdb / n8npass / admin) inside compose-file defaults
+# and env templates. They are documented as dev-only in
+# dev-bootstrap/README.md and are never used outside a developer's laptop.
+secret:
+  ignored-paths:
+    - "dev-bootstrap/env-templates/**"
+    - "dev-bootstrap/docker/docker-compose.*.yml"
+    - "dev-bootstrap/docker/docker-compose.*.yaml"

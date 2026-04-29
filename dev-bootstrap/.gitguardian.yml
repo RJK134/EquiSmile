@@ -1,0 +1,12 @@
+version: 2
+
+# dev-bootstrap ships intentionally weak local dev credentials
+# (devuser / devpass / devdb / n8npass / admin) inside compose-file defaults
+# and env templates. They are documented as dev-only in README.md and are
+# never used outside a developer's laptop. Allowlist them so GitGuardian
+# scans don't flag the bootstrap defaults as real secrets.
+secret:
+  ignored-paths:
+    - "env-templates/**"
+    - "docker/docker-compose.*.yml"
+    - "docker/docker-compose.*.yaml"
