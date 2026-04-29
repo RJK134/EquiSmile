@@ -6,6 +6,12 @@
 |----|----------|-------------|------------|
 | OVH8-SOFTDEL-UI | Medium | The soft-delete infrastructure shipped across PRs #51, #52, the AuditLog parity work, and the Prisma extension was operationally invisible — operators had to `curl` the DELETE endpoints. No UI button, no confirmation flow, no toast. The feature was in practice unused, leaving the AuditLog table empty and the audit story untested in production. | Resolved — new `components/ui/DeleteEntityButton.tsx` reusable component (role-aware, modal-confirmed, toast-on-result, locale-aware redirect). Wired into the four detail pages: `app/[locale]/{customers,yards,horses,enquiries}/[id]/page.tsx`. Customer/yard/enquiry require admin; horse requires vet (mirrors the API). EN + FR i18n strings added under `softDelete.*`. 12 vitest cases regress role gating (admin vs readonly/nurse/vet/no-session), the no-one-click rule, fetch wiring, success-toast-and-redirect, error-toast-and-stay, and network-throw handling. |
 
+## Phase 16 — Overnight hardening, seventh slice (2026-04-27)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH7-SETUP-EXECSYNC | Medium | PR #51 known risk #4 — `/api/setup` invoked `execSync('npx prisma migrate deploy')` and `execSync('npx tsx prisma/seed-demo.ts')` from an HTTP handler. Three problems: (1) child-process spawn from a request handler is a code-execution vector if the `DEMO_MODE` gate ever weakens; (2) `execSync` blocks the Node event loop for the full duration of the migration/seed, starving every other in-flight request; (3) error handling worked off raw stderr text, which can carry DB credentials in failure modes. | Resolved — handler rewritten to a stable 410 Gone response with operator guidance. The compose stack already runs migrations correctly via the `migrator` service; local-dev callers see `npx prisma migrate deploy && npx tsx prisma/seed-demo.ts` in the response body. `DEMO_MODE` gate retained as defence-in-depth. New `__tests__/unit/api/setup.test.ts` (5 cases) including a static-analysis regression that fails CI if `child_process`, `execSync`, `spawn`, or `fork` ever return to the route. |
+
 ## Phase 16 — Overnight hardening (2026-04-25)
 
 | ID | Severity | Description | Resolution |
