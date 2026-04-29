@@ -24,7 +24,8 @@ function Require-Cmd($cmd) {
 }
 
 Require-Cmd docker
-try { docker compose version | Out-Null } catch { Write-Fail "docker compose v2 not available" }
+docker compose version | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Fail "docker compose v2 not available" }
 
 # --- 1. Copy env files (never overwrite) -----------------------------------
 function Copy-IfMissing($Src, $Dst) {
@@ -98,10 +99,29 @@ docker compose --env-file .env.n8n -f docker/docker-compose.n8n.yml up -d
 if ($LASTEXITCODE -ne 0) { Write-Fail "n8n compose up failed" }
 
 # --- Done ------------------------------------------------------------------
+# Read .env so the summary reflects whatever the user configured.
+function Get-EnvValue($Key, $Default) {
+    if (-not (Test-Path ".env")) { return $Default }
+    foreach ($line in Get-Content ".env") {
+        if ($line -match "^\s*$([regex]::Escape($Key))\s*=\s*(.*?)\s*$") {
+            $val = $Matches[1] -replace '^"|"$', '' -replace "^'|'$", ""
+            if ($val) { return $val }
+        }
+    }
+    return $Default
+}
+
+$pgPort      = Get-EnvValue "POSTGRES_PORT"   "5432"
+$pgUser      = Get-EnvValue "POSTGRES_USER"   "devuser"
+$pgDb        = Get-EnvValue "POSTGRES_DB"     "devdb"
+$redisPort   = Get-EnvValue "REDIS_PORT"      "6379"
+$mailpitPort = Get-EnvValue "MAILPIT_UI_PORT" "8025"
+$pgadminPort = Get-EnvValue "PGADMIN_PORT"    "5050"
+
 Write-Host ""
 Write-Host "==> dev-bootstrap done" -ForegroundColor Green
-Write-Host "    Postgres   : localhost:5432  (user=devuser db=devdb)"
-Write-Host "    Redis      : localhost:6379"
-Write-Host "    Mailpit UI : http://localhost:8025"
-Write-Host "    pgAdmin    : http://localhost:5050"
+Write-Host "    Postgres   : localhost:$pgPort  (user=$pgUser db=$pgDb)"
+Write-Host "    Redis      : localhost:$redisPort"
+Write-Host "    Mailpit UI : http://localhost:$mailpitPort"
+Write-Host "    pgAdmin    : http://localhost:$pgadminPort"
 Write-Host "    n8n        : http://localhost:5678"

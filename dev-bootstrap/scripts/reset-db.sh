@@ -73,7 +73,7 @@ for dir in "$PARENT_DIR"/*/; do
       exit 0
     fi
     npx --no-install prisma migrate deploy || npx prisma migrate deploy
-  )
+  ) || warn "migrate deploy failed in $project — continuing"
 done
 if (( found_any == 0 )); then
   info "no sibling Prisma projects found — nothing to migrate"
