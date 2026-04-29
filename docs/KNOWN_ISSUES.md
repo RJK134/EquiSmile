@@ -1,5 +1,11 @@
 # EquiSmile Known Issues
 
+## Phase 16 — Overnight hardening, eighth slice (2026-04-27)
+
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| OVH8-SOFTDEL-UI | Medium | The soft-delete infrastructure shipped across PRs #51, #52, the AuditLog parity work, and the Prisma extension was operationally invisible — operators had to `curl` the DELETE endpoints. No UI button, no confirmation flow, no toast. The feature was in practice unused, leaving the AuditLog table empty and the audit story untested in production. | Resolved — new `components/ui/DeleteEntityButton.tsx` reusable component (role-aware, modal-confirmed, toast-on-result, locale-aware redirect). Wired into the four detail pages: `app/[locale]/{customers,yards,horses,enquiries}/[id]/page.tsx`. Customer/yard/enquiry require admin; horse requires vet (mirrors the API). EN + FR i18n strings added under `softDelete.*`. 12 vitest cases regress role gating (admin vs readonly/nurse/vet/no-session), the no-one-click rule, fetch wiring, success-toast-and-redirect, error-toast-and-stay, and network-throw handling. |
+
 ## Phase 16 — Overnight hardening, seventh slice (2026-04-27)
 
 | ID | Severity | Description | Resolution |

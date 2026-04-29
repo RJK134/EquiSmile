@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
+import { DeleteEntityButton } from '@/components/ui/DeleteEntityButton';
 import { Link } from '@/i18n/navigation';
 
 interface HorseDetail {
@@ -64,9 +65,18 @@ export default function HorseDetailPage() {
             title={horse.horseName}
             subtitle={`${t('customer')}: ${horse.customer.fullName}`}
             action={
-              <Button onClick={toggleActive} size="sm" variant={horse.active ? 'danger' : 'primary'}>
-                {horse.active ? t('inactive') : t('active')}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={toggleActive} size="sm" variant={horse.active ? 'danger' : 'primary'}>
+                  {horse.active ? t('inactive') : t('active')}
+                </Button>
+                <DeleteEntityButton
+                  endpoint={`/api/horses/${horse.id}`}
+                  entityLabel={horse.horseName}
+                  entityKind="horse"
+                  afterDeletePath="/horses"
+                  requiredRole="vet"
+                />
+              </div>
             }
           />
 

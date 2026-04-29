@@ -13,6 +13,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { FormField, inputStyles, selectStyles } from '@/components/ui/FormField';
+import { DeleteEntityButton } from '@/components/ui/DeleteEntityButton';
 import { Link } from '@/i18n/navigation';
 
 interface CustomerDetail {
@@ -111,9 +112,17 @@ export default function CustomerDetailPage() {
             title={customer.fullName}
             subtitle={t('detail.title')}
             action={
-              <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
-                {t('detail.editCustomer')}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
+                  {t('detail.editCustomer')}
+                </Button>
+                <DeleteEntityButton
+                  endpoint={`/api/customers/${customer.id}`}
+                  entityLabel={customer.fullName}
+                  entityKind="customer"
+                  afterDeletePath="/customers"
+                />
+              </div>
             }
           />
 
