@@ -26,6 +26,8 @@ interface ActionResult {
   timestamp: string;
 }
 
+const FETCH_TIMEOUT_MS = 8_000;
+
 export default function DemoPage() {
   const [status, setStatus] = useState<DemoStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,11 @@ export default function DemoPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/demo/status');
+      // Timeout prevents the loading spinner from hanging indefinitely
+      // when the demo database is not yet seeded or the server is slow.
+      const res = await fetch('/api/demo/status', {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
       if (res.status === 403) {
         setStatus(null);
         setLoading(false);
@@ -60,6 +66,7 @@ export default function DemoPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(30_000),
       });
       const data = await res.json();
       setActionResults((prev) => [
@@ -102,7 +109,7 @@ export default function DemoPage() {
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <main id="main-content" className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
-            <p className="text-sm text-muted">Loading demo status...</p>
+            <p className="text-sm text-muted">Loading demo status…</p>
           </main>
         </div>
         <MobileNav />
@@ -121,7 +128,9 @@ export default function DemoPage() {
             <Card>
               <h1 className="text-lg font-bold text-danger">Demo Mode Disabled</h1>
               <p className="mt-2 text-sm text-muted">
-                Set <code className="rounded bg-surface px-1 py-0.5 font-mono text-xs">DEMO_MODE=true</code> in your environment to enable the demo control panel.
+                Set{' '}
+                <code className="rounded bg-surface px-1 py-0.5 font-mono text-xs">DEMO_MODE=true</code>{' '}
+                in your environment to enable the demo control panel.
               </p>
             </Card>
           </main>
@@ -140,9 +149,7 @@ export default function DemoPage() {
         <main id="main-content" className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
           {/* Demo Banner */}
           <div className="mb-4 rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-3">
-            <p className="text-sm font-bold text-amber-800">
-              DEMO MODE &mdash; Simulated integrations
-            </p>
+            <p className="text-sm font-bold text-amber-800">DEMO MODE &mdash; Simulated integrations</p>
             <p className="text-xs text-amber-700">
               All external APIs (WhatsApp, Email, Google Maps, n8n) are using simulated responses.
               / Toutes les API externes utilisent des réponses simulées.
@@ -166,10 +173,12 @@ export default function DemoPage() {
             </div>
           </Card>
 
-          {/* Data Counts */}
+          {/* Data Counts
+              Changed from grid-cols-3 sm:grid-cols-7 which overflowed at 375 px
+              (iPhone SE / 14). 2-col default wraps gracefully; sm bumps to 4-col. */}
           <Card className="mb-4">
             <h2 className="mb-2 text-sm font-semibold">Data Counts / Données</h2>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {Object.entries(status.counts).map(([name, count]) => (
                 <div key={name} className="rounded border border-border p-2 text-center">
                   <p className="text-xs text-muted">{name}</p>
@@ -181,15 +190,17 @@ export default function DemoPage() {
 
           {/* Simulation Actions */}
           <Card className="mb-4">
-            <h2 className="mb-3 text-sm font-semibold">Simulation Actions / Actions de simulation</h2>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <h2 className="mb-3 text-sm font-semibold">
+              Simulation Actions / Actions de simulation
+            </h2>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={running !== null}
                 onClick={() => runAction('WhatsApp EN', '/api/demo/simulate-whatsapp', { language: 'en' })}
               >
-                {running === 'WhatsApp EN' ? 'Sending...' : 'Simulate WhatsApp (EN)'}
+                {running === 'WhatsApp EN' ? 'Sending…' : 'Simulate WhatsApp (EN)'}
               </Button>
               <Button
                 variant="secondary"
@@ -197,7 +208,7 @@ export default function DemoPage() {
                 disabled={running !== null}
                 onClick={() => runAction('WhatsApp FR', '/api/demo/simulate-whatsapp', { language: 'fr' })}
               >
-                {running === 'WhatsApp FR' ? 'Envoi...' : 'Simulate WhatsApp (FR)'}
+                {running === 'WhatsApp FR' ? 'Envoi…' : 'Simulate WhatsApp (FR)'}
               </Button>
               <Button
                 variant="secondary"
@@ -205,7 +216,7 @@ export default function DemoPage() {
                 disabled={running !== null}
                 onClick={() => runAction('Email EN', '/api/demo/simulate-email', { language: 'en' })}
               >
-                {running === 'Email EN' ? 'Sending...' : 'Simulate Email (EN)'}
+                {running === 'Email EN' ? 'Sending…' : 'Simulate Email (EN)'}
               </Button>
               <Button
                 variant="secondary"
@@ -213,7 +224,7 @@ export default function DemoPage() {
                 disabled={running !== null}
                 onClick={() => runAction('Email FR', '/api/demo/simulate-email', { language: 'fr' })}
               >
-                {running === 'Email FR' ? 'Envoi...' : 'Simulate Email (FR)'}
+                {running === 'Email FR' ? 'Envoi…' : 'Simulate Email (FR)'}
               </Button>
               <Button
                 variant="secondary"
@@ -221,7 +232,7 @@ export default function DemoPage() {
                 disabled={running !== null}
                 onClick={() => runAction('Triage', '/api/demo/trigger-triage')}
               >
-                {running === 'Triage' ? 'Processing...' : 'Trigger Triage'}
+                {running === 'Triage' ? 'Processing…' : 'Trigger Triage'}
               </Button>
               <Button
                 variant="secondary"
@@ -229,18 +240,28 @@ export default function DemoPage() {
                 disabled={running !== null}
                 onClick={() => runAction('Routes', '/api/demo/generate-routes')}
               >
-                {running === 'Routes' ? 'Generating...' : 'Generate Routes'}
+                {running === 'Routes' ? 'Generating…' : 'Generate Routes'}
               </Button>
             </div>
 
             <div className="mt-3 border-t border-border pt-3">
+              {/* Long bilingual label is abbreviated on xs to avoid single-line overflow */}
               <Button
                 variant="primary"
                 size="md"
                 disabled={running !== null}
                 onClick={runFullDayWorkflow}
               >
-                {running === 'full-day' ? 'Running workflow...' : 'Simulate Full Day Workflow / Simuler une journée complète'}
+                {running === 'full-day' ? (
+                  'Running…'
+                ) : (
+                  <>
+                    <span className="sm:hidden">Simulate Full Day</span>
+                    <span className="hidden sm:inline">
+                      Simulate Full Day Workflow / Simuler une journée complète
+                    </span>
+                  </>
+                )}
               </Button>
             </div>
           </Card>
@@ -265,7 +286,7 @@ export default function DemoPage() {
                         {new Date(result.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
-                    <pre className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap font-mono text-xs text-muted">
+                    <pre className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-muted">
                       {JSON.stringify(result.data, null, 2)}
                     </pre>
                   </div>
