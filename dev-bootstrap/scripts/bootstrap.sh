@@ -39,6 +39,12 @@ log "Preparing env files"
 copy_if_missing "env-templates/.env.template" ".env"
 copy_if_missing "env-templates/.env.n8n.template" ".env.n8n"
 
+# Export .env into the environment so child processes (Prisma, etc.) inherit
+# DATABASE_URL et al. when we cd into sibling projects. Done up-front rather
+# than only at the end so step 4's migrations can connect.
+# shellcheck disable=SC1091
+set -a; source .env; set +a
+
 # --- 2. Bring up core services ---------------------------------------------
 log "Starting core services (Postgres, Redis, Mailpit, pgAdmin)"
 docker compose --env-file .env -f docker/docker-compose.core.yml up -d
@@ -94,9 +100,6 @@ log "Starting n8n"
 docker compose --env-file .env.n8n -f docker/docker-compose.n8n.yml up -d
 
 # --- Done ------------------------------------------------------------------
-# shellcheck disable=SC1091
-set -a; source .env; set +a
-
 printf '\n\033[1;32m==> dev-bootstrap done\033[0m\n'
 printf '    Postgres   : localhost:%s  (user=%s db=%s)\n' \
   "${POSTGRES_PORT:-5432}" "${POSTGRES_USER:-devuser}" "${POSTGRES_DB:-devdb}"
