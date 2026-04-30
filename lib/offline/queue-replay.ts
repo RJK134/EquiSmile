@@ -12,8 +12,16 @@ export interface QueuedRequest {
   method: string;
   headers: Record<string, string>;
   body: string | null;
-  sequence: number;
-  timestamp: number;
+  /**
+   * Monotonic ordering metadata added in a later queue format revision.
+   * Legacy persisted records may not have this field.
+   */
+  sequence?: number;
+  /**
+   * Creation time recorded alongside `sequence` for newer queue entries.
+   * Legacy persisted records may not have this field.
+   */
+  timestamp?: number;
 }
 
 export interface QueuedRecord {
