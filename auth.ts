@@ -122,7 +122,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // Trust the `AUTH_URL` host explicitly — required when the app sits
   // behind a reverse proxy (Caddy, nginx) so Auth.js constructs the
   // correct callback origin instead of guessing from the Host header.
-  trustHost: Boolean(process.env.AUTH_URL),
+  // Demo mode also unconditionally trusts the host because the bind
+  // address can be `0.0.0.0` while the browser hits `localhost`, and
+  // Next.js's own SSR fetches use the bind hostname — Auth.js's
+  // UntrustedHost guard would otherwise 500 every /api/auth/* call.
+  // Demo runs over plaintext localhost / Pinggy tunnel; the trust
+  // boundary is already loosened by DEMO_MODE elsewhere (CSP,
+  // form-action, demo sign-in bypass).
+  trustHost: process.env.DEMO_MODE === 'true' || Boolean(process.env.AUTH_URL),
   useSecureCookies: IS_PRODUCTION,
   cookies: SECURE_COOKIES,
   providers: buildProviders(),

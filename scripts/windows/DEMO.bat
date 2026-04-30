@@ -71,6 +71,13 @@ REM but a fresh demo box without .env should not crash before sign-in.
 REM This default is deliberately *not* secret — DEMO_MODE-only.
 set AUTH_SECRET=demo-not-for-production-only-for-local-DEMO_MODE-walkthrough
 
+REM Auth.js v5 also refuses to serve /api/auth/* with UntrustedHost
+REM unless either AUTH_URL is set or trustHost is true. Demo mode now
+REM unconditionally trusts the host in auth.ts, but providing AUTH_URL
+REM here is belt-and-braces — and it's read by next-auth callbacks for
+REM constructing absolute redirects.
+set AUTH_URL=http://localhost:3000
+
 REM Load additional vars from .env file if it exists
 if exist .env (
     for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
