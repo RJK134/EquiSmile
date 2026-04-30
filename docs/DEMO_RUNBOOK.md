@@ -64,9 +64,7 @@ What each line does:
 | `EQUISMILE_LIVE_MAPS=true` | Override that forces Google Maps to call the real Geocoding + `optimizeTours` APIs even while `DEMO_MODE=true`. WhatsApp and email stay simulated. |
 | `NEXT_PUBLIC_APP_URL` | Default origin for the CORS allow-list. The iPhone's `Origin` header (the Pinggy URL) only passes the `/api/*` allow-list when this matches. |
 | `AUTH_URL` | Tells Auth.js to trust the tunnel host. Without it, sign-in callbacks would mismatch and reject. |
-| `GOOGLE_MAPS_*` + `GCP_PROJECT_ID` | Required by the live Google paths; without them `EQUISMILE_LIVE_MAPS=true` falls back to the simulator (a defensive fallback in
-the client — verify in the dev console: `[GoogleMaps] Client mode:
-live`). |
+| `GOOGLE_MAPS_*` + `GCP_PROJECT_ID` | Required by the live Google paths; without them `EQUISMILE_LIVE_MAPS=true` defensively falls back to demo/simulator mode. Verify the effective mode in the browser devtools console (not the server terminal): with missing credentials expect `[GoogleMaps] Client mode: demo`; with valid live credentials expect `live`. |
 
 ## 3. Reset and rehearse
 
