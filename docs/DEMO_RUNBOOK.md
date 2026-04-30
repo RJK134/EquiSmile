@@ -186,5 +186,6 @@ Even with `EQUISMILE_LIVE_MAPS=true`, these four are still mocked:
 
 If a future demo needs live messaging, ship a separate
 `EQUISMILE_LIVE_WHATSAPP` / `EQUISMILE_LIVE_EMAIL` override using
-the same shape as `useLiveMaps()` — keep them per-integration so
-"live everything" is never a single foot-gun env var.
+the same shape as `isLiveMapsForced()` / `setLiveMapsForced()` —
+keep them per-integration so "live everything" is never a single
+foot-gun env var.
