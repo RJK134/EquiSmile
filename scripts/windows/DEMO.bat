@@ -78,6 +78,30 @@ if exist .env (
     echo  Create a .env file with your API keys for full functionality.
 )
 
+REM Report active integration modes so the operator can see at a
+REM glance whether the demo will use live Google + simulated
+REM messaging (the safe shape for client demos) or all-simulated.
+echo.
+echo  Integration status:
+echo    DEMO_MODE          = %DEMO_MODE%
+if /i "%EQUISMILE_LIVE_MAPS%"=="true" (
+    echo    Google Maps        = LIVE  ^(EQUISMILE_LIVE_MAPS=true^)
+    if not defined GOOGLE_MAPS_API_KEY (
+        echo      [WARNING] EQUISMILE_LIVE_MAPS=true but GOOGLE_MAPS_API_KEY is unset.
+        echo      The client will silently fall back to the simulator.
+    )
+    if not defined GCP_PROJECT_ID (
+        echo      [WARNING] EQUISMILE_LIVE_MAPS=true but GCP_PROJECT_ID is unset.
+        echo      Route Optimization will fall back to the local algorithm.
+    )
+) else (
+    echo    Google Maps        = simulated  ^(set EQUISMILE_LIVE_MAPS=true in .env for live^)
+)
+echo    WhatsApp           = simulated  ^(DEMO_MODE forces this^)
+echo    Email/SMTP         = simulated  ^(DEMO_MODE forces this^)
+if defined NEXT_PUBLIC_APP_URL echo    Public app URL     = %NEXT_PUBLIC_APP_URL%
+if defined AUTH_URL echo    Auth.js callback   = %AUTH_URL%
+
 echo.
 echo  [5/8] Installing / updating Node dependencies...
 echo  -------------------------------------------------------
@@ -138,8 +162,17 @@ echo       Local:   http://localhost:3000/en
 echo       French:  http://localhost:3000/fr
 echo       Demo:    http://localhost:3000/en/demo
 echo.
-echo       For mobile access, open another terminal and run:
+echo       For mobile / iPhone access via Pinggy tunnel, open
+echo       another terminal and run:
 echo       ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R0:localhost:3000 hXtmxAH6vAP@pro.pinggy.io
+echo.
+echo       Then put the printed https://*.pinggy.io URL into .env
+echo       as NEXT_PUBLIC_APP_URL and AUTH_URL, and re-run this
+echo       script. See docs\DEMO_RUNBOOK.md for the full client
+echo       demo flow (live Google Maps + simulated messaging).
+echo.
+echo       Vet UAT testing? See docs\uat\UAT_VET_PERSONA.md
+echo       (persona) and docs\uat\UAT_FEEDBACK_REPORT.md (form).
 echo.
 echo       To stop: press Ctrl+C, or double-click STOP.bat
 echo.

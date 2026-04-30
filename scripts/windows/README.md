@@ -37,6 +37,32 @@ The build step also pauses on failure with a hint about re-running, and the post
 
 The canonical scripts `cd /d D:\Projects\Equismile\EquiSmile`. If you install elsewhere, edit that line at the top of each canonical file (the root shims pick the location up automatically via `%~dp0`).
 
+## Client-demo flow (live Google Maps + simulated messaging)
+
+For an iPhone-via-Pinggy client demo, use `DEMO.bat` with these
+extra entries in your `.env` *before* launching:
+
+```
+EQUISMILE_LIVE_MAPS=true
+GOOGLE_MAPS_API_KEY=AIza...
+GCP_PROJECT_ID=your-project-id
+NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=AIza...
+NEXT_PUBLIC_APP_URL=https://<your-tunnel>.pinggy.io
+AUTH_URL=https://<your-tunnel>.pinggy.io
+```
+
+`DEMO.bat` will print an "Integration status" block at startup so
+you can confirm Google is going live and WhatsApp/email are still
+simulated before you hand the iPhone to the client. Full step-by-step
+in [`../../docs/DEMO_RUNBOOK.md`](../../docs/DEMO_RUNBOOK.md).
+
+For the vet UAT session that follows the demo, see
+[`../../docs/uat/UAT_VET_PERSONA.md`](../../docs/uat/UAT_VET_PERSONA.md)
+(persona) and
+[`../../docs/uat/UAT_FEEDBACK_REPORT.md`](../../docs/uat/UAT_FEEDBACK_REPORT.md)
+(form). Both are markdown — open in any browser via the GitHub
+render or a local markdown preview extension.
+
 ## Non-Windows users
 
 Use `./scripts/demo-start.sh` (or `docker compose up -d` for the bare stack). These `.bat` files are for the vet's Windows workstation only.
