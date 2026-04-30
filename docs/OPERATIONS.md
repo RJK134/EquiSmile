@@ -226,3 +226,52 @@ re-running the drill.
 
 For a true disaster recovery (the production DB is gone), see
 `docs/BACKUP.md` § 4 for the full restore-and-cutover procedure.
+
+---
+
+## 5. CI and PR-automation guardrails
+
+### 5.1 GitHub Copilot Autofix is OFF
+
+Copilot Autofix (the LLM that auto-generates fixes for CodeQL alerts
+and reviewer findings) is **disabled** at the repo level via Settings
+→ Code security and analysis → Copilot Autofix.
+
+The trigger was an incident on PR #61 (CORS allow-list, 30 Apr 2026):
+Autofix saw a Cursor Bugbot finding ("Vary dedup is case-sensitive"),
+generated a "Potential fix for pull request finding" commit, and
+**replaced a comment line in `middleware.ts` with executable code in
+the wrong scope** — `return applySecurityHeaders(preflight, ...)` was
+inserted *before* the `const preflight = ...` declaration. The result
+was a Temporal Dead Zone violation that would have crashed every
+request entering the app, caught only because CI's typecheck rejected
+the commit. The fix Autofix should have produced (an unrelated
+case-insensitive `Vary` dedup) had already been pushed manually.
+
+Copilot Autofix offers no granular config — there is no documented
+"suggest only" or "require manual approval" setting; it is on or
+off. Until either GitHub adds gating or our review-bot landscape
+changes, **leave Autofix off** and accept the trade-off: CodeQL alerts
+will still surface in PR review, they just won't ship a one-click
+auto-commit.
+
+If a future operator re-enables Autofix:
+- never enable PR auto-merge while Autofix is on — the corruption
+  must hit a human reviewer's eyes before it merges,
+- treat any commit message containing the literal string "Potential
+  fix for pull request finding" as suspect; review the diff before
+  approving,
+- require a second review on PRs that touch `middleware.ts`,
+  `lib/security/*`, `lib/auth/*`, or `prisma/schema.prisma` — the
+  blast-radius of an Autofix corruption in those files is whole-app.
+
+### 5.2 Other PR-automation tools (left enabled)
+
+- **GitHub Copilot reviewer** — comment-only. Reads PRs and posts
+  review comments. Does NOT push commits. Useful, low-risk; keep on.
+- **Cursor Bugbot** — comment-only by default. Will auto-fix only if
+  the operator clicks "Fix in Cursor" / "Fix in Web" buttons in a
+  bot comment, which routes through the operator's Cursor session
+  with their identity. Treated as a manual action; keep on.
+- **GitGuardian Security Checks** — read-only secret scanning.
+  Comment-only. Keep on.
