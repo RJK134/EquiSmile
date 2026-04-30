@@ -1,4 +1,6 @@
-import type { NextResponse } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
+
+import { applyCorsHeaders } from '@/lib/security/cors';
 
 /**
  * Apply defence-in-depth security headers to every response.
@@ -23,6 +25,12 @@ import type { NextResponse } from 'next/server';
 
 export interface SecurityHeaderContext {
   pathname: string;
+  /**
+   * Optional — when supplied for an `/api/*` response, CORS allow-list
+   * headers are layered on top of the defence-in-depth headers. Page
+   * responses don't need this; CORS is fetch/XHR-only.
+   */
+  request?: NextRequest;
 }
 
 const BASE_HEADERS: Record<string, string> = {
@@ -108,6 +116,13 @@ export function applySecurityHeaders<T extends NextResponse>(
     response.headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   } else {
     response.headers.set('Content-Security-Policy', buildCsp());
+  }
+
+  // CORS allow-list — only meaningful for `/api/*` responses driven by
+  // a browser fetch. Skipped for page responses and for exempt paths
+  // (webhooks, n8n, Auth.js) inside `applyCorsHeaders` itself.
+  if (ctx.request) {
+    applyCorsHeaders(response, ctx.request, ctx.pathname);
   }
 
   return response;

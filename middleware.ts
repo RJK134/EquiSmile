@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { routing } from './i18n/routing';
 import { safeCallbackUrl } from '@/lib/auth/redirect';
 import { applySecurityHeaders } from '@/lib/security/headers';
+import { buildCorsPreflightResponse } from '@/lib/security/cors';
 import {
   clientKeyFromRequest,
   rateLimitedResponse,
@@ -89,6 +90,20 @@ function isApiPath(pathname: string): boolean {
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // CORS preflight — must be answered BEFORE the auth gate. Browsers
+  // send `OPTIONS` without cookies, so an authenticated check would
+  // reject every preflight and the actual request never gets dispatched.
+  // `buildCorsPreflightResponse` returns null for non-CORS paths so the
+  // request falls through to the normal chain.
+  // We still funnel the response through `applySecurityHeaders` so the
+  // OPTIONS / 403 path picks up COOP / CORP / nosniff / CSP / HSTS like
+  // every other response — preflights aren't an exception to the
+  // global hardening.
+  const preflight = buildCorsPreflightResponse(request, pathname);
+  if (preflight) {
+    return applySecurityHeaders(preflight, { pathname, request });
+  }
+
   // Rate-limit the Auth.js callback/verify/signin/session routes before
   // any further processing, so a burst cannot cheaply burn DB work.
   // `/api/auth/session` is polled by the client; keep the cap high
@@ -96,13 +111,13 @@ export default async function middleware(request: NextRequest) {
   if (AUTH_CALLBACK_PATTERN.test(pathname)) {
     const decision = authCallbackLimiter.check(clientKeyFromRequest(request, 'auth'));
     if (!decision.allowed) {
-      return applySecurityHeaders(rateLimitedResponse(decision), { pathname });
+      return applySecurityHeaders(rateLimitedResponse(decision), { pathname, request });
     }
   }
 
   if (isPublicPath(pathname)) {
     const response = isApiPath(pathname) ? NextResponse.next() : intlMiddleware(request);
-    return applySecurityHeaders(response, { pathname });
+    return applySecurityHeaders(response, { pathname, request });
   }
 
   const session = await auth();
@@ -111,7 +126,7 @@ export default async function middleware(request: NextRequest) {
     if (isApiPath(pathname)) {
       return applySecurityHeaders(
         NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-        { pathname },
+        { pathname, request },
       );
     }
     const localeMatch = pathname.match(/^\/([a-z]{2})(\/|$)/);
@@ -122,7 +137,7 @@ export default async function middleware(request: NextRequest) {
       // via crafted /?callbackUrl=... on the sign-out page.
       loginUrl.searchParams.set('callbackUrl', safeCallbackUrl(pathname, '/'));
     }
-    return applySecurityHeaders(NextResponse.redirect(loginUrl), { pathname });
+    return applySecurityHeaders(NextResponse.redirect(loginUrl), { pathname, request });
   }
 
   if (isApiPath(pathname)) {
@@ -135,13 +150,13 @@ export default async function middleware(request: NextRequest) {
         : clientKeyFromRequest(request, 'api');
       const decision = apiWriteLimiter.check(key);
       if (!decision.allowed) {
-        return applySecurityHeaders(rateLimitedResponse(decision), { pathname });
+        return applySecurityHeaders(rateLimitedResponse(decision), { pathname, request });
       }
     }
-    return applySecurityHeaders(NextResponse.next(), { pathname });
+    return applySecurityHeaders(NextResponse.next(), { pathname, request });
   }
 
-  return applySecurityHeaders(intlMiddleware(request), { pathname });
+  return applySecurityHeaders(intlMiddleware(request), { pathname, request });
 }
 
 export const config = {
