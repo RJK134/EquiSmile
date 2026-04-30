@@ -45,11 +45,15 @@ describe('createSequenceGenerator', () => {
     expect(second).toBeGreaterThan(first);
   });
 
-  it('keeps sequences unique across rapid same-millisecond enqueues', () => {
+  it('keeps sequences unique and strictly monotonic across >1000 same-millisecond enqueues', () => {
     const next = createSequenceGenerator(() => 1700000000000);
-    const seen = new Set<number>();
-    for (let i = 0; i < 100; i += 1) seen.add(next());
-    expect(seen.size).toBe(100);
+    const values: number[] = [];
+    for (let i = 0; i < 1100; i += 1) values.push(next());
+
+    expect(new Set(values).size).toBe(1100);
+    for (let i = 1; i < values.length; i += 1) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
   });
 });
 
