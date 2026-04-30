@@ -97,6 +97,43 @@ and you land on `/en/dashboard` already signed in as an admin.
 If the demo-vet card doesn't appear, `DEMO_MODE` is not set to `true`
 in the running process — re-check `.env.local`, restart `npm run dev`.
 
+### 4a. First-time browser setup (do this if you've ever opened EquiSmile in this browser before)
+
+EquiSmile is a PWA — it precaches the login page in a service worker.
+Any browser that has previously loaded an older build of EquiSmile
+will replay the **cached login page with the old CSP** instead of the
+fresh one. The symptom is an obvious one: tapping "Continue as Demo
+Vet" does nothing visible, and the dev console shows:
+
+```
+Sending form data to '…/api/demo/sign-in' violates the following
+Content Security Policy directive: "form-action 'self' …".
+The request has been blocked.
+```
+
+The cached page has `upgrade-insecure-requests` in its CSP, which
+silently rewrites the form's HTTP POST to HTTPS — and the new
+allow-list (HTTP-only) doesn't match, so Chrome blocks it.
+
+**Fix on the device, once per browser, before the demo:**
+
+| Chrome/Edge | Safari (iPhone) |
+|---|---|
+| DevTools → **Application** → **Service Workers** → **Unregister** the EquiSmile worker. Then DevTools → **Application** → **Storage** → **Clear site data** (everything ticked). Close all tabs on the origin, hard-reload (`Ctrl+Shift+R`). | **Settings → Safari → Advanced → Website Data** → search "pinggy" / "localhost" → **Remove**. Then close all Safari tabs, relaunch Safari, navigate to the tunnel URL again. |
+
+A fresh-install browser (or one that's never seen EquiSmile) needs
+none of this and will Just Work.
+
+### 4b. Auth.js 500 on `/api/auth/session`
+
+If the demo-vet button does navigate but the dashboard then loads
+blank with a 500 on `/api/auth/session` ("There was a problem with
+the server configuration"), `AUTH_SECRET` is missing from the running
+process. `DEMO.bat` now sets a fallback automatically (look for
+`AUTH_SECRET = demo fallback` in the integration-status block at
+startup); if you're using `LAUNCH.bat` or a hand-rolled command, add
+`AUTH_SECRET=...` to your `.env` and restart.
+
 ## 5. Walkthrough script (eight beats, ~15 minutes)
 
 Each beat names the seeded fixture you should interact with so you
@@ -172,6 +209,8 @@ during.
 | Demo-vet card not visible | `DEMO_MODE` not loaded — usually a stale dev server | Restart `npm run dev` after editing `.env.local`. |
 | iPhone says "this site can't be reached" | Pinggy tunnel timed out (free tier rotates URLs every 60 min) | Re-run the `ssh -p 443 …` command, copy the new URL into `NEXT_PUBLIC_APP_URL` + `AUTH_URL`, restart the dev server. |
 | Sign-in lands on `/en/login` instead of `/en/dashboard` | `AUTH_URL` not set, so Auth.js refused to set the cookie on the tunnel host | Set `AUTH_URL` to the same origin as `NEXT_PUBLIC_APP_URL` and restart. |
+| Tapping "Continue as Demo Vet" does nothing; console shows `form-action` CSP violation | Service worker is replaying a cached login page from an earlier build | See §4a above — unregister the SW + clear site data, hard-reload. |
+| `/api/auth/session` returns 500 ("server configuration") | `AUTH_SECRET` not set in the running process | DEMO.bat auto-sets a demo fallback; LAUNCH.bat reads from .env. Add `AUTH_SECRET=...` to .env and restart. |
 | Route generation hangs ~15 s then returns nearest-neighbour | `optimizeTours` permission denied — check Cloud Console > IAM > make sure the API key's restrictions include the Route Optimization API | Either widen the key's API restrictions or unset `EQUISMILE_LIVE_MAPS` to fall back to the simulator. |
 | `429 Too Many Requests` from Google | Demo session burned through the day's free quota | Either bump the GCP billing tier or unset `EQUISMILE_LIVE_MAPS`. |
 

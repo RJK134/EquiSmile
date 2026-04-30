@@ -64,6 +64,13 @@ set HOME_BASE_LAT=46.4553
 set HOME_BASE_LNG=6.8561
 set HOME_BASE_ADDRESS=Blonay, Switzerland
 
+REM Auth.js v5 refuses to serve /api/auth/* without AUTH_SECRET and the
+REM dashboard then 500s on the session call. The .env block below
+REM overrides this if present (so production-shape secrets still win),
+REM but a fresh demo box without .env should not crash before sign-in.
+REM This default is deliberately *not* secret — DEMO_MODE-only.
+set AUTH_SECRET=demo-not-for-production-only-for-local-DEMO_MODE-walkthrough
+
 REM Load additional vars from .env file if it exists
 if exist .env (
     for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
@@ -101,6 +108,13 @@ echo    WhatsApp           = simulated  ^(DEMO_MODE forces this^)
 echo    Email/SMTP         = simulated  ^(DEMO_MODE forces this^)
 if defined NEXT_PUBLIC_APP_URL echo    Public app URL     = %NEXT_PUBLIC_APP_URL%
 if defined AUTH_URL echo    Auth.js callback   = %AUTH_URL%
+if "%AUTH_SECRET:~0,5%"=="demo-" (
+    echo    AUTH_SECRET        = demo fallback  ^(set AUTH_SECRET in .env to override^)
+) else if defined AUTH_SECRET (
+    echo    AUTH_SECRET        = from .env  ^(***redacted***^)
+) else (
+    echo    AUTH_SECRET        = [WARNING] not set - Auth.js will 500
+)
 
 echo.
 echo  [5/8] Installing / updating Node dependencies...
