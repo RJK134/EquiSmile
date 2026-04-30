@@ -127,7 +127,7 @@ describe('decideReplay', () => {
     const records = [record(3, 30), record(1, 10), record(2, 20)];
     const seenSequences: Array<number | undefined> = [];
     await decideReplay(records, async (req) => {
-      seenSequences.push(req.sequence);
+      seenSequences.push(req.sequence!);
       return jsonResponse(201);
     });
     expect(seenSequences).toEqual([10, 20, 30]);
@@ -139,7 +139,7 @@ describe('decideReplay', () => {
     let call = 0;
     const decision = await decideReplay(records, async (req) => {
       call += 1;
-      attempts.push(req.sequence);
+      attempts.push(req.sequence!);
       if (call === 2) throw new Error('network down');
       return jsonResponse(200);
     });
