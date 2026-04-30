@@ -170,7 +170,7 @@ during.
 | Demo-vet card not visible | `DEMO_MODE` not loaded — usually a stale dev server | Restart `npm run dev` after editing `.env.local`. |
 | iPhone says "this site can't be reached" | Pinggy tunnel timed out (free tier rotates URLs every 60 min) | Re-run the `ssh -p 443 …` command, copy the new URL into `NEXT_PUBLIC_APP_URL` + `AUTH_URL`, restart the dev server. |
 | Sign-in lands on `/en/login` instead of `/en/dashboard` | `AUTH_URL` not set, so Auth.js refused to set the cookie on the tunnel host | Set `AUTH_URL` to the same origin as `NEXT_PUBLIC_APP_URL` and restart. |
-| Route generation hangs ~15 s then returns nearest-neighbour | `optimizeTours` permission denied — check Cloud Console > IAM > make sure the API key's restrictions include the Route Optimization API | Either widen the key's API restrictions or unset `EQUISMILE_LIVE_MAPS` to fall back to the simulator. |
+| Route generation hangs ~15 s then returns nearest-neighbour | `optimizeTours` permission denied — check Google Cloud Console → APIs & Services → Credentials and make sure the API key's API restrictions include the Route Optimization API | Either widen the key's API restrictions or unset `EQUISMILE_LIVE_MAPS` to fall back to the simulator. |
 | `429 Too Many Requests` from Google | Demo session burned through the day's free quota | Either bump the GCP billing tier or unset `EQUISMILE_LIVE_MAPS`. |
 
 ## 9. What stays simulated (and why)
