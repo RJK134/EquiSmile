@@ -527,6 +527,11 @@
       "sentAt": "Sent at",
       "notSent": "Not sent"
     },
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "Email",
+      "phone": "Phone"
+    },
     "dayView": {
       "title": "Today's Route",
       "noAppointments": "No appointments today.",

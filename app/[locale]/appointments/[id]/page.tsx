@@ -267,13 +267,20 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <span>{t('confirmationStatus')}</span>
-                {appointment.confirmationSentAt ? (
-                  <span className="text-green-600">
-                    {td('sentAt')} {formatDateTime(appointment.confirmationSentAt)}
-                  </span>
-                ) : (
-                  <span className="text-muted">{td('notSent')}</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {appointment.confirmationChannel && (
+                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                      {t(`channel.${appointment.confirmationChannel.toLowerCase()}`)}
+                    </span>
+                  )}
+                  {appointment.confirmationSentAt ? (
+                    <span className="text-green-600">
+                      {td('sentAt')} {formatDateTime(appointment.confirmationSentAt)}
+                    </span>
+                  ) : (
+                    <span className="text-muted">{td('notSent')}</span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span>{t('reminder24h')}</span>

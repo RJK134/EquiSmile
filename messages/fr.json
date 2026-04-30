@@ -527,6 +527,11 @@
       "sentAt": "Envoyé à",
       "notSent": "Non envoyé"
     },
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "E-mail",
+      "phone": "Téléphone"
+    },
     "dayView": {
       "title": "Itinéraire du jour",
       "noAppointments": "Aucun rendez-vous aujourd'hui.",
