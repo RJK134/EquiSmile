@@ -75,7 +75,7 @@ go-live checklist.
 |----|-------|----------|-------------|------------|
 | KI-001 | 5 | Low | Google Maps API rate limiting may cause batch geocoding to fail for large batches (50+ yards) | Process in smaller batches of 10–20 |
 | ~~KI-002~~ | ~~6~~ | ~~Low~~ | ~~Reminder scheduling depends on `POST /api/reminders/check` being called periodically — no built-in cron~~ | Resolved in Phase 12d |
-| KI-003 | 7 | Low | PWA offline queue does not retry mutations in the original submission order if multiple were queued | Mutations are eventually consistent; order rarely matters for this app's use case |
+| ~~KI-003~~ | ~~7~~ | ~~Low~~ | ~~PWA offline queue does not retry mutations in the original submission order if multiple were queued~~ | **Resolved in v1.1** — see Resolved Issues table |
 | KI-004 | 3 | Medium | WhatsApp webhook verification requires the app to be publicly accessible — not possible in local dev | Use ngrok or similar tunnel for local WhatsApp testing |
 | KI-005 | 4 | Low | Auto-triage confidence scores are heuristic-based and may misclassify edge cases | Manual override is available; triage tasks created for low-confidence classifications |
 | KI-006 | 9 | Info | `/api/webhooks/*`, `/api/n8n/*`, and `/api/reminders/check` intentionally bypass session auth and stay behind the separate `N8N_API_KEY` check — by design, because n8n calls them server-to-server without a browser session. Phase 14 PR E hardened this: the key gate now FAILS CLOSED in production (HTTP 500) when `N8N_API_KEY` is unset, instead of silently accepting anonymous traffic. | No action; enforced in `middleware.ts` via `PUBLIC_PATH_PATTERNS` + `lib/utils/signature.ts#requireN8nApiKey`. |
@@ -109,6 +109,7 @@ Filed during the [Phase Verification Plan](./PHASE_VERIFICATION_PLAN.md) audit. 
 | ID | Phase | Description | Resolution |
 |----|-------|-------------|------------|
 | KI-002 | 6 | Reminder scheduling had no built-in cron | Added `n8n/07-reminder-scheduling.json` — n8n workflow triggers `GET /api/reminders/check` every 15 minutes |
+| KI-003 | 7 | PWA offline queue did not retry mutations in submission order and broke on the first failure, blocking subsequent items | v1.1 PR — `lib/offline/queue-replay.ts` adds an explicit monotonic `sequence` field per queued record, sorts on replay, drops 4xx/2xx, retains 5xx for retry, and aborts only on a fetch throw (genuine offline). Service worker (`app/sw.ts`) wires through the helpers; pure logic covered by `__tests__/unit/offline/queue-replay.test.ts` (13 cases). |
 
 ## Conventions
 
