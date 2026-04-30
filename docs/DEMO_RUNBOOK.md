@@ -166,7 +166,7 @@ during.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `/api/health` shows `googleMaps: 'unconfigured'` on the iPhone | `GOOGLE_MAPS_API_KEY` missing or pointed at a key without Geocoding/Route Optimization enabled | Re-check the GCP console; both APIs must be enabled on the same project as `GCP_PROJECT_ID`. |
+| `/api/health` shows `checks.googleMaps.status: 'unconfigured'` on the iPhone | `GOOGLE_MAPS_API_KEY` missing or pointed at a key without Geocoding/Route Optimization enabled | Re-check the GCP console; both APIs must be enabled on the same project as `GCP_PROJECT_ID`. |
 | Demo-vet card not visible | `DEMO_MODE` not loaded — usually a stale dev server | Restart `npm run dev` after editing `.env.local`. |
 | iPhone says "this site can't be reached" | Pinggy tunnel timed out (free tier rotates URLs every 60 min) | Re-run the `ssh -p 443 …` command, copy the new URL into `NEXT_PUBLIC_APP_URL` + `AUTH_URL`, restart the dev server. |
 | Sign-in lands on `/en/login` instead of `/en/dashboard` | `AUTH_URL` not set, so Auth.js refused to set the cookie on the tunnel host | Set `AUTH_URL` to the same origin as `NEXT_PUBLIC_APP_URL` and restart. |
