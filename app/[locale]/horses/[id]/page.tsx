@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
@@ -27,6 +27,7 @@ interface HorseDetail {
 export default function HorseDetailPage() {
   const t = useTranslations('horses');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const params = useParams();
   const id = params.id as string;
   const [horse, setHorse] = useState<HorseDetail | null>(null);
@@ -85,7 +86,7 @@ export default function HorseDetailPage() {
               <h3 className="mb-3 text-sm font-medium text-muted">{tc('details')}</h3>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between"><dt className="text-muted">{t('age')}</dt><dd>{horse.age ?? '—'}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted">{t('dentalDue')}</dt><dd>{horse.dentalDueDate ? new Date(horse.dentalDueDate).toLocaleDateString() : '—'}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted">{t('dentalDue')}</dt><dd>{horse.dentalDueDate ? format.dateTime(new Date(horse.dentalDueDate), { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted">{t('active')}</dt><dd className={horse.active ? 'text-green-600' : 'text-muted'}>{horse.active ? t('active') : t('inactive')}</dd></div>
                 {horse.notes && <div><dt className="text-muted">{t('form.notes')}</dt><dd className="mt-1">{horse.notes}</dd></div>}
               </dl>

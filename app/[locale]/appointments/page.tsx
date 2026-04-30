@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -44,6 +44,7 @@ interface Appointment {
 export default function AppointmentsPage() {
   const t = useTranslations('appointments');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -72,10 +73,10 @@ export default function AppointmentsPage() {
   }, [statusFilter, dateFrom, dateTo]);
 
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString();
+    format.dateTime(new Date(dateStr), { year: 'numeric', month: 'short', day: 'numeric' });
 
   const formatTime = (dateStr: string) =>
-    new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    format.dateTime(new Date(dateStr), { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="flex h-full flex-col">

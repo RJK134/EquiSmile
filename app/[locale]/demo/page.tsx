@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useFormatter } from 'next-intl';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Header } from '@/components/layout/Header';
@@ -31,6 +32,7 @@ export default function DemoPage() {
   const [loading, setLoading] = useState(true);
   const [actionResults, setActionResults] = useState<ActionResult[]>([]);
   const [running, setRunning] = useState<string | null>(null);
+  const format = useFormatter();
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -262,7 +264,7 @@ export default function DemoPage() {
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{result.action}</span>
                       <span className="text-muted">
-                        {new Date(result.timestamp).toLocaleTimeString()}
+                        {format.dateTime(new Date(result.timestamp), { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </span>
                     </div>
                     <pre className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap font-mono text-xs text-muted">

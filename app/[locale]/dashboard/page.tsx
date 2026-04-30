@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -79,6 +79,7 @@ export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const ta = useTranslations('appointments.dashboard');
+  const format = useFormatter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -256,7 +257,7 @@ export default function DashboardPage() {
                           <Link href={`/enquiries/${e.id}`} className="truncate font-medium text-primary hover:underline">
                             {e.rawText.slice(0, 50)}
                           </Link>
-                          <p className="text-xs text-muted">{e.customer?.fullName || '\u2014'} &middot; {new Date(e.receivedAt).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted">{e.customer?.fullName || '\u2014'} &middot; {format.dateTime(new Date(e.receivedAt), { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                         </div>
                         <div className="flex shrink-0 gap-1">
                           <StatusBadge type="channel" value={e.channel} />
@@ -323,7 +324,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted">
-                                {new Date(appt.appointmentStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {format.dateTime(new Date(appt.appointmentStart), { hour: '2-digit', minute: '2-digit' })}
                               </span>
                               <StatusBadge type="appointment" value={appt.status} />
                             </div>

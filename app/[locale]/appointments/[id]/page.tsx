@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect, use } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -66,6 +66,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   const t = useTranslations('appointments');
   const td = useTranslations('appointments.detail');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const [appointment, setAppointment] = useState<AppointmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -127,13 +128,13 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   };
 
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString();
+    format.dateTime(new Date(dateStr), { year: 'numeric', month: 'short', day: 'numeric' });
 
   const formatTime = (dateStr: string) =>
-    new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    format.dateTime(new Date(dateStr), { hour: '2-digit', minute: '2-digit' });
 
   const formatDateTime = (dateStr: string) =>
-    new Date(dateStr).toLocaleString();
+    format.dateTime(new Date(dateStr), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   if (loading) {
     return (
