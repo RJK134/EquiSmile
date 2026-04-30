@@ -341,7 +341,11 @@
     "done": "Terminé",
     "confirmed": "Confirmé",
     "noShow": "Absent",
-    "skipped": "Ignoré"
+    "skipped": "Ignoré",
+    "not_needed": "Non requis",
+    "pending": "En attente",
+    "sent": "Envoyé",
+    "paid": "Payé"
   },
   "requestTypes": {
     "routineDental": "Soins dentaires de routine",
