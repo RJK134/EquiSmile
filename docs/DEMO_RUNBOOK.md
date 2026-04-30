@@ -83,8 +83,8 @@ npm run dev
 
 Verify the tunnel is up by opening
 `https://<tunnel>.pinggy.io/api/health` on the iPhone — the JSON
-response should show `db.status: 'configured'` and
-`googleMaps.status: 'configured'`.
+response should show `checks.database.status: 'up'` and
+`checks.googleMaps.status: 'configured'`.
 
 ## 4. Sign-in shortcut
 
