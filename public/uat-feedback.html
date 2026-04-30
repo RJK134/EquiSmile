@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#9b214d" />
+<title>EquiSmile UAT Feedback — Dr. Rachel Kemp</title>
+<style>
+  :root {
+    --maroon: #9b214d;
+    --maroon-dark: #6f1738;
+    --maroon-light: #c23b6c;
+    --bg: #fafafa;
+    --card: #fff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --pass: #16a34a;
+    --partial: #eab308;
+    --fail: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  header {
+    background: var(--maroon);
+    color: white;
+    padding: env(safe-area-inset-top) 1rem 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  header h1 { margin: 0 0 .25rem 0; font-size: 1.15rem; font-weight: 600; }
+  header p { margin: 0; font-size: .85rem; opacity: .9; }
+  main { padding: 1rem; padding-bottom: max(7rem, env(safe-area-inset-bottom) + 6rem); max-width: 720px; margin: 0 auto; }
+  section.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  section.card > h2 {
+    margin: 0 0 .5rem 0;
+    font-size: 1rem;
+    color: var(--maroon-dark);
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  section.card .subtitle {
+    font-size: .8rem;
+    color: var(--muted);
+    margin: 0 0 .75rem 0;
+  }
+  .verdict {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin: .5rem 0 .75rem 0;
+  }
+  .verdict label {
+    flex: 1 1 auto;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .5rem .75rem;
+    font-size: .9rem;
+    cursor: pointer;
+    text-align: center;
+    background: white;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .verdict input[type="radio"] { display: none; }
+  .verdict input[type="radio"]:checked + span.pass { background: var(--pass); color: white; padding: .35rem .75rem; border-radius: 4px; }
+  .verdict input[type="radio"]:checked + span.partial { background: var(--partial); color: white; padding: .35rem .75rem; border-radius: 4px; }
+  .verdict input[type="radio"]:checked + span.fail { background: var(--fail); color: white; padding: .35rem .75rem; border-radius: 4px; }
+  ul.checks { list-style: none; padding: 0; margin: 0 0 .75rem 0; }
+  ul.checks li {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    padding: .5rem 0;
+    border-bottom: 1px solid var(--border);
+    min-height: 44px;
+  }
+  ul.checks li:last-child { border-bottom: none; }
+  ul.checks input[type="checkbox"] { margin-top: .15rem; min-width: 22px; min-height: 22px; }
+  ul.checks span { font-size: .9rem; flex: 1; }
+  textarea {
+    width: 100%;
+    min-height: 70px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .5rem;
+    font-family: inherit;
+    font-size: .9rem;
+    resize: vertical;
+    -webkit-appearance: none;
+  }
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .5rem;
+    font-family: inherit;
+    font-size: .9rem;
+    -webkit-appearance: none;
+    min-height: 44px;
+  }
+  label.field {
+    display: block;
+    font-size: .8rem;
+    color: var(--muted);
+    margin-top: .5rem;
+    margin-bottom: .25rem;
+  }
+  table.findings {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+  }
+  table.findings th, table.findings td {
+    border: 1px solid var(--border);
+    padding: .35rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.findings th { background: var(--bg); font-weight: 600; }
+  table.findings input[type="text"] { font-size: .85rem; padding: .25rem; min-height: 36px; }
+  table.findings select { width: 100%; padding: .25rem; min-height: 36px; }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .5rem .75rem;
+  }
+  @media (min-width: 480px) {
+    .meta-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid var(--border);
+    padding: .75rem 1rem;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom));
+    display: flex;
+    gap: .5rem;
+    z-index: 10;
+  }
+  .toolbar button {
+    flex: 1;
+    min-height: 48px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: .9rem;
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+  .btn-primary { background: var(--maroon); color: white; }
+  .btn-secondary { background: white; color: var(--maroon); border: 1px solid var(--maroon) !important; }
+  .btn-tertiary { background: #f3f4f6; color: var(--text); }
+  .save-status { font-size: .75rem; color: var(--muted); padding: .25rem 0; text-align: right; }
+  .save-status.ok { color: var(--pass); }
+  details.persona {
+    margin-bottom: 1rem;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+  }
+  details.persona summary { font-weight: 600; cursor: pointer; color: var(--maroon-dark); }
+  details.persona p { font-size: .85rem; color: var(--muted); margin: .5rem 0 0 0; }
+  dialog#exportDialog {
+    border: none;
+    border-radius: 8px;
+    padding: 0;
+    width: 92vw;
+    max-width: 600px;
+    max-height: 80vh;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog .dlg-body { padding: 1rem; }
+  dialog .dlg-body h3 { margin: 0 0 .5rem 0; color: var(--maroon-dark); }
+  dialog textarea { min-height: 50vh; font-family: monospace; font-size: .75rem; }
+  dialog .dlg-actions { display: flex; gap: .5rem; padding: 1rem; border-top: 1px solid var(--border); }
+  dialog .dlg-actions button { flex: 1; min-height: 44px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+  .legend { font-size: .75rem; color: var(--muted); margin: -.5rem 0 .75rem 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>EquiSmile UAT Feedback Report</h1>
+  <p>Dr. Rachel Kemp — Demo Build · iPhone 390 px · Pinggy tunnel</p>
+</header>
+<main>
+
+<details class="persona">
+  <summary>Persona reminder — Dr. Rachel Kemp (tap to expand)</summary>
+  <p>Founder + lead equine dental vet, Blonay (Vaud). Solo + visiting vet (Dr. Alex Moreau). Coverage: Lake Geneva north shore. iPhone-first, EN/FR. Zero patience for empty states, lost form input, fake green ticks, untranslated FR. Goals: confidence, speed, clarity, trust, bilingual quality.</p>
+  <p>Walk: sign-in → dashboard → enquiries → triage → planning → route generation (live Google) → route review → appointments → completed → bilingual → mobile polish → offline.</p>
+</details>
+
+<section class="card">
+  <h2>Session metadata</h2>
+  <div class="meta-grid">
+    <div><label class="field" for="meta-tester">Tester name</label><input type="text" id="meta-tester" data-key="meta.tester" placeholder="Your name" /></div>
+    <div><label class="field" for="meta-date">Date</label><input type="text" id="meta-date" data-key="meta.date" placeholder="YYYY-MM-DD" /></div>
+    <div><label class="field" for="meta-build">Build / commit SHA</label><input type="text" id="meta-build" data-key="meta.build" placeholder="e.g. b085898" /></div>
+    <div><label class="field" for="meta-device">Device</label><input type="text" id="meta-device" data-key="meta.device" placeholder="iPhone 14 Safari" /></div>
+    <div><label class="field" for="meta-network">Network</label><input type="text" id="meta-network" data-key="meta.network" placeholder="Wi-Fi / 4G / Pinggy" /></div>
+    <div><label class="field" for="meta-tunnel">Tunnel URL</label><input type="text" id="meta-tunnel" data-key="meta.tunnel" placeholder="https://*.pinggy.io" /></div>
+  </div>
+</section>
+
+<!-- Sections will be injected by JS -->
+<div id="sections"></div>
+
+<section class="card">
+  <h2>Findings log</h2>
+  <p class="subtitle">Number every issue. Severity: High = blocks the demo journey. Medium = clunky. Low = polish.</p>
+  <table class="findings">
+    <thead>
+      <tr><th>#</th><th>Page / area</th><th>Severity</th><th>What happened / What I expected</th><th>Repro</th></tr>
+    </thead>
+    <tbody id="findings-body">
+      <!-- Rows injected by JS -->
+    </tbody>
+  </table>
+  <button type="button" class="btn-tertiary" style="margin-top: .5rem; padding: .5rem 1rem; border-radius: 6px; border: 1px solid var(--border); cursor: pointer;" id="add-finding">+ Add row</button>
+</section>
+
+<section class="card">
+  <h2>Lack-of-function (enhancement requests)</h2>
+  <p class="subtitle">Things that didn't break, but felt missing.</p>
+  <textarea data-key="lof" placeholder="One per line, free form…" rows="6"></textarea>
+</section>
+
+<section class="card">
+  <h2>Enhancement ideas</h2>
+  <p class="subtitle">Things you wish the app did, that nobody has asked for yet.</p>
+  <textarea data-key="enhancements" placeholder="One per line…" rows="6"></textarea>
+</section>
+
+<section class="card">
+  <h2>Overall verdict</h2>
+  <label class="field">Would you use this on Tuesday morning at the first yard?</label>
+  <div class="verdict">
+    <label><input type="radio" name="verdict" data-key="verdict.use" value="yes" /><span class="pass">Yes</span></label>
+    <label><input type="radio" name="verdict" data-key="verdict.use" value="caveats" /><span class="partial">Yes with caveats</span></label>
+    <label><input type="radio" name="verdict" data-key="verdict.use" value="no" /><span class="fail">Not yet</span></label>
+  </div>
+  <label class="field" for="verdict-fix">Biggest single thing to fix before going live</label>
+  <input type="text" id="verdict-fix" data-key="verdict.fix" />
+  <label class="field" for="verdict-cheer">Biggest single thing already worth shouting about</label>
+  <input type="text" id="verdict-cheer" data-key="verdict.cheer" />
+  <label class="field" for="verdict-summary">Free-form summary</label>
+  <textarea id="verdict-summary" data-key="verdict.summary" rows="6"></textarea>
+</section>
+
+<p class="save-status" id="save-status">Auto-saving locally…</p>
+
+</main>
+
+<div class="toolbar">
+  <button class="btn-tertiary" type="button" id="btn-clear">Clear</button>
+  <button class="btn-secondary" type="button" id="btn-download">Download .md</button>
+  <button class="btn-primary" type="button" id="btn-export">Copy report</button>
+</div>
+
+<dialog id="exportDialog">
+  <div class="dlg-body">
+    <h3>Report — copy &amp; paste</h3>
+    <p class="subtitle">Paste this into a GitHub PR comment, email, or Slack DM to engineering.</p>
+    <textarea id="export-text" readonly></textarea>
+  </div>
+  <div class="dlg-actions">
+    <button type="button" id="dlg-copy">Copy to clipboard</button>
+    <button type="button" id="dlg-close">Close</button>
+  </div>
+</dialog>
+
+<script>
+const STORAGE_KEY = 'equismile_uat_feedback_v1';
+
+// Section definitions — keep in lock-step with docs/uat/UAT_FEEDBACK_REPORT.md
+const SECTIONS = [
+  {
+    id: 'signin',
+    title: '1. Sign-in',
+    steps: 'Open https://<tunnel>.pinggy.io/en/login on iPhone. Tap "Continue as Demo Vet".',
+    expected: 'Lands on /en/dashboard signed in. No prompt for credentials.',
+    extras: [{ key: 'time_secs', label: 'Time taken (seconds)', type: 'number' }],
+    checks: []
+  },
+  {
+    id: 'dashboard',
+    title: '2. Dashboard',
+    steps: 'Inspect /en/dashboard at 390 px.',
+    expected: 'Four counters above the fold; Mistral overdue triage highlighted.',
+    checks: [
+      'All four counters render at iPhone width',
+      'Mistral / overdue urgent indicator visible',
+      'No horizontal scroll',
+      'Bottom nav reachable',
+      'Tap targets feel ≥ 44 px'
+    ]
+  },
+  {
+    id: 'enquiries',
+    title: '3. Enquiries',
+    steps: '/en/enquiries → open demo-enquiry-03 (Sophie Dupuis / Mistral, FR).',
+    expected: 'Original FR text, parsed urgency, customer + horse identified.',
+    checks: [
+      'FR text renders correctly (accents)',
+      'Customer name + phone match seed',
+      'Urgency badge visible',
+      '"Open in triage" action present'
+    ]
+  },
+  {
+    id: 'triage',
+    title: '4. Triage workflow',
+    steps: '/en/triage → open Mistral task (URGENT_REVIEW, due 1 h ago).',
+    expected: 'Overdue, audit trail, manual override available.',
+    checks: [
+      'Overdue indicator clear',
+      'Audit trail readable',
+      'Override form opens & accepts',
+      'Override recorded with my user',
+      'Status transitions feel correct'
+    ]
+  },
+  {
+    id: 'planning',
+    title: '5. Planning pool',
+    steps: '/en/planning → find Sarah Mitchell\'s PLANNING_POOL request.',
+    expected: 'Routine enquiries grouped by area; multi-horse yards flagged.',
+    checks: [
+      'Sarah Mitchell visible in pool',
+      'Yard / area grouping makes sense',
+      'Horse count clearly displayed',
+      'Filters work as expected'
+    ]
+  },
+  {
+    id: 'route_gen',
+    title: '6. Route generation (live Google)',
+    steps: 'Trigger fresh route across the seeded yard cluster.',
+    expected: 'Real Google optimizeTours called (EQUISMILE_LIVE_MAPS=true). Result reflects API, not local fallback.',
+    checks: [
+      'Action visible',
+      'Generation completes within ~10 s',
+      'Result is geographically plausible',
+      'Map renders on iPhone',
+      'No 429 / quota error'
+    ]
+  },
+  {
+    id: 'route_review',
+    title: '7. Route-run review',
+    steps: '/en/route-runs → open demo-route-approved (Villeneuve → Aigle).',
+    expected: 'Map, stop sequence, total distance, total travel time.',
+    checks: [
+      'Map fills viewport without horizontal scroll',
+      'Stop list shows yard, customer, horse count',
+      'Approve / reject actions visible',
+      'Distance / time in metric'
+    ]
+  },
+  {
+    id: 'appointments',
+    title: '8. Appointments',
+    steps: '/en/appointments → open demo-appt-confirmed (6 May 08:30 WhatsApp).',
+    expected: 'CONFIRMED, channel, customer + horse, FR confirmation viewable.',
+    checks: [
+      'Status pill = CONFIRMED',
+      'Channel + sent-at timestamp visible',
+      'FR confirmation reads naturally',
+      'Cancel / reschedule actions present'
+    ]
+  },
+  {
+    id: 'completed',
+    title: '9. Completed visits',
+    steps: '/en/completed → open demo-appt-completed.',
+    expected: 'Outcome notes, follow-up flag, invoice status (stub).',
+    checks: [
+      'Outcome notes readable',
+      'Follow-up flag visible if set',
+      'Per-horse outcomes (N/A v1.1 — flag if asked)',
+      '"Send invoice" clearly stubbed (not broken)'
+    ]
+  },
+  {
+    id: 'bilingual',
+    title: '10. Bilingual surfaces',
+    steps: 'Switch to /fr; revisit dashboard, enquiry, confirmation.',
+    expected: 'Native FR copy; locale dates; no English bleed-through.',
+    checks: [
+      'Language switch persists across navigation',
+      'FR copy reads natively (not Google-translated)',
+      'Dates render in FR locale',
+      'Currency / units sensible (CHF, km, °C)',
+      'No untranslated EN strings poking through'
+    ]
+  },
+  {
+    id: 'mobile',
+    title: '11. Mobile / PWA polish (390 px)',
+    steps: 'Walk all 8 pages at iPhone width.',
+    expected: 'Tight, readable, no scroll surprises.',
+    checks: [
+      'No horizontal scroll on any page',
+      'Bottom nav reachable behind iOS safe-area inset',
+      'No tap target < 44 px',
+      'Forms keep input on validation error',
+      'Loading skeletons (not blank screens)',
+      'PWA-installable / reachable when locked + reopened'
+    ]
+  },
+  {
+    id: 'offline',
+    title: '12. Offline behaviour',
+    steps: 'Airplane mode → mark task complete → airplane mode off.',
+    expected: 'Offline banner, queued mutation, replays on reconnect, surfaced if it then fails.',
+    checks: [
+      'Offline banner shown',
+      'Mutation queues with confirmation',
+      'Replays on reconnect without re-tapping',
+      'Server failure reported back to me'
+    ]
+  }
+];
+
+// ---------- Render ----------
+const sectionsRoot = document.getElementById('sections');
+SECTIONS.forEach(sec => {
+  const card = document.createElement('section');
+  card.className = 'card';
+  let html = `<h2>${sec.title}</h2>
+  <p class="subtitle"><strong>Steps:</strong> ${sec.steps}<br/><strong>Expected:</strong> ${sec.expected}</p>
+  <div class="verdict">
+    <label><input type="radio" name="${sec.id}_verdict" data-key="${sec.id}.verdict" value="pass" /><span class="pass">Pass</span></label>
+    <label><input type="radio" name="${sec.id}_verdict" data-key="${sec.id}.verdict" value="partial" /><span class="partial">Partial</span></label>
+    <label><input type="radio" name="${sec.id}_verdict" data-key="${sec.id}.verdict" value="fail" /><span class="fail">Fail</span></label>
+  </div>`;
+  if (sec.extras) {
+    sec.extras.forEach(ex => {
+      html += `<label class="field" for="${sec.id}_${ex.key}">${ex.label}</label>
+      <input type="${ex.type}" id="${sec.id}_${ex.key}" data-key="${sec.id}.${ex.key}" />`;
+    });
+  }
+  if (sec.checks && sec.checks.length) {
+    html += '<ul class="checks">';
+    sec.checks.forEach((c, i) => {
+      html += `<li><input type="checkbox" id="${sec.id}_chk${i}" data-key="${sec.id}.checks.${i}" /><span>${c}</span></li>`;
+    });
+    html += '</ul>';
+  }
+  html += `<label class="field" for="${sec.id}_notes">Notes</label>
+  <textarea id="${sec.id}_notes" data-key="${sec.id}.notes" rows="3"></textarea>`;
+  card.innerHTML = html;
+  sectionsRoot.appendChild(card);
+});
+
+// Findings rows
+const findingsBody = document.getElementById('findings-body');
+function addFinding(idx) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${idx + 1}</td>
+    <td><input type="text" data-key="findings.${idx}.area" /></td>
+    <td><select data-key="findings.${idx}.severity">
+      <option value="">—</option><option>High</option><option>Medium</option><option>Low</option>
+    </select></td>
+    <td><input type="text" data-key="findings.${idx}.what" placeholder="What happened / what I expected" /></td>
+    <td><select data-key="findings.${idx}.repro">
+      <option value="">—</option><option>Yes</option><option>No</option><option>Once</option>
+    </select></td>`;
+  findingsBody.appendChild(tr);
+}
+for (let i = 0; i < 5; i += 1) addFinding(i);
+document.getElementById('add-finding').addEventListener('click', () => {
+  addFinding(findingsBody.children.length);
+  bindAll();
+});
+
+// ---------- Persistence ----------
+let state = {};
+try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { state = {}; }
+
+function setByKey(obj, key, value) {
+  const parts = key.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    if (typeof cur[parts[i]] !== 'object' || cur[parts[i]] === null) cur[parts[i]] = {};
+    cur = cur[parts[i]];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+function getByKey(obj, key) {
+  return key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const s = document.getElementById('save-status');
+  s.textContent = 'Saved locally ✓ ' + new Date().toLocaleTimeString();
+  s.className = 'save-status ok';
+}
+
+function bindAll() {
+  document.querySelectorAll('[data-key]').forEach(el => {
+    if (el.dataset.bound === '1') return;
+    el.dataset.bound = '1';
+    const key = el.dataset.key;
+    const stored = getByKey(state, key);
+    if (stored !== undefined) {
+      if (el.type === 'checkbox') el.checked = !!stored;
+      else if (el.type === 'radio') { if (el.value === stored) el.checked = true; }
+      else el.value = stored;
+    }
+    el.addEventListener('input', () => {
+      let v;
+      if (el.type === 'checkbox') v = el.checked;
+      else if (el.type === 'radio') { if (el.checked) v = el.value; else return; }
+      else v = el.value;
+      setByKey(state, key, v);
+      save();
+    });
+    el.addEventListener('change', () => {
+      let v;
+      if (el.type === 'checkbox') v = el.checked;
+      else if (el.type === 'radio') { if (el.checked) v = el.value; else return; }
+      else v = el.value;
+      setByKey(state, key, v);
+      save();
+    });
+  });
+}
+bindAll();
+
+// ---------- Export ----------
+function buildMarkdown() {
+  const lines = [];
+  lines.push('# EquiSmile UAT Feedback Report');
+  lines.push('');
+  const m = state.meta || {};
+  lines.push('| Field | Value |');
+  lines.push('|---|---|');
+  lines.push(`| Tester | ${m.tester || ''} |`);
+  lines.push(`| Date | ${m.date || ''} |`);
+  lines.push(`| Build | ${m.build || ''} |`);
+  lines.push(`| Device | ${m.device || ''} |`);
+  lines.push(`| Network | ${m.network || ''} |`);
+  lines.push(`| Tunnel URL | ${m.tunnel || ''} |`);
+  lines.push('');
+  SECTIONS.forEach(sec => {
+    const s = state[sec.id] || {};
+    lines.push(`## ${sec.title}`);
+    lines.push(`- **Verdict:** ${(s.verdict || '—').toUpperCase()}`);
+    if (sec.extras) {
+      sec.extras.forEach(ex => {
+        lines.push(`- **${ex.label}:** ${s[ex.key] || ''}`);
+      });
+    }
+    if (sec.checks && sec.checks.length) {
+      sec.checks.forEach((c, i) => {
+        const ticked = s.checks && s.checks[i] ? '[x]' : '[ ]';
+        lines.push(`- ${ticked} ${c}`);
+      });
+    }
+    if (s.notes) {
+      lines.push('');
+      lines.push('Notes:');
+      lines.push(s.notes);
+    }
+    lines.push('');
+  });
+  // Findings
+  lines.push('## Findings log');
+  lines.push('');
+  lines.push('| # | Area | Severity | What happened / expected | Repro |');
+  lines.push('|---|---|---|---|---|');
+  const findings = state.findings || {};
+  Object.keys(findings).sort((a,b) => Number(a)-Number(b)).forEach(idx => {
+    const f = findings[idx] || {};
+    if (!f.area && !f.what) return;
+    lines.push(`| ${Number(idx)+1} | ${f.area||''} | ${f.severity||''} | ${(f.what||'').replace(/\|/g,'\\|')} | ${f.repro||''} |`);
+  });
+  lines.push('');
+  lines.push('## Lack-of-function');
+  lines.push('');
+  lines.push(state.lof || '');
+  lines.push('');
+  lines.push('## Enhancement ideas');
+  lines.push('');
+  lines.push(state.enhancements || '');
+  lines.push('');
+  lines.push('## Overall verdict');
+  const v = state.verdict || {};
+  lines.push(`- Would you use this on Tuesday morning? **${(v.use||'').toUpperCase()}**`);
+  lines.push(`- Biggest fix before going live: ${v.fix || ''}`);
+  lines.push(`- Biggest thing already worth shouting about: ${v.cheer || ''}`);
+  lines.push('');
+  if (v.summary) lines.push(v.summary);
+  return lines.join('\n');
+}
+
+const dlg = document.getElementById('exportDialog');
+const exportText = document.getElementById('export-text');
+document.getElementById('btn-export').addEventListener('click', () => {
+  exportText.value = buildMarkdown();
+  if (typeof dlg.showModal === 'function') dlg.showModal();
+  else dlg.setAttribute('open', '');
+});
+document.getElementById('dlg-close').addEventListener('click', () => dlg.close());
+document.getElementById('dlg-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(exportText.value);
+    document.getElementById('dlg-copy').textContent = 'Copied ✓';
+    setTimeout(() => { document.getElementById('dlg-copy').textContent = 'Copy to clipboard'; }, 1500);
+  } catch {
+    exportText.select();
+    document.execCommand('copy');
+  }
+});
+
+document.getElementById('btn-download').addEventListener('click', () => {
+  const blob = new Blob([buildMarkdown()], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const name = (state.meta && state.meta.tester ? state.meta.tester : 'tester').replace(/\s+/g, '-');
+  const date = (state.meta && state.meta.date) ? state.meta.date : new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `uat-feedback-${name}-${date}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!confirm('Clear all entries? This wipes the locally-saved form.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+});
+
+// Pre-fill date on first load
+if (!state.meta || !state.meta.date) {
+  const today = new Date().toISOString().slice(0,10);
+  setByKey(state, 'meta.date', today);
+  document.getElementById('meta-date').value = today;
+  save();
+}
+</script>
+</body>
+</html>
