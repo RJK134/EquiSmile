@@ -43,9 +43,10 @@ function hasOptimizationCredentials(): boolean {
 
 function getMode(): 'live' | 'demo' {
   if (!hasCredentials()) return 'demo';
-  // EQUISMILE_LIVE_MAPS=true forces the live API path even when
-  // DEMO_MODE is true. Lets a demo show real geocoding + route
-  // optimisation while WhatsApp + email stay simulated.
+  // EQUISMILE_LIVE_MAPS=true forces the live Maps/geocoding path even when
+  // DEMO_MODE is true. Route optimisation is gated separately and still
+  // requires GCP_PROJECT_ID; otherwise it falls back to the simulator/local
+  // algorithm while WhatsApp + email stay simulated.
   if (isDemoMode() && !isLiveMapsForced()) return 'demo';
   return 'live';
 }
