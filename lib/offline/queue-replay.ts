@@ -52,14 +52,22 @@ export function createSequenceGenerator(now: () => number = Date.now): () => num
   let lastTick = 0;
   let counter = 0;
   return () => {
-    const tick = now();
+    let tick = now();
+    if (tick < lastTick) tick = lastTick;
+
     if (tick === lastTick) {
-      counter += 1;
+      if (counter < 999) {
+        counter += 1;
+      } else {
+        tick += 1;
+        counter = 0;
+      }
     } else {
-      lastTick = tick;
       counter = 0;
     }
-    return tick * 1000 + (counter % 1000);
+
+    lastTick = tick;
+    return tick * 1000 + counter;
   };
 }
 
