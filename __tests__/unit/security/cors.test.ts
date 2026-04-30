@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
@@ -89,6 +89,29 @@ describe('getAllowedOrigins', () => {
       'https://b.example',
     ]);
   });
+
+  it('canonicalises an entry that includes a path to its origin', () => {
+    // Operators paste full URLs by mistake. URL.origin strips path/query/hash.
+    process.env.APP_ALLOWED_ORIGINS = 'https://app.example.com/en/dashboard?x=1';
+    expect(getAllowedOrigins()).toEqual(['https://app.example.com']);
+  });
+
+  it('preserves explicit non-default port via URL.origin', () => {
+    process.env.APP_ALLOWED_ORIGINS = 'https://app.example.com:8443/';
+    expect(getAllowedOrigins()).toEqual(['https://app.example.com:8443']);
+  });
+
+  it('drops malformed entries with a warning instead of poisoning the list', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    process.env.APP_ALLOWED_ORIGINS = 'https://good.example,not a url,https://also-good.example';
+    expect(getAllowedOrigins()).toEqual([
+      'https://good.example',
+      'https://also-good.example',
+    ]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('not a url');
+    warn.mockRestore();
+  });
 });
 
 describe('isOriginAllowed', () => {
@@ -114,9 +137,15 @@ describe('isOriginAllowed', () => {
     expect(isOriginAllowed('', allowed)).toBe(false);
   });
 
-  it('is case-sensitive on host (browsers always lowercase)', () => {
-    // Defence in depth: do not silently accept Origin: HTTPS://ADMIN.EXAMPLE
-    expect(isOriginAllowed('HTTPS://ADMIN.EXAMPLE', allowed)).toBe(false);
+  it('canonicalises a mixed-case origin (RFC 6454 origins are case-insensitive on scheme/host)', () => {
+    // The URL parser lowercases scheme and host; browsers already do
+    // this, so this just guards against operator-typed allow-list
+    // entries that happen to differ in case.
+    expect(isOriginAllowed('HTTPS://ADMIN.EXAMPLE', allowed)).toBe(true);
+  });
+
+  it('rejects a malformed origin string', () => {
+    expect(isOriginAllowed('not a url', allowed)).toBe(false);
   });
 });
 
@@ -201,6 +230,30 @@ describe('applyCorsHeaders', () => {
 
     expect(response.headers.get('Vary')).toBe('Origin');
   });
+
+  it('deduplicates Vary case-insensitively (HTTP tokens are case-insensitive)', () => {
+    const request = makeRequest('http://app.example/api/customers', {
+      headers: { origin: 'https://admin.example' },
+    });
+    const response = NextResponse.json({ ok: true });
+    response.headers.set('Vary', 'origin'); // lowercase from upstream
+    applyCorsHeaders(response, request, '/api/customers');
+
+    expect(response.headers.get('Vary')).toBe('Origin');
+  });
+
+  it('preserves casing of unrelated Vary tokens but canonicalises Origin', () => {
+    const request = makeRequest('http://app.example/api/customers', {
+      headers: { origin: 'https://admin.example' },
+    });
+    const response = NextResponse.json({ ok: true });
+    response.headers.set('Vary', 'Accept-Language, ORIGIN');
+    applyCorsHeaders(response, request, '/api/customers');
+
+    // ORIGIN dedups against Origin → kept as the canonical Origin we
+    // emit; Accept-Language preserved verbatim.
+    expect(response.headers.get('Vary')).toBe('Accept-Language, Origin');
+  });
 });
 
 describe('buildCorsPreflightResponse', () => {
@@ -266,6 +319,35 @@ describe('buildCorsPreflightResponse', () => {
     expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
       'authorization, content-type, x-csrf-token',
     );
+  });
+
+  it('falls back to static Allow-Headers when access-control-request-headers is blank', () => {
+    // Some misbehaving clients send the header present-but-empty.
+    // Echoing blank produces an invalid Allow-Headers value and the
+    // preflight fails — fall back to the static set instead.
+    const request = makeRequest('http://app.example/api/customers', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://admin.example',
+        'access-control-request-headers': '',
+      },
+    });
+    const response = buildCorsPreflightResponse(request, '/api/customers')!;
+
+    expect(response.headers.get('Access-Control-Allow-Headers')).toBe(__internals.ALLOWED_HEADERS);
+  });
+
+  it('falls back to static Allow-Headers when access-control-request-headers is whitespace-only', () => {
+    const request = makeRequest('http://app.example/api/customers', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://admin.example',
+        'access-control-request-headers': '   ',
+      },
+    });
+    const response = buildCorsPreflightResponse(request, '/api/customers')!;
+
+    expect(response.headers.get('Access-Control-Allow-Headers')).toBe(__internals.ALLOWED_HEADERS);
   });
 
   it('returns 403 with Vary on disallowed origin (no allow headers leaked)', () => {

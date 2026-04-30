@@ -95,9 +95,13 @@ export default async function middleware(request: NextRequest) {
   // reject every preflight and the actual request never gets dispatched.
   // `buildCorsPreflightResponse` returns null for non-CORS paths so the
   // request falls through to the normal chain.
+  // We still funnel the response through `applySecurityHeaders` so the
+  // OPTIONS / 403 path picks up COOP / CORP / nosniff / CSP / HSTS like
+  // every other response — preflights aren't an exception to the
+  // global hardening.
   const preflight = buildCorsPreflightResponse(request, pathname);
   if (preflight) {
-    return preflight;
+    return applySecurityHeaders(preflight, { pathname, request });
   }
 
   // Rate-limit the Auth.js callback/verify/signin/session routes before

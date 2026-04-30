@@ -1,4 +1,4 @@
-import type { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * CORS allow-list for `/api/*`.
@@ -58,9 +58,12 @@ export function isCorsExempt(pathname: string): boolean {
  * `[NEXT_PUBLIC_APP_URL]` so a same-origin SPA keeps working without
  * any explicit operator config.
  *
- * Trailing slashes are stripped so `https://app.example.com` and
- * `https://app.example.com/` are treated as the same origin (the
- * Origin request header never carries a path).
+ * Each entry is parsed as a URL and reduced to its canonical origin
+ * (`scheme://host[:port]`). Operators who paste a full URL by mistake
+ * (`https://app.example.com/en`) get the right behaviour instead of a
+ * silent allow-list miss. Entries that don't parse as URLs are dropped
+ * with a warning so a typo fails loud rather than masking one good
+ * entry behind one bad one.
  */
 export function getAllowedOrigins(): string[] {
   const raw = process.env.APP_ALLOWED_ORIGINS?.trim();
@@ -69,16 +72,34 @@ export function getAllowedOrigins(): string[] {
   const source = raw && raw.length > 0 ? raw : fallback;
   if (!source) return [];
 
-  return source
-    .split(',')
-    .map((s) => s.trim().replace(/\/+$/, ''))
-    .filter((s) => s.length > 0);
+  const origins: string[] = [];
+  for (const entry of source.split(',')) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    try {
+      origins.push(new URL(trimmed).origin);
+    } catch {
+      console.warn(
+        `[cors] Ignoring malformed entry in APP_ALLOWED_ORIGINS / NEXT_PUBLIC_APP_URL: ${trimmed}`,
+      );
+    }
+  }
+  return origins;
 }
 
 export function isOriginAllowed(origin: string | null, allowed: string[]): boolean {
   if (!origin) return false;
-  const normalised = origin.replace(/\/+$/, '');
-  return allowed.includes(normalised);
+  // The browser-supplied Origin header is always an origin (no path)
+  // per the Fetch spec, but operators paste URLs of every shape. Run
+  // the same canonicalisation as the allow-list so a stray slash or
+  // path doesn't cause a false negative.
+  let canonical: string;
+  try {
+    canonical = new URL(origin).origin;
+  } catch {
+    return false;
+  }
+  return allowed.includes(canonical);
 }
 
 /**
@@ -100,12 +121,26 @@ export function applyCorsHeaders<T extends NextResponse>(
 
   // Append rather than overwrite so we don't clobber a Vary already set
   // by a route handler (e.g. on a content-negotiated endpoint).
+  // Comparison is case-insensitive — HTTP header tokens are
+  // case-insensitive, so a route that already wrote `Vary: origin`
+  // must not produce `Vary: origin, Origin` after we run.
   const existingVary = response.headers.get('Vary');
-  const varyValues = new Set(
-    (existingVary ?? '').split(',').map((v) => v.trim()).filter(Boolean),
-  );
-  varyValues.add('Origin');
-  response.headers.set('Vary', Array.from(varyValues).join(', '));
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const token of (existingVary ?? '').split(',')) {
+    const trimmed = token.trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    // Preserve the route handler's casing on its own tokens; only
+    // canonicalise the one we add ourselves.
+    ordered.push(lower === 'origin' ? 'Origin' : trimmed);
+  }
+  if (!seen.has('origin')) {
+    ordered.push('Origin');
+  }
+  response.headers.set('Vary', ordered.join(', '));
 
   const origin = request.headers.get('origin');
   if (!isOriginAllowed(origin, getAllowedOrigins())) return response;
@@ -125,11 +160,16 @@ export function applyCorsHeaders<T extends NextResponse>(
  * surface a clean CORS failure to the SPA. Returning 204 with no
  * Allow-Origin is technically equivalent (the browser blocks anyway)
  * but the explicit 403 is easier to debug from a server log.
+ *
+ * The returned response is a plain `NextResponse` with only the CORS
+ * headers set; the caller is expected to layer the defence-in-depth
+ * headers (CSP / COOP / CORP / HSTS) on top via `applySecurityHeaders`
+ * so OPTIONS responses aren't an exception to the global hardening.
  */
 export function buildCorsPreflightResponse(
   request: NextRequest,
   pathname: string,
-): Response | null {
+): NextResponse | null {
   if (request.method !== 'OPTIONS') return null;
   if (!pathname.startsWith('/api/')) return null;
   if (isCorsExempt(pathname)) return null;
@@ -138,7 +178,7 @@ export function buildCorsPreflightResponse(
   const allowed = getAllowedOrigins();
 
   if (!isOriginAllowed(origin, allowed)) {
-    return new Response(null, {
+    return new NextResponse(null, {
       status: 403,
       headers: { Vary: 'Origin' },
     });
@@ -146,17 +186,21 @@ export function buildCorsPreflightResponse(
 
   // Echo the requested headers when present so a route that accepts a
   // custom header (e.g. X-CSRF-Token) on the actual request can still
-  // pass preflight. Whitelisted to the static set above when the
-  // browser doesn't advertise a list.
-  const requestedHeaders = request.headers.get('access-control-request-headers');
+  // pass preflight. Whitelist to the static set above when the
+  // browser doesn't advertise a list, OR when it sends a present-but-
+  // blank value (some misbehaving clients do; echoing blank produces
+  // an invalid Allow-Headers and the preflight fails).
+  const requestedHeadersRaw = request.headers.get('access-control-request-headers');
+  const requestedHeaders = requestedHeadersRaw?.trim();
 
-  return new Response(null, {
+  return new NextResponse(null, {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': origin!,
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': ALLOWED_METHODS,
-      'Access-Control-Allow-Headers': requestedHeaders ?? ALLOWED_HEADERS,
+      'Access-Control-Allow-Headers':
+        requestedHeaders && requestedHeaders.length > 0 ? requestedHeaders : ALLOWED_HEADERS,
       'Access-Control-Max-Age': String(PREFLIGHT_MAX_AGE_SECONDS),
       Vary: 'Origin',
     },
