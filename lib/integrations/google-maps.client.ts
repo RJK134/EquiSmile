@@ -12,7 +12,7 @@
  * (horseCount × 30 min) instead of a fixed 45 min per stop.
  */
 
-import { isDemoMode, demoLog } from '@/lib/demo/demo-mode';
+import { isDemoMode, demoLog, isLiveMapsForced } from '@/lib/demo/demo-mode';
 import {
   simulateGeocode,
   simulateRouteOptimization,
@@ -42,8 +42,12 @@ function hasOptimizationCredentials(): boolean {
 }
 
 function getMode(): 'live' | 'demo' {
-  if (isDemoMode()) return 'demo';
   if (!hasCredentials()) return 'demo';
+  // EQUISMILE_LIVE_MAPS=true forces the live Maps/geocoding path even when
+  // DEMO_MODE is true. Route optimisation is gated separately and still
+  // requires GCP_PROJECT_ID; otherwise it falls back to the simulator/local
+  // algorithm while WhatsApp + email stay simulated.
+  if (isDemoMode() && !isLiveMapsForced()) return 'demo';
   return 'live';
 }
 
