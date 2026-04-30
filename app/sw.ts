@@ -1,6 +1,12 @@
 import { defaultCache } from '@serwist/next/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { Serwist } from 'serwist';
+import {
+  createSequenceGenerator,
+  decideReplay,
+  type QueuedRecord,
+  type QueuedRequest,
+} from '@/lib/offline/queue-replay';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -28,6 +34,8 @@ serwist.addEventListeners();
 const QUEUE_DB_NAME = 'equismile-offline-queue';
 const QUEUE_STORE_NAME = 'requests';
 
+const nextSequence = createSequenceGenerator();
+
 function openQueueDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(QUEUE_DB_NAME, 1);
@@ -47,13 +55,15 @@ async function enqueueRequest(url: string, options: RequestInit): Promise<void> 
     const db = await openQueueDB();
     const tx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
     const store = tx.objectStore(QUEUE_STORE_NAME);
-    store.add({
+    const record: QueuedRequest = {
       url,
-      method: options.method,
+      method: options.method ?? 'POST',
       headers: Object.fromEntries(new Headers(options.headers).entries()),
-      body: options.body,
+      body: typeof options.body === 'string' ? options.body : null,
+      sequence: nextSequence(),
       timestamp: Date.now(),
-    });
+    };
+    store.add(record);
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -66,42 +76,45 @@ async function enqueueRequest(url: string, options: RequestInit): Promise<void> 
 async function replayQueuedRequests(): Promise<void> {
   try {
     const db = await openQueueDB();
-    const tx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(QUEUE_STORE_NAME);
+    const records = await readAllRecords(db);
+    const decision = await decideReplay(records, async (req) =>
+      fetch(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: req.body ?? undefined,
+      }),
+    );
 
-    const allRequests = await new Promise<Array<{ key: IDBValidKey; value: Record<string, unknown> }>>((resolve, reject) => {
-      const results: Array<{ key: IDBValidKey; value: Record<string, unknown> }> = [];
-      const cursorReq = store.openCursor();
-      cursorReq.onsuccess = () => {
-        const cursor = cursorReq.result;
-        if (cursor) {
-          results.push({ key: cursor.key, value: cursor.value as Record<string, unknown> });
-          cursor.continue();
-        } else {
-          resolve(results);
-        }
-      };
-      cursorReq.onerror = () => reject(cursorReq.error);
-    });
-
-    for (const { key, value } of allRequests) {
-      try {
-        await fetch(value.url as string, {
-          method: value.method as string,
-          headers: value.headers as Record<string, string>,
-          body: value.body as string,
-        });
-        // Remove from queue on success
-        const deleteTx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
-        deleteTx.objectStore(QUEUE_STORE_NAME).delete(key);
-      } catch {
-        // Still offline or request failed — leave in queue
-        break;
-      }
+    for (const key of decision.toDelete) {
+      const deleteTx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
+      deleteTx.objectStore(QUEUE_STORE_NAME).delete(key);
+      await new Promise<void>((resolve, reject) => {
+        deleteTx.oncomplete = () => resolve();
+        deleteTx.onerror = () => reject(deleteTx.error);
+      });
     }
   } catch (err) {
     console.error('[SW] Failed to replay queued requests', err);
   }
+}
+
+function readAllRecords(db: IDBDatabase): Promise<QueuedRecord[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(QUEUE_STORE_NAME, 'readonly');
+    const store = tx.objectStore(QUEUE_STORE_NAME);
+    const results: QueuedRecord[] = [];
+    const cursorReq = store.openCursor();
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        results.push({ key: cursor.key, value: cursor.value as QueuedRequest });
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+    cursorReq.onerror = () => reject(cursorReq.error);
+  });
 }
 
 // Listen for online event to replay queued requests
