@@ -97,7 +97,7 @@ export default async function middleware(request: NextRequest) {
   // request falls through to the normal chain.
   // We still funnel the response through `applySecurityHeaders` so the
   // OPTIONS / 403 path picks up COOP / CORP / nosniff / CSP / HSTS like
-    return applySecurityHeaders(preflight, { pathname, request });
+  // every other response — preflights aren't an exception to the
   // global hardening.
   const preflight = buildCorsPreflightResponse(request, pathname);
   if (preflight) {
