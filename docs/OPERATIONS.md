@@ -251,7 +251,7 @@ case-insensitive `Vary` dedup) had already been pushed manually.
 Copilot Autofix offers no granular config — there is no documented
 "suggest only" or "require manual approval" setting; it is on or
 off. Until either GitHub adds gating or our review-bot landscape
-changes, **leave Autofix off** and accept the trade: CodeQL alerts
+changes, **leave Autofix off** and accept the trade-off: CodeQL alerts
 will still surface in PR review, they just won't ship a one-click
 auto-commit.
 
