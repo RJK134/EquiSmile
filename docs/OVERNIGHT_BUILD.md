@@ -35,7 +35,7 @@ Three items remain. Two are clear wins; the third is a design call.
 
 | ID | Gap | Why it matters | Sized |
 |---|---|---|---|
-| G1 | `.env.example` doesn't document Prisma pool tuning (`?connection_limit=…&pool_timeout=…`) | Default Prisma pool of `num_cpus * 2 + 1` is too aggressive on a small VPS — first sustained traffic exhausts Postgres `max_connections`. Operators won't think to add it without a hint. | XS — doc-only |
+| G1 | `.env.example` doesn't document Prisma pool tuning (`?connection_limit=…&pool_timeout=…`) | Defaults (`num_physical_cpus * 2 + 1`, ~5 on a 2-vCPU VPS) are fine for single-app / single-replica deployments. The moment an operator runs multiple app containers, a long migration, or tunes `max_connections` below the Postgres 16 default, pool exhaustion shows up with no breadcrumb in `.env.example`. Hint should defer to `docs/OPERATIONS.md` §2 as the source of truth. | XS — doc-only |
 | G2 | No CORS handling on `/api/*` | Browser-origin protection currently relies on COOP/CORP + same-origin assumption. A future second domain (admin subdomain, mobile-PWA host) or n8n direct call from outside the compose network would 400. | S — middleware change |
 | G3 | No native `@sentry/nextjs` SDK | Existing error webhook covers the use case (PII-scrubbed structured errors POSTed to any JSON sink, including a Sentry relay). A native SDK adds source-map symbolication, transaction tracing, and release tagging at the cost of vendor lock-in and bundle weight. | M — but design call first |
 
