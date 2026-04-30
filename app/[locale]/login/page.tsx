@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 
 import { SignInButton } from '@/components/auth/SignInButton';
+import { DemoSignInButton } from '@/components/auth/DemoSignInButton';
 import { auth } from '@/auth';
 import { env } from '@/lib/env';
 import { getProviderAvailability } from '@/lib/auth/providers';
@@ -52,30 +53,7 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
           </div>
         )}
         {demoMode && (
-          /*
-           * Demo-only sign-in. Posts to /api/demo/sign-in which
-           * upserts a "Demo Vet" admin user, mints a Prisma session
-           * row, sets the auth cookie, then 303-redirects to
-           * /en/dashboard. The endpoint hard-blocks outside DEMO_MODE
-           * so this can never become a real sign-in bypass.
-           */
-          <form action="/api/demo/sign-in" method="POST" className="mb-4">
-            {/* Pass the active locale through so the API can land
-                the operator on /{locale}/dashboard rather than a
-                hard-coded English path. */}
-            <input type="hidden" name="locale" value={locale} />
-            <button
-              type="submit"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 text-base font-medium text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-            >
-              {locale === 'fr' ? 'Continuer comme vétérinaire démo' : 'Continue as Demo Vet'}
-            </button>
-            <p className="mt-2 text-center text-xs text-gray-500">
-              {locale === 'fr'
-                ? 'Mode démo — accès admin complet, intégrations simulées.'
-                : 'Demo mode — full admin access, all integrations simulated.'}
-            </p>
-          </form>
+          <DemoSignInButton locale={locale} callbackUrl={safeCallback} />
         )}
         {(providers.github || providers.email) && demoMode && (
           <div className="my-4 flex items-center gap-3 text-xs uppercase text-gray-400">
