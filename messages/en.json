@@ -342,7 +342,11 @@
     "done": "Done",
     "confirmed": "Confirmed",
     "noShow": "No-Show",
-    "skipped": "Skipped"
+    "skipped": "Skipped",
+    "not_needed": "Not Needed",
+    "pending": "Pending",
+    "sent": "Sent",
+    "paid": "Paid"
   },
   "requestTypes": {
     "routineDental": "Routine Dental",
