@@ -313,6 +313,7 @@
     "preferredDays": "Jours préférés",
     "groupBy": "Grouper par zone",
     "generateRoutes": "Générer les itinéraires",
+    "generateError": "Échec de la génération d'itinéraires. Veuillez réessayer.",
     "density": "Densité"
   },
   "status": {

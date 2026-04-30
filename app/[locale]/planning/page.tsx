@@ -35,6 +35,30 @@ export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [urgencyFilter, setUrgencyFilter] = useState('');
   const [requestTypeFilter, setRequestTypeFilter] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  const handleGenerateRoutes = async () => {
+    setIsGenerating(true);
+    setGenerateError(null);
+    try {
+      const res = await fetch('/api/route-planning/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        router.push('/route-runs');
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setGenerateError(data.error ?? t('generateError'));
+      }
+    } catch {
+      setGenerateError(t('generateError'));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -83,9 +107,20 @@ export default function PlanningPage() {
             title={t('title')}
             subtitle={t('subtitle')}
             action={
-              <Button onClick={() => router.push('/route-runs')}>
-                {t('generateRoutes')}
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <Button onClick={handleGenerateRoutes} disabled={isGenerating}>
+                  {isGenerating && (
+                    <span
+                      aria-hidden="true"
+                      className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"
+                    />
+                  )}
+                  {t('generateRoutes')}
+                </Button>
+                {generateError && (
+                  <p role="alert" className="text-xs text-danger">{generateError}</p>
+                )}
+              </div>
             }
           />
 
