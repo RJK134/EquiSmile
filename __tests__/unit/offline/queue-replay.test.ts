@@ -125,7 +125,7 @@ describe('decideReplay', () => {
 
   it('replays in submission order even if records arrive out of insertion order', async () => {
     const records = [record(3, 30), record(1, 10), record(2, 20)];
-    const seenSequences: number[] = [];
+    const seenSequences: Array<number | undefined> = [];
     await decideReplay(records, async (req) => {
       seenSequences.push(req.sequence);
       return jsonResponse(201);
@@ -135,7 +135,7 @@ describe('decideReplay', () => {
 
   it('keeps trailing records after a fetch throw without attempting them', async () => {
     const records = [record(1, 10), record(2, 20), record(3, 30)];
-    const attempts: number[] = [];
+    const attempts: Array<number | undefined> = [];
     let call = 0;
     const decision = await decideReplay(records, async (req) => {
       call += 1;
