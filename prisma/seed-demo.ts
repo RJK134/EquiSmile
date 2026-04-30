@@ -601,7 +601,7 @@ async function main() {
 
   const visitBooked1 = await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-booked-1' },
-    update: {},
+    update: { planningStatus: 'BOOKED' },
     create: {
       id: 'demo-visit-booked-1',
       enquiryId: enquiry1.id,
@@ -625,7 +625,7 @@ async function main() {
 
   const visitBooked2 = await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-booked-2' },
-    update: {},
+    update: { planningStatus: 'BOOKED' },
     create: {
       id: 'demo-visit-booked-2',
       enquiryId: enquiry3.id,
@@ -647,7 +647,7 @@ async function main() {
 
   const visitPool1 = await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-pool-1' },
-    update: {},
+    update: { planningStatus: 'PLANNING_POOL' },
     create: {
       id: 'demo-visit-pool-1',
       enquiryId: enquiry2.id,
@@ -669,7 +669,7 @@ async function main() {
 
   const visitPool2 = await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-pool-2' },
-    update: {},
+    update: { planningStatus: 'PLANNING_POOL' },
     create: {
       id: 'demo-visit-pool-2',
       enquiryId: enquiry4.id,
@@ -691,7 +691,7 @@ async function main() {
 
   const visitPool3 = await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-pool-3' },
-    update: {},
+    update: { planningStatus: 'PLANNING_POOL' },
     create: {
       id: 'demo-visit-pool-3',
       enquiryId: enquiry7.id,
@@ -713,7 +713,7 @@ async function main() {
 
   const visitReview = await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-review' },
-    update: {},
+    update: { planningStatus: 'READY_FOR_REVIEW' },
     create: {
       id: 'demo-visit-review',
       enquiryId: enquiry5.id,
@@ -737,7 +737,7 @@ async function main() {
 
   await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-pool-4' },
-    update: {},
+    update: { planningStatus: 'PLANNING_POOL' },
     create: {
       id: 'demo-visit-pool-4',
       enquiryId: enquiry6.id,
@@ -759,7 +759,7 @@ async function main() {
 
   await prisma.visitRequest.upsert({
     where: { id: 'demo-visit-pool-5' },
-    update: {},
+    update: { planningStatus: 'PLANNING_POOL' },
     create: {
       id: 'demo-visit-pool-5',
       enquiryId: enquiry8.id,
@@ -906,7 +906,14 @@ async function main() {
 
   await prisma.appointment.upsert({
     where: { id: 'demo-appt-confirmed' },
-    update: {},
+    update: {
+      status: 'CONFIRMED',
+      confirmationChannel: 'WHATSAPP',
+      confirmationSentAt: new Date('2026-04-14T10:00:00Z'),
+      cancellationReason: null,
+      reminderSentAt24h: null,
+      reminderSentAt2h: null,
+    },
     create: {
       id: 'demo-appt-confirmed',
       visitRequestId: visitBooked1.id,
@@ -922,7 +929,14 @@ async function main() {
 
   await prisma.appointment.upsert({
     where: { id: 'demo-appt-proposed' },
-    update: {},
+    update: {
+      status: 'PROPOSED',
+      cancellationReason: null,
+      confirmationChannel: null,
+      confirmationSentAt: null,
+      reminderSentAt24h: null,
+      reminderSentAt2h: null,
+    },
     create: {
       id: 'demo-appt-proposed',
       visitRequestId: visitBooked2.id,
@@ -936,7 +950,12 @@ async function main() {
 
   await prisma.appointment.upsert({
     where: { id: 'demo-appt-completed' },
-    update: {},
+    update: {
+      status: 'COMPLETED',
+      confirmationChannel: 'PHONE',
+      confirmationSentAt: new Date('2026-04-08T14:00:00Z'),
+      cancellationReason: null,
+    },
     create: {
       id: 'demo-appt-completed',
       visitRequestId: visitReview.id,
@@ -952,7 +971,12 @@ async function main() {
 
   await prisma.appointment.upsert({
     where: { id: 'demo-appt-cancelled' },
-    update: {},
+    update: {
+      status: 'CANCELLED',
+      cancellationReason: 'Customer requested reschedule due to horse being unwell.',
+      confirmationChannel: null,
+      confirmationSentAt: null,
+    },
     create: {
       id: 'demo-appt-cancelled',
       visitRequestId: visitPool1.id,
@@ -966,7 +990,12 @@ async function main() {
 
   await prisma.appointment.upsert({
     where: { id: 'demo-appt-noshow' },
-    update: {},
+    update: {
+      status: 'NO_SHOW',
+      cancellationReason: null,
+      confirmationChannel: null,
+      confirmationSentAt: null,
+    },
     create: {
       id: 'demo-appt-noshow',
       visitRequestId: visitPool2.id,
