@@ -1,8 +1,11 @@
 # Overnight Build — UAT Readiness Sweep
 
-Working doc tracking the gap-closing PRs that turn the post-Phase-16 main
-branch into a UAT-ready deployment. Once every PR listed in §3 is merged
-or explicitly ruled out, this file can be deleted.
+Working doc tracking the gap-closing PRs that turned the post-Phase-16
+main branch into a UAT-ready deployment. Sweep is now complete: all
+three identified gaps are either closed (G1, G2) or explicitly deferred
+with a documented future trigger (G3). Keep this file as the audit
+trail; do not delete until either G3 fires (and a Sentry PR lands) or
+the team decides to retire the framing.
 
 ## 1. What was already shipped before this sweep
 
@@ -31,13 +34,13 @@ already done.
 
 ## 2. Confirmed gaps after audit
 
-Three items remain. Two are clear wins; the third is a design call.
+All three resolved. Status snapshot:
 
-| ID | Gap | Why it matters | Sized |
-|---|---|---|---|
-| G1 | `.env.example` doesn't document Prisma pool tuning (`?connection_limit=…&pool_timeout=…`) | Defaults (`num_physical_cpus * 2 + 1`, ~5 on a 2-vCPU VPS) are fine for single-app / single-replica deployments. The moment an operator runs multiple app containers, a long migration, or tunes `max_connections` below the Postgres 16 default, pool exhaustion shows up with no breadcrumb in `.env.example`. Hint should defer to `docs/OPERATIONS.md` §2 as the source of truth. | XS — doc-only |
-| G2 | No CORS handling on `/api/*` | Browser-origin protection currently relies on COOP/CORP + same-origin assumption. A future second domain (admin subdomain, mobile-PWA host) or n8n direct call from outside the compose network would 400. | S — middleware change |
-| G3 | No native `@sentry/nextjs` SDK | Existing error webhook covers the use case (PII-scrubbed structured errors POSTed to any JSON sink, including a Sentry relay). A native SDK adds source-map symbolication, transaction tracing, and release tagging at the cost of vendor lock-in and bundle weight. | M — but design call first |
+| ID | Gap | Resolution |
+|---|---|---|
+| G1 | `.env.example` doesn't document Prisma pool tuning (`?connection_limit=…&pool_timeout=…`) | **Closed** in PR #60 — `.env.example` block points to `docs/OPERATIONS.md` §2 as source of truth. |
+| G2 | No CORS handling on `/api/*` | **Closed** in PR #61 — allow-list driven by `APP_ALLOWED_ORIGINS`, preflight handled in middleware before auth, server-to-server endpoints exempt. |
+| G3 | No native `@sentry/nextjs` SDK | **Skipped (option c).** Existing webhook system covers the off-box error reporting need; vendor coupling deferred until a real production incident demonstrates the need for source-map symbolication or browser-side capture. Tracked as a future "option (a) — add Sentry alongside the webhook" if that need materialises (see §3 below). |
 
 Items previously listed as "missing" that the audit cleared:
 - Pagination — already on every list endpoint (uses `data`/`total` shape, not `items`).
@@ -52,53 +55,53 @@ Sequential, draft, smallest first. Each PR is independently revertible
 and ships with `npm run lint && npm run typecheck && npm run test`
 green before request-for-review.
 
-### PR A — `chore/overnight-build-spec-and-pool-doc` (this PR)
-- Adds this file (`docs/OVERNIGHT_BUILD.md`) so reviewers of the next
-  two PRs can see the framing in one place.
-- Adds Prisma pool-tuning recommendation to `.env.example` next to
+### PR A ✅ merged (#60)
+- Added this file (`docs/OVERNIGHT_BUILD.md`).
+- Added Prisma pool-tuning recommendation to `.env.example` next to
   `DATABASE_URL` (closes G1).
-- No code changes. No migration. Operator-facing doc only.
 
-### PR B — CORS allow-list for `/api/*` (closes G2)
-- Adds an `allowedOrigins` array driven by `APP_ALLOWED_ORIGINS` env
-  var (comma-separated). Defaults to `[NEXT_PUBLIC_APP_URL]` so
-  same-origin keeps working without explicit config.
-- Implements `OPTIONS` preflight + `Access-Control-Allow-{Origin,
-  Methods, Headers, Credentials}` on `/api/*` only — pages stay
-  same-origin-only.
-- Webhook routes (`/api/webhooks/*`) and `/api/auth/*` are excluded
-  from the allow-list — they have their own signature / token auth and
-  must not return CORS responses to arbitrary origins.
-- New tests in `lib/security/cors.test.ts` covering: allowed origin,
-  disallowed origin, preflight, exclusion paths.
+### PR B ✅ merged (#61, closes G2)
+- Allow-list driven by `APP_ALLOWED_ORIGINS` (comma-separated).
+  Defaults to `[NEXT_PUBLIC_APP_URL]` so same-origin keeps working.
+- `OPTIONS` preflight handled in middleware before the auth gate.
+- Webhook routes (`/api/webhooks/*`), Auth.js (`/api/auth/*`) and
+  n8n callbacks (`/api/n8n/*`, `/api/reminders/check`) exempt — they
+  have their own server-to-server auth.
+- 47 unit tests in `__tests__/unit/security/cors.test.ts`.
 
-### PR C — Native Sentry SDK (G3, decision required first)
-**Open question for review before code lands:**
+### PR C — Native Sentry SDK (G3) — skipped, deferred
 
-The existing `EQUISMILE_ERROR_WEBHOOK_URL` system already handles the
-"errors get reported off-box" requirement. A native Sentry SDK adds:
+Decision: **option (c)** — keep the existing
+`EQUISMILE_ERROR_WEBHOOK_URL` system as-is. The webhook ships
+PII-scrubbed structured errors today and satisfies the
+"errors-get-reported-off-box" requirement.
+
+Native `@sentry/nextjs` would add:
 - Source-map symbolication (current system reports raw stack traces).
 - Transaction / performance tracing.
 - Release tagging tied to git SHA.
 - Browser-side errors (current system is server-side only via
   `instrumentation.ts`).
 
-It costs:
+It would cost:
 - New vendor dependency + ~300 KB browser bundle.
 - A second error sink to keep configured.
 - A duplication if both are kept active simultaneously.
 
-Three viable options:
-1. **Add Sentry alongside the webhook** — pay the bundle cost, get
-   browser errors + symbolication, keep webhook for redundancy.
-2. **Replace the webhook with Sentry** — single source of truth,
-   accept the vendor lock-in, migrate `instrumentation.ts` to use
-   `Sentry.captureException`.
-3. **Don't add Sentry** — point `EQUISMILE_ERROR_WEBHOOK_URL` at a
-   Sentry relay if symbolication is wanted later, defer browser-side
-   error capture to a future phase.
+**Future trigger for option (a) — "add Sentry alongside the webhook"**:
+revisit this decision when any of the following becomes true on
+production:
+- A real incident requires source-map symbolication that the raw
+  stack trace doesn't surface.
+- A browser-side bug needs capturing that the server-side webhook
+  can't see (only server-side errors flow through
+  `instrumentation.ts`).
+- Release-tag attribution (which deploy introduced an error) becomes
+  load-bearing for triage.
 
-PR C will not be opened until the operator picks one.
+Until then, point `EQUISMILE_ERROR_WEBHOOK_URL` at any JSON sink the
+team prefers (Slack incoming webhook, a self-hosted log collector, or
+a Sentry relay if symbolication is wanted on a per-env basis).
 
 ## 4. Out of scope
 
@@ -111,3 +114,5 @@ Things that were considered and explicitly deferred:
   reporting is the priority for UAT; perf can come later.
 - Customer-facing self-service portal — internal app first per
   `CLAUDE.md`.
+- Native `@sentry/nextjs` SDK — see §3 PR C; tracked as future
+  option (a) once a real incident demonstrates the need.
