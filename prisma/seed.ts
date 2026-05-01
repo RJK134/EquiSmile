@@ -3,17 +3,23 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 /**
- * Production seed — minimal setup for a fresh EquiSmile installation.
+ * Seed dispatcher — production by default, demo when DEMO_MODE=true.
  *
- * This does NOT create fake customers, yards, horses, or enquiries.
- * For demo data, use `seed-demo.ts` (run via scripts/windows/DEMO.bat or
- * DEMO_MODE=true).
+ * - `npx prisma db seed`             → production (minimal, logs only)
+ * - `DEMO_MODE=true npx prisma db seed` → comprehensive demo via seed-demo.ts
+ * - `npx prisma db seed -- --demo`   → comprehensive demo (CLI flag, same effect)
+ * - `npm run db:seed`                → comprehensive demo (alias)
  *
- * The production seed only verifies the database connection and logs
- * the clean-start state. Real data will be created through the app's
- * normal intake channels (WhatsApp, email, manual entry).
+ * Production seed does NOT create fake customers, yards, horses, or
+ * enquiries. Real data flows through the app's intake channels
+ * (WhatsApp, email, manual entry).
  */
-async function main() {
+
+const wantsDemo =
+  process.env.DEMO_MODE === 'true' ||
+  process.argv.includes('--demo');
+
+async function productionSeed() {
   console.log('EquiSmile production seed\n');
   console.log('Database connection verified.');
   console.log('No sample data created — this is a clean production install.');
@@ -23,9 +29,20 @@ async function main() {
   console.log('  2. Customers will be created automatically from inbound messages');
   console.log('  3. Or create customers and yards manually via the UI');
   console.log('');
-  console.log('For demo data, run: npx prisma db seed -- --demo');
-  console.log('  (or use scripts/windows/DEMO.bat / set DEMO_MODE=true)');
+  console.log('For demo data, run: npm run db:seed');
+  console.log('  (or `npx prisma db seed -- --demo`, or set DEMO_MODE=true)');
   console.log('\nProduction seed complete.');
+}
+
+async function main() {
+  if (wantsDemo) {
+    console.log('DEMO_MODE detected — dispatching to seed-demo.ts\n');
+    // Dynamic import keeps the production seed dependency-light:
+    // production deployments never load the demo seed module.
+    await import('./seed-demo');
+    return;
+  }
+  await productionSeed();
 }
 
 main()

@@ -1005,6 +1005,101 @@ async function main() {
   console.log('  Created 10 triage audit logs');
 
   // ══════════════════════════════════════════════════════════════════════════
+  // 12. ROUTE RUN ASSISTANTS — Phase 10 surface, multi-vet rounds.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('\n─── Route Run Assistants ───');
+
+  // The pre-seeded approved route is staffed by the lead vet (owner)
+  // plus the senior vet as assistant — exercises the joint-rounds UI.
+  const approvedRouteRun = await prisma.routeRun.findFirst({
+    where: { status: 'APPROVED' },
+    orderBy: { runDate: 'desc' },
+  });
+  let assistantCount = 0;
+  if (approvedRouteRun) {
+    await prisma.routeRunAssistant.upsert({
+      where: {
+        routeRunId_staffId: {
+          routeRunId: approvedRouteRun.id,
+          staffId: 'demo-staff-senior-vet',
+        },
+      },
+      update: {},
+      create: {
+        routeRunId: approvedRouteRun.id,
+        staffId: 'demo-staff-senior-vet',
+      },
+    });
+    assistantCount = 1;
+  }
+  console.log(`  Created ${assistantCount} route run assistants`);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 13. APPOINTMENT RESPONSES — inbound confirm/cancel/reschedule replies.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('\n─── Appointment Responses ───');
+
+  let responseCount = 0;
+  const confirmedAppointments = await prisma.appointment.findMany({
+    where: { status: 'CONFIRMED' },
+    take: 3,
+  });
+  for (const [i, appt] of confirmedAppointments.entries()) {
+    await prisma.appointmentResponse.upsert({
+      where: { id: `demo-appt-response-${i + 1}` },
+      update: {},
+      create: {
+        id: `demo-appt-response-${i + 1}`,
+        appointmentId: appt.id,
+        kind: 'CONFIRMED',
+        channel: i === 0 ? 'WHATSAPP' : 'EMAIL',
+        receivedAt: daysAgo(i + 1),
+        rawText: i === 0
+          ? 'Yes, that works — see you Tuesday.'
+          : 'Bonjour, oui je confirme le rendez-vous, merci.',
+      },
+    });
+    responseCount++;
+  }
+  console.log(`  Created ${responseCount} appointment responses`);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 14. HORSE ATTACHMENTS — Phase 12 clinical-records surface, demo data.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('\n─── Horse Attachments ───');
+
+  let attachmentCount = 0;
+  const horsesWithCharts = await prisma.horse.findMany({
+    take: 2,
+    orderBy: { createdAt: 'asc' },
+  });
+  for (const [i, horse] of horsesWithCharts.entries()) {
+    await prisma.horseAttachment.upsert({
+      where: { id: `demo-attachment-${i + 1}` },
+      update: {},
+      create: {
+        id: `demo-attachment-${i + 1}`,
+        horseId: horse.id,
+        kind: i === 0 ? 'DENTAL_CHART_PDF' : 'DENTAL_IMAGE',
+        filename: i === 0 ? 'dental-chart-2026-04.pdf' : 'molar-photo-2026-04.jpg',
+        mimeType: i === 0 ? 'application/pdf' : 'image/jpeg',
+        sizeBytes: i === 0 ? 248_000 : 1_240_000,
+        storagePath: `demo/${horse.id}/${i === 0 ? 'chart.pdf' : 'molar.jpg'}`,
+        description: i === 0
+          ? 'Sample dental chart — placeholder asset for demo only.'
+          : 'Reference photograph of upper molars — placeholder asset for demo only.',
+        uploadedById: 'demo-staff-owner',
+        uploadedAt: daysAgo(7 + i),
+      },
+    });
+    attachmentCount++;
+  }
+  console.log(`  Created ${attachmentCount} horse attachments`);
+
+  // ══════════════════════════════════════════════════════════════════════════
   // SUMMARY
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1025,6 +1120,9 @@ async function main() {
   console.log(`  Clinical Findings:  ${findingCount}`);
   console.log(`  Prescriptions:      ${prescriptionCount}`);
   console.log(`  Audit Logs:         10`);
+  console.log(`  Route Assistants:   ${assistantCount}`);
+  console.log(`  Appointment Resps:  ${responseCount}`);
+  console.log(`  Horse Attachments:  ${attachmentCount}`);
   console.log('');
   console.log('  PERSONA CREDENTIALS (for demo sign-in):');
   console.log('  ┌──────────────────────┬──────────────────────────┬──────────┐');
