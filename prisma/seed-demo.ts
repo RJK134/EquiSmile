@@ -1100,6 +1100,137 @@ async function main() {
   console.log(`  Created ${attachmentCount} horse attachments`);
 
   // ══════════════════════════════════════════════════════════════════════════
+  // 15. INVOICES — Phase D finance demo, 20 invoices with realistic spread.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('\n─── Invoices ───');
+
+  // QR-reference helper. The demo doesn't need valid QRR check digits
+  // — bank-import auto-match keys on exact equality, not validity.
+  const qrRef = (n: number) =>
+    String(n).padStart(27, '0').slice(0, 27);
+
+  // Spread:
+  //   8 PAID    — past months, fully reconciled.
+  //   4 PARTIAL — some payments recorded, balance outstanding.
+  //   4 OVERDUE — past dueAt, no payment.
+  //   4 OPEN    — recent, not yet due.
+  //
+  // Linked to a rotating set of customers so the dashboard list
+  // shows variety. The first PAID invoice attaches to the seeded
+  // VisitOutcome so the visit-outcome → invoice 1:1 link is also
+  // exercised.
+  const customerRotation = [
+    'demo-cust-marie',
+    'demo-cust-sarah',
+    'demo-cust-pierre',
+    'demo-cust-emma',
+    'demo-cust-jeanluc',
+    'demo-cust-rachel',
+    'demo-cust-isabelle',
+    'demo-cust-david',
+    'demo-cust-claire',
+    'demo-cust-james',
+  ];
+
+  interface InvoiceSeed {
+    id: string;
+    invoiceNumber: string;
+    customerId: string;
+    visitOutcomeId?: string;
+    issuedDaysAgo: number;
+    dueOffset: number; // days from issuedAt
+    total: number;
+    status: 'PAID' | 'PARTIAL' | 'OVERDUE' | 'OPEN';
+    payments: { amount: number; daysAgo: number }[];
+  }
+
+  const invoiceSeeds: InvoiceSeed[] = [
+    // PAID — 8 fully paid invoices
+    { id: 'demo-inv-001', invoiceNumber: 'INV-2026-0001', customerId: 'demo-cust-jeanluc', visitOutcomeId: 'demo-outcome-completed', issuedDaysAgo: 25, dueOffset: 30, total: 285.50, status: 'PAID', payments: [{ amount: 285.50, daysAgo: 10 }] },
+    { id: 'demo-inv-002', invoiceNumber: 'INV-2026-0002', customerId: 'demo-cust-marie',   issuedDaysAgo: 60, dueOffset: 30, total: 420.00, status: 'PAID', payments: [{ amount: 420.00, daysAgo: 35 }] },
+    { id: 'demo-inv-003', invoiceNumber: 'INV-2026-0003', customerId: 'demo-cust-pierre',  issuedDaysAgo: 90, dueOffset: 30, total: 1180.00, status: 'PAID', payments: [{ amount: 1180.00, daysAgo: 70 }] },
+    { id: 'demo-inv-004', invoiceNumber: 'INV-2026-0004', customerId: 'demo-cust-sarah',   issuedDaysAgo: 45, dueOffset: 30, total: 360.00, status: 'PAID', payments: [{ amount: 360.00, daysAgo: 25 }] },
+    { id: 'demo-inv-005', invoiceNumber: 'INV-2026-0005', customerId: 'demo-cust-emma',    issuedDaysAgo: 75, dueOffset: 30, total: 540.00, status: 'PAID', payments: [{ amount: 540.00, daysAgo: 50 }] },
+    { id: 'demo-inv-006', invoiceNumber: 'INV-2026-0006', customerId: 'demo-cust-david',   issuedDaysAgo: 110, dueOffset: 30, total: 295.00, status: 'PAID', payments: [{ amount: 295.00, daysAgo: 90 }] },
+    { id: 'demo-inv-007', invoiceNumber: 'INV-2026-0007', customerId: 'demo-cust-rachel',  issuedDaysAgo: 130, dueOffset: 30, total: 615.00, status: 'PAID', payments: [{ amount: 615.00, daysAgo: 105 }] },
+    { id: 'demo-inv-008', invoiceNumber: 'INV-2026-0008', customerId: 'demo-cust-isabelle', issuedDaysAgo: 35, dueOffset: 30, total: 825.00, status: 'PAID', payments: [{ amount: 825.00, daysAgo: 20 }] },
+
+    // PARTIAL — 4 invoices with some payment but not full
+    { id: 'demo-inv-009', invoiceNumber: 'INV-2026-0009', customerId: 'demo-cust-claire',  issuedDaysAgo: 55, dueOffset: 30, total: 1240.00, status: 'PARTIAL', payments: [{ amount: 500.00, daysAgo: 30 }, { amount: 240.00, daysAgo: 12 }] },
+    { id: 'demo-inv-010', invoiceNumber: 'INV-2026-0010', customerId: 'demo-cust-pierre',  issuedDaysAgo: 40, dueOffset: 30, total: 980.00, status: 'PARTIAL', payments: [{ amount: 400.00, daysAgo: 18 }] },
+    { id: 'demo-inv-011', invoiceNumber: 'INV-2026-0011', customerId: 'demo-cust-james',   issuedDaysAgo: 28, dueOffset: 30, total: 1500.00, status: 'PARTIAL', payments: [{ amount: 750.00, daysAgo: 15 }] },
+    { id: 'demo-inv-012', invoiceNumber: 'INV-2026-0012', customerId: 'demo-cust-marie',   issuedDaysAgo: 50, dueOffset: 30, total: 660.00, status: 'PARTIAL', payments: [{ amount: 200.00, daysAgo: 24 }, { amount: 200.00, daysAgo: 8 }] },
+
+    // OVERDUE — 4 invoices past dueAt with no payment
+    { id: 'demo-inv-013', invoiceNumber: 'INV-2026-0013', customerId: 'demo-cust-pierre',  issuedDaysAgo: 65, dueOffset: 30, total: 480.00, status: 'OVERDUE', payments: [] },
+    { id: 'demo-inv-014', invoiceNumber: 'INV-2026-0014', customerId: 'demo-cust-david',   issuedDaysAgo: 50, dueOffset: 30, total: 360.00, status: 'OVERDUE', payments: [] },
+    { id: 'demo-inv-015', invoiceNumber: 'INV-2026-0015', customerId: 'demo-cust-claire',  issuedDaysAgo: 45, dueOffset: 30, total: 920.00, status: 'OVERDUE', payments: [] },
+    { id: 'demo-inv-016', invoiceNumber: 'INV-2026-0016', customerId: 'demo-cust-isabelle', issuedDaysAgo: 80, dueOffset: 30, total: 1100.00, status: 'OVERDUE', payments: [] },
+
+    // OPEN — 4 recent invoices, not yet due
+    { id: 'demo-inv-017', invoiceNumber: 'INV-2026-0017', customerId: 'demo-cust-marie',   issuedDaysAgo: 5, dueOffset: 30, total: 295.00, status: 'OPEN', payments: [] },
+    { id: 'demo-inv-018', invoiceNumber: 'INV-2026-0018', customerId: 'demo-cust-sarah',   issuedDaysAgo: 8, dueOffset: 30, total: 540.00, status: 'OPEN', payments: [] },
+    { id: 'demo-inv-019', invoiceNumber: 'INV-2026-0019', customerId: 'demo-cust-emma',    issuedDaysAgo: 12, dueOffset: 30, total: 720.00, status: 'OPEN', payments: [] },
+    { id: 'demo-inv-020', invoiceNumber: 'INV-2026-0020', customerId: 'demo-cust-rachel',  issuedDaysAgo: 3, dueOffset: 30, total: 380.00, status: 'OPEN', payments: [] },
+  ];
+  // Round-robin reference to satisfy noUnusedLocals when the rotation
+  // is used implicitly (kept for future seed authors).
+  void customerRotation;
+
+  let invoiceCount = 0;
+  let paymentCount = 0;
+  for (const seed of invoiceSeeds) {
+    const issuedAt = daysAgo(seed.issuedDaysAgo);
+    const dueAt = new Date(issuedAt.getTime() + seed.dueOffset * 24 * 60 * 60 * 1000);
+    const reference = qrRef(invoiceCount + 1);
+
+    await prisma.invoice.upsert({
+      where: { id: seed.id },
+      update: {
+        status: seed.status,
+        total: seed.total,
+        subtotal: seed.total,
+        dueAt,
+      },
+      create: {
+        id: seed.id,
+        invoiceNumber: seed.invoiceNumber,
+        customerId: seed.customerId,
+        visitOutcomeId: seed.visitOutcomeId,
+        issuedAt,
+        dueAt,
+        subtotal: seed.total,
+        taxAmount: 0,
+        total: seed.total,
+        currency: 'CHF',
+        status: seed.status,
+        qrReference: reference,
+        notes: 'Routine equine dental visit.',
+      },
+    });
+    invoiceCount++;
+
+    for (const [i, pay] of seed.payments.entries()) {
+      const paymentId = `${seed.id}-pay-${i + 1}`;
+      await prisma.invoicePayment.upsert({
+        where: { id: paymentId },
+        update: { amount: pay.amount, paidAt: daysAgo(pay.daysAgo) },
+        create: {
+          id: paymentId,
+          invoiceId: seed.id,
+          amount: pay.amount,
+          paidAt: daysAgo(pay.daysAgo),
+          method: 'BANK_TRANSFER',
+          reference: reference,
+        },
+      });
+      paymentCount++;
+    }
+  }
+  console.log(`  Created ${invoiceCount} invoices, ${paymentCount} payments`);
+
+  // ══════════════════════════════════════════════════════════════════════════
   // SUMMARY
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1123,6 +1254,8 @@ async function main() {
   console.log(`  Route Assistants:   ${assistantCount}`);
   console.log(`  Appointment Resps:  ${responseCount}`);
   console.log(`  Horse Attachments:  ${attachmentCount}`);
+  console.log(`  Invoices:           ${invoiceCount} (8 PAID, 4 PARTIAL, 4 OVERDUE, 4 OPEN)`);
+  console.log(`  Payments:           ${paymentCount}`);
   console.log('');
   console.log('  PERSONA CREDENTIALS (for demo sign-in):');
   console.log('  ┌──────────────────────┬──────────────────────────┬──────────┐');
