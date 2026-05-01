@@ -290,6 +290,7 @@
     "addNote": "Ajouter une note",
     "reasonRequired": "La raison est obligatoire",
     "overrideReason": "Raison du remplacement",
+    "overrideError": "Échec du remplacement. Veuillez réessayer.",
     "auditHistory": "Historique d'audit",
     "noAuditHistory": "Aucun historique de remplacement.",
     "taskCount": "{count} tâches"

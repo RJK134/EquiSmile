@@ -290,6 +290,7 @@
     "addNote": "Add Note",
     "reasonRequired": "Reason is required",
     "overrideReason": "Reason for override",
+    "overrideError": "Override failed. Please try again.",
     "auditHistory": "Audit History",
     "noAuditHistory": "No override history.",
     "taskCount": "{count} tasks"
