@@ -11,6 +11,12 @@ interface SendEmailResult {
   success: boolean;
 }
 
+interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 interface SendEmailOptions {
   to: string;
   subject: string;
@@ -18,6 +24,7 @@ interface SendEmailOptions {
   html?: string;
   enquiryId?: string;
   language?: string;
+  attachments?: EmailAttachment[];
 }
 
 let transporter: Transporter | null = null;
@@ -103,6 +110,7 @@ export const emailService = {
             subject: options.subject,
             text: options.text,
             html,
+            attachments: options.attachments,
           });
         },
         { maxRetries: 2, operationName: 'email-send', timeoutMs: 30_000 },
