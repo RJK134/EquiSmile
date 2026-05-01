@@ -19,7 +19,8 @@
     "emailRequired": "Please enter a valid email address.",
     "linkSendFailed": "We couldn't send the sign-in link. Please try again.",
     "privacyLink": "Privacy",
-    "termsLink": "Terms"
+    "termsLink": "Terms",
+    "buildLabel": "build {sha}"
   },
   "nav": {
     "dashboard": "Dashboard",

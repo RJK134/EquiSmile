@@ -38,6 +38,12 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG NEXT_PUBLIC_DEFAULT_LOCALE
 ENV NEXT_PUBLIC_DEFAULT_LOCALE=${NEXT_PUBLIC_DEFAULT_LOCALE}
 
+# Build SHA — surfaced in the demo-mode login footer so UAT testers
+# can capture the exact build under test without leaving the page.
+# Defaults to "dev" when unset for local development.
+ARG NEXT_PUBLIC_BUILD_SHA=dev
+ENV NEXT_PUBLIC_BUILD_SHA=${NEXT_PUBLIC_BUILD_SHA}
+
 RUN npm run build
 
 # ─── Migrator ────────────────────────────────────────────────────────────────
