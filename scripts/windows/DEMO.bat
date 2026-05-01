@@ -105,9 +105,13 @@ if errorlevel 1 (
 echo.
 echo  [6/8] Setting up database schema + demo data...
 echo  -------------------------------------------------------
+REM Demo flow per the overnight programme:
+REM   git pull -> npm install -> prisma migrate deploy -> prisma db seed -> build -> start
+REM `npx prisma db seed` dispatches via prisma/seed.ts which forwards to
+REM seed-demo.ts when DEMO_MODE=true (set above at step 4).
 call npx prisma generate
 call npx prisma migrate deploy
-call npx tsx prisma/seed-demo.ts 2>nul
+call npx prisma db seed 2>nul
 if errorlevel 1 (
     echo  Demo data may already be loaded - continuing.
 )
