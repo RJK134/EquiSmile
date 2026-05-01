@@ -972,10 +972,14 @@ async function main() {
   // Visit outcome for the one completed appointment so the closed-loop
   // narrative on /completed and /appointments/demo-appt-completed shows
   // clinical notes, follow-up flag, next-due date, and invoice status.
+  const demoOutcomeNotes =
+    'Routine dental check — mild hooks on 107/207 rasped. Sedation: detomidine 5 mg IV. No further intervention required.';
+  const demoOutcomeCompletedAt = new Date('2026-04-10T10:30:00Z');
   await prisma.visitOutcome.upsert({
     where: { appointmentId: 'demo-appt-completed' },
     update: {
-      notes: 'Routine dental check — mild hooks on 107/207 rasped. Sedation: detomidine 5 mg IV. No further intervention required.',
+      completedAt: demoOutcomeCompletedAt,
+      notes: demoOutcomeNotes,
       followUpRequired: false,
       followUpDueDate: null,
       nextDentalDueDate: new Date('2026-10-10T00:00:00Z'),
@@ -984,8 +988,8 @@ async function main() {
     create: {
       id: 'demo-outcome-completed',
       appointmentId: 'demo-appt-completed',
-      completedAt: new Date('2026-04-10T10:30:00Z'),
-      notes: 'Routine dental check — mild hooks on 107/207 rasped. Sedation: detomidine 5 mg IV. No further intervention required.',
+      completedAt: demoOutcomeCompletedAt,
+      notes: demoOutcomeNotes,
       followUpRequired: false,
       nextDentalDueDate: new Date('2026-10-10T00:00:00Z'),
       invoiceStatus: 'PAID',
