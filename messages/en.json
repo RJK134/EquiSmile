@@ -314,6 +314,7 @@
     "preferredDays": "Preferred Days",
     "groupBy": "Group by area",
     "generateRoutes": "Generate Routes",
+    "generateError": "Route generation failed. Please try again.",
     "density": "Density"
   },
   "status": {
