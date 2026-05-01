@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 56" role="img" aria-label="EquiSmile">
+  <title>EquiSmile</title>
+  <!--
+    Placeholder wordmark — Phase B2 of the overnight programme.
+    When the real EquiSmile brand asset is available, replace this
+    file (keep the same path public/logo.svg) and the wordmark in
+    the Logo component will pick it up automatically.
+
+    Design notes for the placeholder:
+    - Maroon #9b214d (AMBER-02 brand colour, matches manifest theme).
+    - Editorial serif feel approximating Instrument Serif so the
+      Phase B1 typography uplift reads consistently while the real
+      asset is awaited.
+  -->
+  <g fill="#9b214d">
+    <path d="M16 12 H56 V20 H24 V24 H52 V32 H24 V36 H56 V44 H16 Z"/>
+  </g>
+  <text x="64" y="40"
+        font-family="'Instrument Serif', Georgia, 'Times New Roman', serif"
+        font-size="32" font-style="italic"
+        fill="#9b214d">EquiSmile</text>
+</svg>
