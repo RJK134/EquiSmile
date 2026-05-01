@@ -730,5 +730,12 @@
         "body": "Les questions opérationnelles et d'accès sont traitées par le cabinet via les canaux internes habituels."
       }
     }
+  },
+  "demo": {
+    "mapsBanner": {
+      "title": "Google Maps en direct demandé mais non configuré",
+      "body": "EQUISMILE_LIVE_MAPS=true est défini, mais les variables d’environnement suivantes sont manquantes. Tant qu’elles ne sont pas renseignées, la démo utilisera le simulateur Maps et l’optimisation d’itinéraire en direct ne pourra pas être présentée.",
+      "runbook": "Voir docs/DEMO_RUNBOOK.md §2 pour le modèle complet de .env.local de démo."
+    }
   }
 }

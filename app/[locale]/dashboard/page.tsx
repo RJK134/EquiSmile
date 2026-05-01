@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Link } from '@/i18n/navigation';
 import { SkipToContent } from '@/components/ui/SkipToContent';
+import { DemoMapsConfigBanner } from '@/components/demo/DemoMapsConfigBanner';
 import { taskTypeLabel } from '@/lib/utils/triage-task-type';
 
 interface DashboardAppointment {
@@ -101,6 +102,8 @@ export default function DashboardPage() {
         <Sidebar />
         <main id="main-content" className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
           <PageHeader title={t('title')} subtitle={t('subtitle')} />
+
+          <DemoMapsConfigBanner />
 
           {loading ? <LoadingState /> : !data ? (
             <Card><p className="text-sm text-muted">{tc('error')}</p></Card>
