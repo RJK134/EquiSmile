@@ -47,9 +47,10 @@ export async function POST(request: NextRequest) {
   const locale = resolveLocale(typeof submittedLocale === 'string' ? submittedLocale : null);
 
   const submittedPersona = formData?.get('persona');
-  const personaEmail = typeof submittedPersona === 'string' && submittedPersona in DEMO_PERSONAS
-    ? submittedPersona
-    : DEFAULT_EMAIL;
+  const personaEmail =
+    typeof submittedPersona === 'string' && Object.hasOwn(DEMO_PERSONAS, submittedPersona)
+      ? submittedPersona
+      : DEFAULT_EMAIL;
   const persona = DEMO_PERSONAS[personaEmail] ?? { name: DEFAULT_NAME, login: DEFAULT_LOGIN, role: 'admin' };
 
   const user = await prisma.user.upsert({
