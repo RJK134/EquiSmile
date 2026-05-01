@@ -729,5 +729,12 @@
         "body": "Operational and access queries are handled by the practice via the usual internal channels."
       }
     }
+  },
+  "demo": {
+    "mapsBanner": {
+      "title": "Live Google Maps requested but not configured",
+      "body": "EQUISMILE_LIVE_MAPS=true is set, but the following environment variables are missing. Until they are populated the demo will fall back to the Maps simulator and the live-routing differentiator cannot be shown.",
+      "runbook": "See docs/DEMO_RUNBOOK.md §2 for the full demo .env.local template."
+    }
   }
 }
