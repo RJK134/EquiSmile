@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { SignInButton } from '@/components/auth/SignInButton';
 import { DemoSignInButton } from '@/components/auth/DemoSignInButton';
+import { Logo } from '@/components/branding/Logo';
 import { auth } from '@/auth';
 import { env } from '@/lib/env';
 import { getProviderAvailability } from '@/lib/auth/providers';
@@ -32,9 +33,10 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
       <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mb-6 text-center">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <Logo size={36} variant="hero" />
           <h1 className="text-xl font-semibold text-gray-900">{t('loginTitle')}</h1>
-          <p className="mt-1 text-sm text-gray-600">{t('loginSubtitle')}</p>
+          <p className="text-sm text-gray-600">{t('loginSubtitle')}</p>
         </div>
         {error && (
           <div
