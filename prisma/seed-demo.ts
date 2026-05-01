@@ -8,6 +8,12 @@ function daysAgo(n: number): Date {
   return new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 }
 
+/** Returns the given date capped at "now" — prevents future timestamps for
+ *  confirmation/reminder fields on upcoming appointments. */
+function atMostNow(d: Date): Date {
+  return new Date(Math.min(Date.now(), d.getTime()));
+}
+
 function daysFromNow(n: number): Date {
   return new Date(Date.now() + n * 24 * 60 * 60 * 1000);
 }
@@ -194,7 +200,13 @@ async function main() {
   for (const c of customerDefs) {
     const cust = await prisma.customer.upsert({
       where: { email: c.email },
-      update: {},
+      update: {
+        fullName: c.fullName,
+        mobilePhone: c.phone,
+        preferredChannel: c.channel,
+        preferredLanguage: c.lang,
+        notes: c.notes,
+      },
       create: {
         id: c.id,
         fullName: c.fullName,
@@ -234,7 +246,20 @@ async function main() {
   for (const y of yardDefs) {
     const yard = await prisma.yard.upsert({
       where: { id: y.id },
-      update: {},
+      update: {
+        customerId: y.customerId,
+        yardName: y.name,
+        addressLine1: y.addr,
+        town: y.town,
+        county: y.county,
+        postcode: y.postcode,
+        latitude: y.lat,
+        longitude: y.lng,
+        geocodeSource: 'demo-seed',
+        geocodePrecision: 'ROOFTOP',
+        accessNotes: y.access,
+        areaLabel: y.area,
+      },
       create: {
         id: y.id,
         customerId: y.customerId,
@@ -339,7 +364,13 @@ async function main() {
   for (const h of horseDefs) {
     await prisma.horse.upsert({
       where: { id: h.id },
-      update: {},
+      update: {
+        customerId: h.customerId,
+        primaryYardId: h.yardId,
+        horseName: h.name,
+        age: h.age,
+        active: true,
+      },
       create: {
         id: h.id,
         customerId: h.customerId,
@@ -400,6 +431,9 @@ async function main() {
   const enquiryIds: string[] = [];
   const customerList = Object.values(customers);
   const yardList = Object.values(yards);
+  // Enquiries beyond this index are NEW with no customer/yard — simulating
+  // raw inbound messages that haven't been linked to a customer yet.
+  const UNLINKED_ENQUIRY_THRESHOLD = 18;
 
   for (let i = 0; i < 25; i++) {
     const id = `demo-enquiry-${String(i + 1).padStart(3, '0')}`;
@@ -411,16 +445,23 @@ async function main() {
     const channel = i % 3 === 0 ? 'EMAIL' as const : 'WHATSAPP' as const;
     const status = triageStatuses[i];
     const dAgo = 360 - (i * 14);
+    const isUnlinked = status === 'NEW' && i > UNLINKED_ENQUIRY_THRESHOLD;
 
     await prisma.enquiry.upsert({
       where: { id },
-      update: {},
+      update: {
+        customerId: isUnlinked ? null : cust.id,
+        yardId: isUnlinked ? null : yard.id,
+        triageStatus: status,
+        rawText: msgs[i % msgs.length],
+        subject: msgs[i % msgs.length].substring(0, 60),
+      },
       create: {
         id,
         channel,
         externalMessageId: channel === 'EMAIL' ? `<${id}@example.com>` : `wamid.${id}`,
-        customerId: status === 'NEW' && i > 18 ? null : cust.id,
-        yardId: status === 'NEW' && i > 18 ? null : yard.id,
+        customerId: isUnlinked ? null : cust.id,
+        yardId: isUnlinked ? null : yard.id,
         sourceFrom: channel === 'EMAIL' ? custDef.email : custDef.phone,
         subject: msgs[i % msgs.length].substring(0, 60),
         rawText: msgs[i % msgs.length],
@@ -542,7 +583,11 @@ async function main() {
   for (const t of triageTaskDefs) {
     await prisma.triageTask.upsert({
       where: { id: t.id },
-      update: {},
+      update: {
+        status: t.status,
+        notes: t.notes,
+        taskType: t.type,
+      },
       create: {
         id: t.id,
         visitRequestId: t.vrId,
@@ -575,7 +620,16 @@ async function main() {
   for (const r of routeRunDefs) {
     await prisma.routeRun.upsert({
       where: { id: r.id },
-      update: {},
+      update: {
+        status: r.status,
+        totalDistanceMeters: r.dist,
+        totalTravelMinutes: r.travel,
+        totalVisitMinutes: r.service,
+        totalJobs: r.jobs,
+        totalHorses: r.horseCount,
+        optimizationScore: r.score,
+        notes: r.notes,
+      },
       create: {
         id: r.id,
         runDate: r.date,
@@ -690,9 +744,9 @@ async function main() {
         appointmentEnd: atTime(base, 9 + (i % 6), 30),
         status,
         confirmationChannel: status === 'COMPLETED' || status === 'CONFIRMED' ? randomPick(['WHATSAPP', 'EMAIL', 'PHONE'] as const) : null,
-        confirmationSentAt: status === 'COMPLETED' || status === 'CONFIRMED' ? daysAgo(d + 3) : null,
-        reminderSentAt24h: status === 'COMPLETED' || status === 'CONFIRMED' ? daysAgo(d + 1) : null,
-        reminderSentAt2h: status === 'COMPLETED' ? daysAgo(d) : null,
+        confirmationSentAt: status === 'COMPLETED' || status === 'CONFIRMED' ? atMostNow(daysAgo(d + 3)) : null,
+        reminderSentAt24h: status === 'COMPLETED' || status === 'CONFIRMED' ? atMostNow(daysAgo(d + 1)) : null,
+        reminderSentAt2h: status === 'COMPLETED' ? atMostNow(daysAgo(d)) : null,
         cancellationReason: status === 'CANCELLED' ? 'Customer requested reschedule.' : null,
       },
     });
@@ -767,7 +821,7 @@ async function main() {
           id: `demo-dispatch-${String(i + 1).padStart(3, '0')}`,
           appointmentId: apptId,
           channel: randomPick(['WHATSAPP', 'EMAIL'] as const),
-          sentAt: daysAgo(d + 2),
+          sentAt: atMostNow(daysAgo(d + 2)),
           success: true,
           externalMessageId: `demo-ext-msg-${i}`,
         },

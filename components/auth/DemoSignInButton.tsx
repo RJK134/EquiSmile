@@ -98,6 +98,8 @@ export function DemoSignInButton({ locale, callbackUrl }: Props) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="demo-persona-list"
         className="mt-2 w-full text-center text-xs text-gray-500 hover:text-gray-700 transition"
       >
         {expanded
@@ -107,7 +109,7 @@ export function DemoSignInButton({ locale, callbackUrl }: Props) {
 
       {/* Persona list */}
       {expanded && (
-        <div className="mt-2 space-y-1.5">
+        <div id="demo-persona-list" className="mt-2 space-y-1.5">
           {PERSONAS.map((p) => (
             <button
               key={p.email}
