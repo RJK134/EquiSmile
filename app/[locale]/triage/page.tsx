@@ -391,7 +391,7 @@ function TriagePageContent() {
                         <Button size="sm" variant="secondary" onClick={() => handleAction(task.id, task.visitRequest.id, 'escalate')} disabled={actionLoading}>
                           {t('escalate')}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setOverrideModal({ taskId: task.id, vrId: task.visitRequest.id, action: 'override' })} disabled={actionLoading}>
+                        <Button size="sm" variant="secondary" onClick={() => setOverrideModal({ taskId: task.id, vrId: task.visitRequest.id, action: 'override' })} disabled={actionLoading}>
                           {t('override')}
                         </Button>
                         <Button size="sm" onClick={() => handleAction(task.id, task.visitRequest.id, 'done')} disabled={actionLoading}>
