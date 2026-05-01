@@ -11,10 +11,9 @@
  * the Auth.js session cookie, and returns 200 OK + JSON with the
  * post-sign-in `redirectTo` for the client to navigate to.
  *
- * Returns 200 + JSON instead of a 303 redirect so browser-automation
- * tools that misreport 3xx responses (the Perplexity tool reported
- * the 303 as 503 in round-1 and round-2 UAT) cannot cause a
- * false-alarm "sign-in failed" perception.
+ * Returns 200 + JSON instead of a 303 redirect so automation
+ * tooling that misclassifies 3xx responses does not create a false
+ * "sign-in failed" signal.
  *
  * Hard-blocked outside demo mode so this can never become a real
  * sign-in bypass on a live deployment.
