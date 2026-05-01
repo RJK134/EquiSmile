@@ -156,6 +156,47 @@ enum PrescriptionStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Finance — Phase D, Swiss invoicing + bank import + instalment tracking.
+// Sits alongside the legacy `InvoiceStatus` (used by VisitOutcome as a
+// simple "did we invoice this visit" flag). Real invoices live in the
+// `Invoice` model with their own richer status enum.
+// ---------------------------------------------------------------------------
+
+enum FinanceInvoiceStatus {
+  DRAFT
+  OPEN
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CARD
+  OTHER
+}
+
+enum BankImportFormat {
+  CAMT_054
+  CSV
+}
+
+enum BankImportStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum BankEntryMatchStatus {
+  UNMATCHED
+  MATCHED
+  REVIEW_REQUIRED
+  IGNORED
+}
+
+// ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
 
@@ -179,6 +220,7 @@ model Customer {
   horses        Horse[]
   enquiries     Enquiry[]
   visitRequests VisitRequest[]
+  invoices      Invoice[]
 
   @@index([fullName])
   @@index([deletedAt])
@@ -459,6 +501,7 @@ model VisitOutcome {
   invoiceStatus     InvoiceStatus @default(NOT_NEEDED)
 
   appointment Appointment @relation(fields: [appointmentId], references: [id])
+  invoice     Invoice?
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +532,7 @@ model Staff {
   dentalChartsRecorded  DentalChart[]
   findingsCreated       ClinicalFinding[]
   prescriptionsWritten  Prescription[]
+  bankImportBatches     BankImportBatch[]
 
   @@index([role])
   @@index([active])
@@ -823,6 +867,99 @@ model FailedOperation {
   @@index([scope])
   @@index([status])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Finance models — Phase D
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id              String                @id @default(uuid())
+  invoiceNumber   String                @unique
+  customerId      String
+  visitOutcomeId  String?               @unique
+  issuedAt        DateTime              @default(now())
+  dueAt           DateTime
+  subtotal        Decimal               @db.Decimal(12, 2)
+  taxAmount       Decimal               @default(0)         @db.Decimal(12, 2)
+  total           Decimal               @db.Decimal(12, 2)
+  currency        String                @default("CHF")
+  status          FinanceInvoiceStatus  @default(OPEN)
+  // Swiss QR-bill reference (QRR — 27 digits) when the QR-IBAN scheme is
+  // used. Unique so bank-import auto-match is unambiguous.
+  qrReference     String?               @unique
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  customer        Customer              @relation(fields: [customerId], references: [id])
+  visitOutcome    VisitOutcome?         @relation(fields: [visitOutcomeId], references: [id])
+  payments        InvoicePayment[]
+  bankEntries     BankImportEntry[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([dueAt])
+  @@index([qrReference])
+}
+
+model InvoicePayment {
+  id                  String         @id @default(uuid())
+  invoiceId           String
+  amount              Decimal        @db.Decimal(12, 2)
+  paidAt              DateTime
+  method              PaymentMethod  @default(BANK_TRANSFER)
+  reference           String?
+  bankImportEntryId   String?        @unique
+  notes               String?
+  createdAt           DateTime       @default(now())
+
+  invoice             Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  bankImportEntry     BankImportEntry?   @relation(fields: [bankImportEntryId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([paidAt])
+}
+
+model BankImportBatch {
+  id              String              @id @default(uuid())
+  filename        String
+  format          BankImportFormat
+  importedAt      DateTime            @default(now())
+  importedById    String?
+  entryCount      Int                 @default(0)
+  matchedCount    Int                 @default(0)
+  totalAmount     Decimal             @default(0)          @db.Decimal(14, 2)
+  status          BankImportStatus    @default(PROCESSING)
+
+  importedBy      Staff?              @relation(fields: [importedById], references: [id], onDelete: SetNull)
+  entries         BankImportEntry[]
+
+  @@index([importedAt])
+  @@index([status])
+}
+
+model BankImportEntry {
+  id                  String                  @id @default(uuid())
+  batchId             String
+  transactionDate     DateTime
+  amount              Decimal                 @db.Decimal(12, 2)
+  currency            String                  @default("CHF")
+  qrReference         String?
+  description         String?
+  counterparty        String?
+  matchStatus         BankEntryMatchStatus    @default(UNMATCHED)
+  matchedInvoiceId    String?
+  createdAt           DateTime                @default(now())
+
+  batch               BankImportBatch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  matchedInvoice      Invoice?                @relation(fields: [matchedInvoiceId], references: [id], onDelete: SetNull)
+  payment             InvoicePayment?
+
+  @@index([batchId])
+  @@index([qrReference])
+  @@index([matchStatus])
+  @@index([transactionDate])
 }
 
 // ---------------------------------------------------------------------------
