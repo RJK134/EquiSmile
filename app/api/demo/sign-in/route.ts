@@ -93,7 +93,12 @@ export async function POST(request: NextRequest) {
   //    client reads `redirectTo` and calls router.push on it.
   const response = NextResponse.json(
     { ok: true, redirectTo: `/${locale}/dashboard` },
-    { status: 200 },
+    {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, private',
+      },
+    },
   );
   response.cookies.set('authjs.session-token', sessionToken, {
     expires,
