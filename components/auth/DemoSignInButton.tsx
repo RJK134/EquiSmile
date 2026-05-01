@@ -12,7 +12,7 @@ interface Persona {
 }
 
 const PERSONAS: Persona[] = [
-  { email: 'rachel@equismile.demo', name: 'Dr. Rachel Kemp', role: 'admin', badge: 'Admin', colour: 'bg-red-100 text-red-800' },
+  { email: 'kathelijne@equismile.demo', name: 'Dr. Kathelijne Deberdt', role: 'admin', badge: 'Owner', colour: 'bg-red-100 text-red-800' },
   { email: 'alex@equismile.demo', name: 'Dr. Alex Moreau', role: 'vet', badge: 'Senior Vet', colour: 'bg-blue-100 text-blue-800' },
   { email: 'sophie@equismile.demo', name: 'Dr. Sophie Laurent', role: 'vet', badge: 'Junior Vet', colour: 'bg-violet-100 text-violet-800' },
   { email: 'lea@equismile.demo', name: 'Léa Bertrand', role: 'nurse', badge: 'Nurse', colour: 'bg-green-100 text-green-800' },

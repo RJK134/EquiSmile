@@ -119,6 +119,7 @@ enum StaffRole {
   VET
   ADMIN
   NURSE
+  OWNER
 }
 
 enum AttachmentKind {

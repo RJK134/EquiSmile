@@ -24,13 +24,13 @@ import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { routing } from '@/i18n/routing';
 
-const DEFAULT_EMAIL = 'rachel@equismile.demo';
-const DEFAULT_NAME = 'Dr. Rachel Kemp';
-const DEFAULT_LOGIN = 'rachel-kemp';
+const DEFAULT_EMAIL = 'kathelijne@equismile.demo';
+const DEFAULT_NAME = 'Dr. Kathelijne Deberdt';
+const DEFAULT_LOGIN = 'kathelijne-deberdt';
 const SESSION_DAYS = 30;
 
 const DEMO_PERSONAS: Record<string, { name: string; login: string; role: string }> = {
-  'rachel@equismile.demo': { name: 'Dr. Rachel Kemp', login: 'rachel-kemp', role: 'admin' },
+  'kathelijne@equismile.demo': { name: 'Dr. Kathelijne Deberdt', login: 'kathelijne-deberdt', role: 'admin' },
   'alex@equismile.demo': { name: 'Dr. Alex Moreau', login: 'alex-moreau', role: 'vet' },
   'sophie@equismile.demo': { name: 'Dr. Sophie Laurent', login: 'sophie-laurent', role: 'vet' },
   'lea@equismile.demo': { name: 'Léa Bertrand', login: 'lea-bertrand', role: 'nurse' },

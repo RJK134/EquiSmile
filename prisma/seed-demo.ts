@@ -80,16 +80,16 @@ async function main() {
 
   const personas = [
     {
-      userId: 'demo-user-admin',
-      staffId: 'demo-staff-admin',
-      name: 'Dr. Rachel Kemp',
-      email: 'rachel@equismile.demo',
-      githubLogin: 'rachel-kemp',
+      userId: 'demo-user-owner',
+      staffId: 'demo-staff-owner',
+      name: 'Dr. Kathelijne Deberdt',
+      email: 'kathelijne@equismile.demo',
+      githubLogin: 'kathelijne-deberdt',
       role: 'admin',
-      staffRole: 'VET' as const,
+      staffRole: 'OWNER' as const,
       colour: '#9b214d',
       phone: '+41799100001',
-      bio: 'Practice owner and lead equine dental vet. Full admin access.',
+      bio: 'Practice owner and lead equine dental vet. DVM, University of Ghent (2010). Full admin access.',
     },
     {
       userId: 'demo-user-senior-vet',
@@ -644,7 +644,7 @@ async function main() {
         totalHorses: r.horseCount,
         optimizationScore: r.score,
         notes: r.notes,
-        leadStaffId: 'demo-staff-admin',
+        leadStaffId: 'demo-staff-owner',
       },
     });
     console.log(`  Route ${r.id} — ${r.status} (${r.notes.substring(0, 50)})`);
@@ -789,7 +789,7 @@ async function main() {
       create: {
         id: `demo-assign-${String(i + 1).padStart(3, '0')}`,
         appointmentId: apptId,
-        staffId: i % 2 === 0 ? 'demo-staff-admin' : 'demo-staff-senior-vet',
+        staffId: i % 2 === 0 ? 'demo-staff-owner' : 'demo-staff-senior-vet',
         primary: true,
       },
     });
@@ -897,7 +897,7 @@ async function main() {
         create: {
           id: chartId,
           horseId: horse.id,
-          recordedById: randomPick(['demo-staff-admin', 'demo-staff-senior-vet', 'demo-staff-junior-vet']),
+          recordedById: randomPick(['demo-staff-owner', 'demo-staff-senior-vet', 'demo-staff-junior-vet']),
           recordedAt: recordDate,
           generalNotes: randomPick([
             'Full mouth examination performed. Light sedation administered.',
@@ -925,7 +925,7 @@ async function main() {
             category: randomPick([...findingCategories]),
             severity: randomPick([...severities]),
             description: randomPick(findingDescs),
-            createdById: randomPick(['demo-staff-admin', 'demo-staff-senior-vet', 'demo-staff-junior-vet']),
+            createdById: randomPick(['demo-staff-owner', 'demo-staff-senior-vet', 'demo-staff-junior-vet']),
           },
         });
         findingCount++;
@@ -941,7 +941,7 @@ async function main() {
         create: {
           id: rxId,
           horseId: horse.id,
-          prescribedById: randomPick(['demo-staff-admin', 'demo-staff-senior-vet']),
+          prescribedById: randomPick(['demo-staff-owner', 'demo-staff-senior-vet']),
           prescribedAt: daysAgo(30 + hi * 10),
           medicineName: randomPick([
             'Phenylbutazone (Bute)',
@@ -997,7 +997,7 @@ async function main() {
           'Multi-horse yard bumped priority for efficiency.',
           'Follow-up overdue — escalated.',
         ]),
-        performedBy: randomPick(['rachel-kemp', 'alex-moreau']),
+        performedBy: randomPick(['kathelijne-deberdt', 'alex-moreau']),
         createdAt: daysAgo(Math.floor(Math.random() * 90)),
       },
     });

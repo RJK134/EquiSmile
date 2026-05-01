@@ -120,10 +120,10 @@ describe('POST /api/demo/sign-in', () => {
 
     expect(upsertMock).toHaveBeenCalledOnce();
     const arg = upsertMock.mock.calls[0]![0];
-    // Default persona is Dr. Rachel Kemp (admin)
-    expect(arg.where.email).toBe('rachel@equismile.demo');
+    // Default persona is Dr. Kathelijne Deberdt (admin)
+    expect(arg.where.email).toBe('kathelijne@equismile.demo');
     expect(arg.create.role).toBe('admin');
-    expect(arg.create.githubLogin).toBe('rachel-kemp');
+    expect(arg.create.githubLogin).toBe('kathelijne-deberdt');
   });
 
   it('upserts the selected persona when a valid persona email is submitted', async () => {
@@ -145,6 +145,6 @@ describe('POST /api/demo/sign-in', () => {
 
     expect(upsertMock).toHaveBeenCalledOnce();
     const arg = upsertMock.mock.calls[0]![0];
-    expect(arg.where.email).toBe('rachel@equismile.demo');
+    expect(arg.where.email).toBe('kathelijne@equismile.demo');
   });
 });
