@@ -738,5 +738,38 @@
       "body": "EQUISMILE_LIVE_MAPS=true est défini, mais les variables d’environnement suivantes sont manquantes. Tant qu’elles ne sont pas renseignées, la démo utilisera le simulateur Maps et l’optimisation d’itinéraire en direct ne pourra pas être présentée.",
       "runbook": "Voir docs/DEMO_RUNBOOK.md §2 pour le modèle complet de .env.local de démo."
     }
+  },
+  "finance": {
+    "title": "Finance",
+    "subtitle": "Factures, paiements et rapprochement bancaire.",
+    "open": "Ouvert",
+    "overdue": "En retard",
+    "paid": "Payé",
+    "totalShown": "Affichés",
+    "ofTotal": "sur {count} au total",
+    "filterByStatus": "Statut",
+    "empty": "Aucune facture ne correspond à ce filtre.",
+    "columnInvoice": "Facture",
+    "columnIssued": "Émise",
+    "columnDue": "Échéance",
+    "columnTotal": "Total",
+    "columnStatus": "Statut",
+    "columnActions": "Actions",
+    "downloadQrBill": "PDF QR-facture",
+    "downloadMonthlyExport": "Télécharger le rapport {ym}",
+    "emailMonthlyExport": "Envoyer le rapport par email",
+    "importHint": "Besoin de rapprocher un relevé bancaire ?",
+    "goToImport": "Aller à l'import →",
+    "import": {
+      "title": "Import bancaire",
+      "subtitle": "Rapprochez les factures avec un fichier CAMT.054 ou un CSV.",
+      "formatLabel": "Format",
+      "fileLabel": "Fichier",
+      "importButton": "Importer",
+      "importing": "Import en cours…",
+      "importSuccess": "{entryCount} entrées importées ; {matchedCount} rapprochées automatiquement.",
+      "importFailure": "Échec de l'import :",
+      "csvHint": "Colonnes CSV : date, amount, currency, reference, description, counterparty."
+    }
   }
 }
