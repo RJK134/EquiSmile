@@ -738,5 +738,38 @@
       "body": "EQUISMILE_LIVE_MAPS=true is set, but the following environment variables are missing. Until they are populated the demo will fall back to the Maps simulator and the live-routing differentiator cannot be shown.",
       "runbook": "See docs/DEMO_RUNBOOK.md §2 for the full demo .env.local template."
     }
+  },
+  "finance": {
+    "title": "Finance",
+    "subtitle": "Invoices, payments and bank reconciliation.",
+    "open": "Open",
+    "overdue": "Overdue",
+    "paid": "Paid",
+    "totalShown": "Shown",
+    "ofTotal": "of {count} total",
+    "filterByStatus": "Status",
+    "empty": "No invoices match this filter.",
+    "columnInvoice": "Invoice",
+    "columnIssued": "Issued",
+    "columnDue": "Due",
+    "columnTotal": "Total",
+    "columnStatus": "Status",
+    "columnActions": "Actions",
+    "downloadQrBill": "QR-bill PDF",
+    "downloadMonthlyExport": "Download {ym} report",
+    "emailMonthlyExport": "Email this month's report",
+    "importHint": "Need to reconcile a bank statement?",
+    "goToImport": "Go to import →",
+    "import": {
+      "title": "Bank import",
+      "subtitle": "Reconcile invoices against a CAMT.054 file or CSV statement.",
+      "formatLabel": "Format",
+      "fileLabel": "File",
+      "importButton": "Import",
+      "importing": "Importing…",
+      "importSuccess": "Imported {entryCount} entries; {matchedCount} auto-matched.",
+      "importFailure": "Import failed:",
+      "csvHint": "CSV columns: date, amount, currency, reference, description, counterparty."
+    }
   }
 }
