@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Link } from '@/i18n/navigation';
+import { taskTypeLabel } from '@/lib/utils/task-type-label';
 
 interface TriageTask {
   id: string;
@@ -179,17 +180,6 @@ function TriagePageContent() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  };
-
-  const taskTypeLabel = (tt: string) => {
-    const map: Record<string, string> = {
-      URGENT_REVIEW: 'urgentReview',
-      ASK_FOR_POSTCODE: 'askPostcode',
-      ASK_HORSE_COUNT: 'askHorseCount',
-      CLARIFY_SYMPTOMS: 'clarifySymptoms',
-      MANUAL_CLASSIFICATION: 'manualClassification',
-    };
-    return map[tt] || tt;
   };
 
   // Apply filters
