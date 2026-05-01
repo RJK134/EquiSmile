@@ -969,6 +969,34 @@ async function main() {
   });
   console.log('  Appointment: demo-appt-completed (COMPLETED)');
 
+  // Visit outcome for the one completed appointment so the closed-loop
+  // narrative on /completed and /appointments/demo-appt-completed shows
+  // clinical notes, follow-up flag, next-due date, and invoice status.
+  const demoOutcomeNotes =
+    'Routine dental check — mild hooks on 107/207 rasped. Sedation: detomidine 5 mg IV. No further intervention required.';
+  const demoOutcomeCompletedAt = new Date('2026-04-10T10:30:00Z');
+  await prisma.visitOutcome.upsert({
+    where: { appointmentId: 'demo-appt-completed' },
+    update: {
+      completedAt: demoOutcomeCompletedAt,
+      notes: demoOutcomeNotes,
+      followUpRequired: false,
+      followUpDueDate: null,
+      nextDentalDueDate: new Date('2026-10-10T00:00:00Z'),
+      invoiceStatus: 'PAID',
+    },
+    create: {
+      id: 'demo-outcome-completed',
+      appointmentId: 'demo-appt-completed',
+      completedAt: demoOutcomeCompletedAt,
+      notes: demoOutcomeNotes,
+      followUpRequired: false,
+      nextDentalDueDate: new Date('2026-10-10T00:00:00Z'),
+      invoiceStatus: 'PAID',
+    },
+  });
+  console.log('  VisitOutcome: demo-outcome-completed (linked to demo-appt-completed)');
+
   await prisma.appointment.upsert({
     where: { id: 'demo-appt-cancelled' },
     update: {
@@ -1083,6 +1111,7 @@ async function main() {
   console.log('  Route Runs: 3 (1 DRAFT, 1 APPROVED, 1 COMPLETED)');
   console.log('  Appointments: 5 (CONFIRMED, PROPOSED, COMPLETED, CANCELLED, NO_SHOW)');
   console.log('  Triage Tasks: 5 (URGENT_REVIEW, CLARIFY, ASK_POSTCODE, ASK_HORSES, MANUAL)');
+  console.log('  Visit Outcomes: 1 (linked to demo-appt-completed)');
   console.log('\nDemo seeding complete.');
 }
 

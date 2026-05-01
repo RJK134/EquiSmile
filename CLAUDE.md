@@ -23,13 +23,18 @@ Primary repo: `RJK134/Equismile`
 - Deployment: Docker Compose for local and VPS-style deployment.
 - Internationalisation: next-intl with EN (default) and FR locales.
 
+- ## Memory Management
+
+When you discover something valuable for future sessions - architectural decisions, bug fixes, gotchas, environment quirks - immediately append it to .claude/memory.md
+Don't wait to be asked. Don't wait for session end.
+Keep entries short: date, what, why. Read this file at the start of every session.
+
 ## Preferred vendor decisions
 ### WhatsApp
 Use **Meta WhatsApp Cloud API first**.
 Reasons:
 - Lower ongoing cost than Twilio for this use case because Twilio adds a platform fee on top of Meta pricing.
 - Direct control and fewer moving parts.
-Use Twilio only as fallback if Meta setup creates unacceptable delivery delay.
 
 ### Mobile delivery
 Build a **responsive web app / PWA first**, not native iOS or Android apps.
