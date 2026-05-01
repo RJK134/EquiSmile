@@ -46,7 +46,7 @@ export interface IssueInvoiceInput {
 }
 
 export interface AddPaymentInput {
-  amount: number | string;
+  amount: number | string | Prisma.Decimal;
   paidAt: Date;
   method?: PaymentMethod;
   reference?: string | null;
