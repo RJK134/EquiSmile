@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
@@ -33,6 +33,7 @@ interface CustomerDetail {
 export default function CustomerDetailPage() {
   const t = useTranslations('customers');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const params = useParams();
   const id = params.id as string;
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
@@ -212,7 +213,7 @@ export default function CustomerDetailPage() {
                       <Link href={`/enquiries/${e.id}`} className="text-primary hover:underline">
                         {e.rawText.slice(0, 60)}{e.rawText.length > 60 ? '…' : ''}
                       </Link>
-                      <p className="text-xs text-muted">{new Date(e.receivedAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted">{format.dateTime(new Date(e.receivedAt), { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                     </div>
                     <div className="flex gap-2">
                       <StatusBadge type="channel" value={e.channel} />

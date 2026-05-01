@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -30,6 +30,7 @@ interface YardOption { id: string; yardName: string; }
 export default function HorsesPage() {
   const t = useTranslations('horses');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const [horses, setHorses] = useState<{ data: Horse[]; total: number; totalPages: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -117,7 +118,7 @@ export default function HorsesPage() {
                         <span className={`text-xs ${h.active ? 'text-green-600' : 'text-muted'}`}>{h.active ? t('active') : t('inactive')}</span>
                       </div>
                       {h.age && <p className="mt-1 text-xs text-muted">{h.age} yrs</p>}
-                      {h.dentalDueDate && <p className="text-xs text-muted">{t('dentalDue')}: {new Date(h.dentalDueDate).toLocaleDateString()}</p>}
+                      {h.dentalDueDate && <p className="text-xs text-muted">{t('dentalDue')}: {format.dateTime(new Date(h.dentalDueDate), { year: 'numeric', month: 'short', day: 'numeric' })}</p>}
                     </Card>
                   </Link>
                 ))}
@@ -143,7 +144,7 @@ export default function HorsesPage() {
                           <td className="px-4 py-3 text-muted">{h.age ?? '—'}</td>
                           <td className="px-4 py-3"><Link href={`/customers/${h.customer.id}`} className="text-primary hover:underline">{h.customer.fullName}</Link></td>
                           <td className="px-4 py-3 text-muted">{h.primaryYard?.yardName || '—'}</td>
-                          <td className="px-4 py-3 text-muted">{h.dentalDueDate ? new Date(h.dentalDueDate).toLocaleDateString() : '—'}</td>
+                          <td className="px-4 py-3 text-muted">{h.dentalDueDate ? format.dateTime(new Date(h.dentalDueDate), { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</td>
                           <td className="px-4 py-3"><span className={h.active ? 'text-green-600' : 'text-muted'}>{h.active ? '●' : '○'}</span></td>
                         </tr>
                       ))}

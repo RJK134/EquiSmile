@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -29,6 +29,7 @@ interface Enquiry {
 export default function EnquiriesPage() {
   const t = useTranslations('enquiries');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const [enquiries, setEnquiries] = useState<{ data: Enquiry[]; total: number; totalPages: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -91,7 +92,7 @@ export default function EnquiriesPage() {
                           <StatusBadge type="channel" value={e.channel} />
                         </div>
                       </div>
-                      <p className="mt-1 text-xs text-muted">{new Date(e.receivedAt).toLocaleDateString()}</p>
+                      <p className="mt-1 text-xs text-muted">{format.dateTime(new Date(e.receivedAt), { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                     </Card>
                   </Link>
                 ))}
@@ -120,7 +121,7 @@ export default function EnquiriesPage() {
                           <td className="px-4 py-3">{e.customer ? <Link href={`/customers/${e.customer.id}`} className="text-primary hover:underline">{e.customer.fullName}</Link> : '—'}</td>
                           <td className="px-4 py-3"><StatusBadge type="channel" value={e.channel} /></td>
                           <td className="px-4 py-3"><StatusBadge type="triage" value={e.triageStatus} /></td>
-                          <td className="px-4 py-3 text-muted">{new Date(e.receivedAt).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-muted">{format.dateTime(new Date(e.receivedAt), { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                         </tr>
                       ))}
                     </tbody>

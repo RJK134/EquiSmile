@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
@@ -45,6 +45,7 @@ export default function EnquiryDetailPage() {
   const tStatus = useTranslations('status');
   const tReq = useTranslations('requestTypes');
   const tMsg = useTranslations('messages');
+  const format = useFormatter();
   const params = useParams();
   const id = params.id as string;
   const [enquiry, setEnquiry] = useState<EnquiryDetail | null>(null);
@@ -138,7 +139,7 @@ export default function EnquiryDetailPage() {
             <Card>
               <h3 className="mb-3 text-sm font-medium text-muted">{t('detail.rawMessage')}</h3>
               <p className="whitespace-pre-wrap text-sm">{enquiry.rawText}</p>
-              <p className="mt-3 text-xs text-muted">{t('received')}: {new Date(enquiry.receivedAt).toLocaleString()}</p>
+              <p className="mt-3 text-xs text-muted">{t('received')}: {format.dateTime(new Date(enquiry.receivedAt), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </Card>
 
             {/* Customer and Yard info */}

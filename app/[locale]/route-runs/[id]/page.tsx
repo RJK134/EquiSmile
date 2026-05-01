@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect, use } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -62,6 +62,7 @@ export default function RouteRunDetailPage({ params }: { params: Promise<{ id: s
   const t = useTranslations('routeRuns.detail');
   const tr = useTranslations('routeRuns');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const [routeRun, setRouteRun] = useState<RouteRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -92,7 +93,7 @@ export default function RouteRunDetailPage({ params }: { params: Promise<{ id: s
 
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return format.dateTime(new Date(dateStr), { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDistance = (meters: number | null) => {
@@ -152,7 +153,7 @@ export default function RouteRunDetailPage({ params }: { params: Promise<{ id: s
 
           <PageHeader
             title={t('title')}
-            subtitle={new Date(routeRun.runDate).toLocaleDateString()}
+            subtitle={format.dateTime(new Date(routeRun.runDate), { year: 'numeric', month: 'short', day: 'numeric' })}
           />
 
           {/* Summary Card */}
@@ -161,7 +162,7 @@ export default function RouteRunDetailPage({ params }: { params: Promise<{ id: s
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               <div>
                 <span className="text-xs text-muted">{t('runDate')}</span>
-                <p className="font-medium">{new Date(routeRun.runDate).toLocaleDateString()}</p>
+                <p className="font-medium">{format.dateTime(new Date(routeRun.runDate), { year: 'numeric', month: 'short', day: 'numeric' })}</p>
               </div>
               <div>
                 <span className="text-xs text-muted">{t('startTime')}</span>

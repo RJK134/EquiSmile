@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -42,6 +42,7 @@ interface RouteRunSummary {
 export default function RouteRunsPage() {
   const t = useTranslations('routeRuns');
   const tc = useTranslations('common');
+  const format = useFormatter();
   const [routeRuns, setRouteRuns] = useState<RouteRunSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -88,7 +89,7 @@ export default function RouteRunsPage() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString();
+    return format.dateTime(new Date(dateStr), { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   const formatMinutes = (minutes: number | null) => {

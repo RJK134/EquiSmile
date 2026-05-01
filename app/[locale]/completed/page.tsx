@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -39,6 +39,7 @@ interface CompletedVisit {
 
 export default function CompletedPage() {
   const t = useTranslations('completed');
+  const format = useFormatter();
   const [visits, setVisits] = useState<CompletedVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'followUp' | 'overdue'>('all');
@@ -178,7 +179,7 @@ export default function CompletedPage() {
                       <tr key={visit.id} className="border-b border-border/50">
                         <td className="py-2 pr-3">
                           <Link href={`/appointments/${visit.id}`} className="text-primary hover:underline">
-                            {new Date(visit.appointmentStart).toLocaleDateString()}
+                            {format.dateTime(new Date(visit.appointmentStart), { year: 'numeric', month: 'short', day: 'numeric' })}
                           </Link>
                         </td>
                         <td className="py-2 pr-3">
@@ -211,7 +212,7 @@ export default function CompletedPage() {
                                 : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                             }`}>
                               {visit.visitOutcome.followUpDueDate
-                                ? new Date(visit.visitOutcome.followUpDueDate).toLocaleDateString()
+                                ? format.dateTime(new Date(visit.visitOutcome.followUpDueDate), { year: 'numeric', month: 'short', day: 'numeric' })
                                 : t('required')}
                             </span>
                           ) : (
@@ -238,7 +239,7 @@ export default function CompletedPage() {
                         <div>
                           <p className="font-medium">{visit.visitRequest.customer.fullName}</p>
                           <p className="text-xs text-muted">
-                            {visit.visitRequest.yard?.yardName || ''} &middot; {new Date(visit.appointmentStart).toLocaleDateString()}
+                            {visit.visitRequest.yard?.yardName || ''} &middot; {format.dateTime(new Date(visit.appointmentStart), { year: 'numeric', month: 'short', day: 'numeric' })}
                           </p>
                         </div>
                         {visit.visitOutcome?.followUpRequired && (
