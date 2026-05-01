@@ -113,15 +113,38 @@ describe('POST /api/demo/sign-in', () => {
     expect(setCookie).toContain('Path=/');
   });
 
-  it('upserts the demo user with admin role', async () => {
+  it('upserts the default admin persona when no persona field is submitted', async () => {
     process.env.DEMO_MODE = 'true';
     const { POST } = await import('@/app/api/demo/sign-in/route');
     await POST(buildRequest([['locale', 'en']]));
 
     expect(upsertMock).toHaveBeenCalledOnce();
     const arg = upsertMock.mock.calls[0]![0];
-    expect(arg.where.email).toBe('demo-vet@equismile.local');
+    // Default persona is Dr. Rachel Kemp (admin)
+    expect(arg.where.email).toBe('rachel@equismile.demo');
     expect(arg.create.role).toBe('admin');
-    expect(arg.create.githubLogin).toBe('demo-vet');
+    expect(arg.create.githubLogin).toBe('rachel-kemp');
+  });
+
+  it('upserts the selected persona when a valid persona email is submitted', async () => {
+    process.env.DEMO_MODE = 'true';
+    const { POST } = await import('@/app/api/demo/sign-in/route');
+    await POST(buildRequest([['locale', 'en'], ['persona', 'alex@equismile.demo']]));
+
+    expect(upsertMock).toHaveBeenCalledOnce();
+    const arg = upsertMock.mock.calls[0]![0];
+    expect(arg.where.email).toBe('alex@equismile.demo');
+    expect(arg.create.role).toBe('vet');
+    expect(arg.create.githubLogin).toBe('alex-moreau');
+  });
+
+  it('falls back to admin persona for an unknown persona email', async () => {
+    process.env.DEMO_MODE = 'true';
+    const { POST } = await import('@/app/api/demo/sign-in/route');
+    await POST(buildRequest([['locale', 'en'], ['persona', 'attacker@evil.com']]));
+
+    expect(upsertMock).toHaveBeenCalledOnce();
+    const arg = upsertMock.mock.calls[0]![0];
+    expect(arg.where.email).toBe('rachel@equismile.demo');
   });
 });

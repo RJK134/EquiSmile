@@ -1,13 +1,12 @@
 /**
  * POST /api/demo/sign-in — one-click sign-in for demo mode.
  *
- * The app is built for production with GitHub OAuth or email magic-
- * link auth. Neither is configured in a fresh demo environment, so
- * the login page renders a card with no buttons — there is no way
- * to get past the auth wall to see the seeded data.
+ * Supports persona selection via the `persona` form field. When a
+ * persona email is submitted, signs in as that seeded User. Falls
+ * back to the default admin persona.
  *
- * This endpoint exists ONLY when DEMO_MODE=true. It upserts a
- * single "Demo Vet" User row, mints a Prisma-adapter Session, sets
+ * This endpoint exists ONLY when DEMO_MODE=true. It upserts the
+ * selected persona User row, mints a Prisma-adapter Session, sets
  * the Auth.js session cookie, and returns 200 OK + JSON with the
  * post-sign-in `redirectTo` for the client to navigate to.
  *
@@ -25,16 +24,19 @@ import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { routing } from '@/i18n/routing';
 
-const DEMO_USER_EMAIL = 'demo-vet@equismile.local';
-const DEMO_USER_NAME = 'Demo Vet';
-const DEMO_USER_LOGIN = 'demo-vet';
+const DEFAULT_EMAIL = 'rachel@equismile.demo';
+const DEFAULT_NAME = 'Dr. Rachel Kemp';
+const DEFAULT_LOGIN = 'rachel-kemp';
 const SESSION_DAYS = 30;
 
-/**
- * Allow-list the form-supplied locale against the configured set so
- * a crafted POST cannot redirect to an arbitrary path. Falls back to
- * the project default when the value is missing or unknown.
- */
+const DEMO_PERSONAS: Record<string, { name: string; login: string; role: string }> = {
+  'rachel@equismile.demo': { name: 'Dr. Rachel Kemp', login: 'rachel-kemp', role: 'admin' },
+  'alex@equismile.demo': { name: 'Dr. Alex Moreau', login: 'alex-moreau', role: 'vet' },
+  'sophie@equismile.demo': { name: 'Dr. Sophie Laurent', login: 'sophie-laurent', role: 'vet' },
+  'lea@equismile.demo': { name: 'Léa Bertrand', login: 'lea-bertrand', role: 'nurse' },
+  'marc@equismile.demo': { name: 'Marc Dubois', login: 'marc-dubois', role: 'readonly' },
+};
+
 function resolveLocale(submitted: string | null): string {
   const known: readonly string[] = routing.locales;
   if (submitted && known.includes(submitted)) return submitted;
@@ -49,32 +51,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolve the post-sign-in locale from the form payload so French
-  // users land on /fr/dashboard, English on /en/dashboard. Whitelisted
-  // against `routing.locales` so a crafted body cannot redirect off-
-  // origin.
   const formData = await request.formData().catch(() => null);
   const submittedLocale = formData?.get('locale');
   const locale = resolveLocale(typeof submittedLocale === 'string' ? submittedLocale : null);
 
-  // 1. Find or create the demo operator. Granted `admin` so the
-  //    persona test can exercise every privileged route. The
-  //    githubLogin makes the AuthenticatedSubject.actorLabel
-  //    consistent in audit rows.
+  const submittedPersona = formData?.get('persona');
+  const personaEmail =
+    typeof submittedPersona === 'string' && Object.hasOwn(DEMO_PERSONAS, submittedPersona)
+      ? submittedPersona
+      : DEFAULT_EMAIL;
+  const persona = DEMO_PERSONAS[personaEmail] ?? { name: DEFAULT_NAME, login: DEFAULT_LOGIN, role: 'admin' };
+
   const user = await prisma.user.upsert({
-    where: { email: DEMO_USER_EMAIL },
+    where: { email: personaEmail },
     create: {
-      email: DEMO_USER_EMAIL,
-      name: DEMO_USER_NAME,
-      githubLogin: DEMO_USER_LOGIN,
-      role: 'admin',
+      email: personaEmail,
+      name: persona.name,
+      githubLogin: persona.login,
+      role: persona.role,
     },
     update: {},
   });
 
-  // 2. Mint a Prisma-adapter session row. Auth.js reads
-  //    `Session.sessionToken` to resolve the current user — we just
-  //    have to create the row and set the matching cookie.
   const sessionToken = randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await prisma.session.create({

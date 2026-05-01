@@ -81,7 +81,6 @@ function TriagePageContent() {
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideError, setOverrideError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
     fetch('/api/triage-tasks?pageSize=100')
