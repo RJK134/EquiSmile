@@ -106,7 +106,7 @@ never hit an empty list. All fixtures are in `prisma/seed-demo.ts`.
    surfaces it the moment a customer reports a horse not eating.*"
 
 2. **Enquiries** (`/en/enquiries`).
-   Open the Mistral case (Sophie Dupuis, FR — `demo-enquiry-03`).
+   Open the Mistral case (Pierre Rochat, FR — `demo-enquiry-03`).
    "*WhatsApp came in in French at 6 a.m. We auto-translated, parsed
    the urgency cue, and routed it straight to triage.*"
 
@@ -125,9 +125,9 @@ never hit an empty list. All fixtures are in `prisma/seed-demo.ts`.
    to confirm.
 
 6. **Route-run review** (`/en/route-runs`).
-   Open the pre-seeded `APPROVED` Villeneuve→Aigle run
-   (`demo-route-approved`). Show the map (`RouteMap` component),
-   stop sequence, total distance.
+   Open the pre-seeded `APPROVED` Écurie du Lac (Villeneuve) → Haras
+   de l'Aigle (Aigle) run (`demo-route-approved`). Show the map
+   (`RouteMap` component), stop sequence, total distance.
 
 7. **Appointments** (`/en/appointments`).
    `demo-appt-confirmed` — 6 May 2026 08:30, confirmation channel
