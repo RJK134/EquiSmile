@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: "postgresql://test:test@localhost:5432/test"
+      NEXT_PUBLIC_BUILD_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,7 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build --build-arg DATABASE_URL="postgresql://test:test@localhost:5432/test" -t equismile:ci .
+        run: |
+          docker build \
+            --build-arg DATABASE_URL="postgresql://test:test@localhost:5432/test" \
+            --build-arg NEXT_PUBLIC_BUILD_SHA="${{ github.sha }}" \
+            -t equismile:ci .
       - name: Verify container starts
         run: |
           docker run -d --name equismile-test \

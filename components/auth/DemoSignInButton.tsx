@@ -43,7 +43,17 @@ export function DemoSignInButton({ locale, callbackUrl }: Props) {
         credentials: 'same-origin',
       });
       if (res.ok) {
-        router.push(callbackUrl ?? `/${locale}/dashboard`);
+        // The endpoint returns { ok: true, redirectTo } since the
+        // 303→200+JSON contract change. Fall back to the prop-supplied
+        // callback or the locale dashboard if the body is malformed.
+        const data = (await res.json().catch(() => ({}))) as {
+          redirectTo?: unknown;
+        };
+        const redirectTo =
+          typeof data.redirectTo === 'string' && data.redirectTo.startsWith('/')
+            ? data.redirectTo
+            : undefined;
+        router.push(redirectTo ?? callbackUrl ?? `/${locale}/dashboard`);
       } else {
         const data = await res.json().catch(() => ({})) as { error?: string };
         setError(data.error ?? 'Sign-in failed. Please try again.');

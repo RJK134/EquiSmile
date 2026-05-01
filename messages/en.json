@@ -19,7 +19,8 @@
     "emailRequired": "Please enter a valid email address.",
     "linkSendFailed": "We couldn't send the sign-in link. Please try again.",
     "privacyLink": "Privacy",
-    "termsLink": "Terms"
+    "termsLink": "Terms",
+    "buildLabel": "build {sha}"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -290,6 +291,7 @@
     "addNote": "Add Note",
     "reasonRequired": "Reason is required",
     "overrideReason": "Reason for override",
+    "overrideError": "Override failed. Please try again.",
     "auditHistory": "Audit History",
     "noAuditHistory": "No override history.",
     "taskCount": "{count} tasks"
@@ -728,6 +730,13 @@
         "heading": "7. Contact",
         "body": "Operational and access queries are handled by the practice via the usual internal channels."
       }
+    }
+  },
+  "demo": {
+    "mapsBanner": {
+      "title": "Live Google Maps requested but not configured",
+      "body": "EQUISMILE_LIVE_MAPS=true is set, but the following environment variables are missing. Until they are populated the demo will fall back to the Maps simulator and the live-routing differentiator cannot be shown.",
+      "runbook": "See docs/DEMO_RUNBOOK.md §2 for the full demo .env.local template."
     }
   }
 }

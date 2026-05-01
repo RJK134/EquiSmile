@@ -19,7 +19,8 @@
     "emailRequired": "Veuillez saisir une adresse e-mail valide.",
     "linkSendFailed": "Impossible d'envoyer le lien de connexion. Veuillez réessayer.",
     "privacyLink": "Confidentialité",
-    "termsLink": "Conditions"
+    "termsLink": "Conditions",
+    "buildLabel": "build {sha}"
   },
   "staff": {
     "title": "Personnel",
@@ -79,7 +80,7 @@
     "title": "Tableau de bord",
     "subtitle": "Aperçu des opérations",
     "welcome": "Bienvenue sur EquiSmile",
-    "description": "Votre plateforme d\u2019opérations dentaires équines. Gérez les demandes, planifiez les itinéraires et suivez les rendez-vous — tout en un seul endroit.",
+    "description": "Votre plateforme d’opérations dentaires équines. Gérez les demandes, planifiez les itinéraires et suivez les rendez-vous — tout en un seul endroit.",
     "quickStats": "Statistiques rapides",
     "recentActivity": "Activité récente",
     "noActivity": "Aucune activité récente à afficher.",
@@ -290,6 +291,7 @@
     "addNote": "Ajouter une note",
     "reasonRequired": "La raison est obligatoire",
     "overrideReason": "Raison du remplacement",
+    "overrideError": "Échec du remplacement. Veuillez réessayer.",
     "auditHistory": "Historique d'audit",
     "noAuditHistory": "Aucun historique de remplacement.",
     "taskCount": "{count} tâches"
@@ -728,6 +730,13 @@
         "heading": "7. Contact",
         "body": "Les questions opérationnelles et d'accès sont traitées par le cabinet via les canaux internes habituels."
       }
+    }
+  },
+  "demo": {
+    "mapsBanner": {
+      "title": "Google Maps en direct demandé mais non configuré",
+      "body": "EQUISMILE_LIVE_MAPS=true est défini, mais les variables d’environnement suivantes sont manquantes. Tant qu’elles ne sont pas renseignées, la démo utilisera le simulateur Maps et l’optimisation d’itinéraire en direct ne pourra pas être présentée.",
+      "runbook": "Voir docs/DEMO_RUNBOOK.md §2 pour le modèle complet de .env.local de démo."
     }
   }
 }

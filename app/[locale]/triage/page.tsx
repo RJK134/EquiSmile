@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Link } from '@/i18n/navigation';
+import { taskTypeLabel } from '@/lib/utils/triage-task-type';
 
 interface TriageTask {
   id: string;
@@ -76,10 +77,10 @@ function TriagePageContent() {
     (searchParams.get('urgency') as FilterUrgency) || 'ALL'
   );
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('ALL');
-  const [overrideModal, setOverrideModal] = useState<{ taskId: string; vrId: string; action: string } | null>(null);
+  const [overrideModal, setOverrideModal] = useState<{ taskId: string; vrId: string } | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
+  const [overrideError, setOverrideError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
     fetch('/api/triage-tasks?pageSize=100')
@@ -93,7 +94,7 @@ function TriagePageContent() {
     setRefreshKey(k => k + 1);
   }, []);
 
-  const handleAction = async (taskId: string, vrId: string, action: string) => {
+  const handleAction = async (taskId: string, vrId: string, action: string, { skipRefresh = false } = {}) => {
     setActionLoading(true);
     try {
       if (action === 'done') {
@@ -138,28 +139,44 @@ function TriagePageContent() {
       console.error('Action failed:', err);
     }
     setActionLoading(false);
-    refresh();
+    if (!skipRefresh) refresh();
   };
 
   const handleOverrideSubmit = async () => {
     if (!overrideModal || !overrideReason.trim()) return;
     setActionLoading(true);
+    setOverrideError(null);
     try {
-      await fetch(`/api/triage-ops/override`, {
+      const res = await fetch(`/api/triage-ops/override`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: overrideModal.action,
+          action: 'forceToPool',
           visitRequestId: overrideModal.vrId,
           reason: overrideReason,
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setOverrideError(data.error ?? t('overrideError'));
+        setActionLoading(false);
+        return;
+      }
+      await fetch(`/api/triage-tasks/${overrideModal.taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'DONE' }),
+      });
     } catch (err) {
       console.error('Override failed:', err);
+      setOverrideError(t('overrideError'));
+      setActionLoading(false);
+      return;
     }
     setActionLoading(false);
     setOverrideModal(null);
     setOverrideReason('');
+    setOverrideError(null);
     refresh();
   };
 
@@ -167,7 +184,7 @@ function TriagePageContent() {
     setActionLoading(true);
     const selectedTasks = tasks.filter(t => selected.has(t.id));
     for (const task of selectedTasks) {
-      await handleAction(task.id, task.visitRequest.id, action);
+      await handleAction(task.id, task.visitRequest.id, action, { skipRefresh: true });
     }
     setActionLoading(false);
     refresh();
@@ -181,16 +198,6 @@ function TriagePageContent() {
     });
   };
 
-  const taskTypeLabel = (tt: string) => {
-    const map: Record<string, string> = {
-      URGENT_REVIEW: 'urgentReview',
-      ASK_FOR_POSTCODE: 'askPostcode',
-      ASK_HORSE_COUNT: 'askHorseCount',
-      CLARIFY_SYMPTOMS: 'clarifySymptoms',
-      MANUAL_CLASSIFICATION: 'manualClassification',
-    };
-    return map[tt] || tt;
-  };
 
   // Apply filters
   let filtered = [...tasks];
@@ -391,7 +398,7 @@ function TriagePageContent() {
                         <Button size="sm" variant="secondary" onClick={() => handleAction(task.id, task.visitRequest.id, 'escalate')} disabled={actionLoading}>
                           {t('escalate')}
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={() => setOverrideModal({ taskId: task.id, vrId: task.visitRequest.id, action: 'override' })} disabled={actionLoading}>
+                        <Button size="sm" variant="secondary" onClick={() => setOverrideModal({ taskId: task.id, vrId: task.visitRequest.id })} disabled={actionLoading}>
                           {t('override')}
                         </Button>
                         <Button size="sm" onClick={() => handleAction(task.id, task.visitRequest.id, 'done')} disabled={actionLoading}>
@@ -410,6 +417,11 @@ function TriagePageContent() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <Card className="w-full max-w-md">
                 <h3 className="mb-3 text-sm font-semibold">{t('override')}</h3>
+                {overrideError && (
+                  <div role="alert" className="mb-3 rounded-md border border-danger/30 bg-red-50 p-2 text-xs text-danger">
+                    {overrideError}
+                  </div>
+                )}
                 <textarea
                   className="w-full rounded-md border border-border bg-background p-2 text-sm"
                   rows={3}
@@ -418,7 +430,7 @@ function TriagePageContent() {
                   onChange={(e) => setOverrideReason(e.target.value)}
                 />
                 <div className="mt-3 flex justify-end gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => { setOverrideModal(null); setOverrideReason(''); }}>
+                  <Button size="sm" variant="ghost" onClick={() => { setOverrideModal(null); setOverrideReason(''); setOverrideError(null); }}>
                     {tc('cancel')}
                   </Button>
                   <Button size="sm" onClick={handleOverrideSubmit} disabled={!overrideReason.trim() || actionLoading}>

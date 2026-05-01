@@ -3,9 +3,18 @@
  *
  * Supports persona selection via the `persona` form field. When a
  * persona email is submitted, signs in as that seeded User. Falls
- * back to the default "Demo Vet" admin persona.
+ * back to the default admin persona.
  *
- * Hard-blocked outside DEMO_MODE so this can never become a real
+ * This endpoint exists ONLY when DEMO_MODE=true. It upserts the
+ * selected persona User row, mints a Prisma-adapter Session, sets
+ * the Auth.js session cookie, and returns 200 OK + JSON with the
+ * post-sign-in `redirectTo` for the client to navigate to.
+ *
+ * Returns 200 + JSON instead of a 303 redirect so automation
+ * tooling that misclassifies 3xx responses does not create a false
+ * "sign-in failed" signal.
+ *
+ * Hard-blocked outside demo mode so this can never become a real
  * sign-in bypass on a live deployment.
  */
 
@@ -74,7 +83,20 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const response = NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url), 303);
+  // 3. Set the Auth.js session cookie and return 200 + JSON. Cookie
+  //    name matches what auth.ts configures for non-production:
+  //    `authjs.session-token`. In demo mode IS_PRODUCTION is forced
+  //    false (see auth.ts), so the unprefixed name is correct. The
+  //    client reads `redirectTo` and calls router.push on it.
+  const response = NextResponse.json(
+    { ok: true, redirectTo: `/${locale}/dashboard` },
+    {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, private',
+      },
+    },
+  );
   response.cookies.set('authjs.session-token', sessionToken, {
     expires,
     httpOnly: true,
