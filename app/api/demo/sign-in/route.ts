@@ -8,7 +8,13 @@
  *
  * This endpoint exists ONLY when DEMO_MODE=true. It upserts a
  * single "Demo Vet" User row, mints a Prisma-adapter Session, sets
- * the Auth.js session cookie, and redirects to the dashboard.
+ * the Auth.js session cookie, and returns 200 OK + JSON with the
+ * post-sign-in `redirectTo` for the client to navigate to.
+ *
+ * Returns 200 + JSON instead of a 303 redirect so browser-automation
+ * tools that misreport 3xx responses (the Perplexity tool reported
+ * the 303 as 503 in round-1 and round-2 UAT) cannot cause a
+ * false-alarm "sign-in failed" perception.
  *
  * Hard-blocked outside demo mode so this can never become a real
  * sign-in bypass on a live deployment.
@@ -80,11 +86,15 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // 3. Set the Auth.js session cookie. Cookie name matches what
-  //    auth.ts configures for non-production: `authjs.session-token`.
-  //    In demo mode IS_PRODUCTION is forced false (see auth.ts), so
-  //    the unprefixed name is correct.
-  const response = NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url), 303);
+  // 3. Set the Auth.js session cookie and return 200 + JSON. Cookie
+  //    name matches what auth.ts configures for non-production:
+  //    `authjs.session-token`. In demo mode IS_PRODUCTION is forced
+  //    false (see auth.ts), so the unprefixed name is correct. The
+  //    client reads `redirectTo` and calls router.push on it.
+  const response = NextResponse.json(
+    { ok: true, redirectTo: `/${locale}/dashboard` },
+    { status: 200 },
+  );
   response.cookies.set('authjs.session-token', sessionToken, {
     expires,
     httpOnly: true,
