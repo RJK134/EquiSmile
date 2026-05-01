@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Link } from '@/i18n/navigation';
 import { SkipToContent } from '@/components/ui/SkipToContent';
+import { taskTypeLabel } from '@/lib/utils/triage-task-type';
 
 interface DashboardAppointment {
   id: string;
@@ -79,9 +80,11 @@ export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const ta = useTranslations('appointments.dashboard');
+  const tTriage = useTranslations('triage');
   const format = useFormatter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -233,7 +236,7 @@ export default function DashboardPage() {
                       {data.openTriageTasks.slice(0, 5).map((task) => (
                         <div key={task.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
                           <span>{task.visitRequest.customer?.fullName || '\u2014'}</span>
-                          <span className="text-xs text-muted">{task.taskType}</span>
+                          <span className="text-xs text-muted">{tTriage(taskTypeLabel(task.taskType))}</span>
                         </div>
                       ))}
                     </div>
