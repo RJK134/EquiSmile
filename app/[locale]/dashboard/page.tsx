@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Link } from '@/i18n/navigation';
 import { SkipToContent } from '@/components/ui/SkipToContent';
+import { taskTypeLabel } from '@/lib/utils/triage-task-type';
 
 interface DashboardAppointment {
   id: string;
@@ -84,16 +85,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const taskTypeLabel = (taskType: string): string => {
-    const map: Record<string, string> = {
-      URGENT_REVIEW: 'urgentReview',
-      ASK_FOR_POSTCODE: 'askPostcode',
-      ASK_HORSE_COUNT: 'askHorseCount',
-      CLARIFY_SYMPTOMS: 'clarifySymptoms',
-      MANUAL_CLASSIFICATION: 'manualClassification',
-    };
-    return map[taskType] ?? taskType;
-  };
 
   useEffect(() => {
     fetch('/api/dashboard')
