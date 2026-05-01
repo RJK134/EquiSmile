@@ -14,13 +14,27 @@
   --color-muted: #6b7280;
   --color-surface: #f9fafb;
   --color-border: #e5e7eb;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  /* Body font — bound at runtime to Plus Jakarta Sans via next/font
+     (placeholder for General Sans; swap to a next/font/local block
+     once Fontshare .woff2 assets are dropped into public/fonts/).
+     The system stack is the offline fallback. */
+  --font-sans: var(--font-sans-runtime, "Inter", system-ui, -apple-system, sans-serif);
+  /* Display font — bound at runtime to Instrument Serif via next/font.
+     Used for PageHeader titles and hero copy. */
+  --font-display: var(--font-display-runtime, "Georgia", "Times New Roman", serif);
 }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+/* Display font for hero / page titles. Components opt in via the
+   .font-display utility or the equivalent Tailwind arbitrary value. */
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
 }
 
 /* Visible focus indicators for keyboard navigation */
