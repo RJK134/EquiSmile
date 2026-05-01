@@ -19,7 +19,8 @@
     "emailRequired": "Veuillez saisir une adresse e-mail valide.",
     "linkSendFailed": "Impossible d'envoyer le lien de connexion. Veuillez réessayer.",
     "privacyLink": "Confidentialité",
-    "termsLink": "Conditions"
+    "termsLink": "Conditions",
+    "buildLabel": "build {sha}"
   },
   "staff": {
     "title": "Personnel",
@@ -79,7 +80,7 @@
     "title": "Tableau de bord",
     "subtitle": "Aperçu des opérations",
     "welcome": "Bienvenue sur EquiSmile",
-    "description": "Votre plateforme d\u2019opérations dentaires équines. Gérez les demandes, planifiez les itinéraires et suivez les rendez-vous — tout en un seul endroit.",
+    "description": "Votre plateforme d’opérations dentaires équines. Gérez les demandes, planifiez les itinéraires et suivez les rendez-vous — tout en un seul endroit.",
     "quickStats": "Statistiques rapides",
     "recentActivity": "Activité récente",
     "noActivity": "Aucune activité récente à afficher.",

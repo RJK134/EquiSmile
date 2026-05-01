@@ -67,14 +67,23 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
           githubEnabled={providers.github}
           emailEnabled={providers.email}
         />
-        <footer className="mt-6 flex justify-center gap-4 border-t border-gray-200 pt-4 text-xs text-gray-500">
-          <Link href={`/${locale}/privacy`} className="hover:underline">
-            {t('privacyLink')}
-          </Link>
-          <span aria-hidden="true">·</span>
-          <Link href={`/${locale}/terms`} className="hover:underline">
-            {t('termsLink')}
-          </Link>
+        <footer className="mt-6 flex flex-col items-center gap-2 border-t border-gray-200 pt-4 text-xs text-gray-500">
+          <div className="flex justify-center gap-4">
+            <Link href={`/${locale}/privacy`} className="hover:underline">
+              {t('privacyLink')}
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link href={`/${locale}/terms`} className="hover:underline">
+              {t('termsLink')}
+            </Link>
+          </div>
+          {demoMode && (
+            <p className="text-[10px] font-mono text-gray-400">
+              {t('buildLabel', {
+                sha: (process.env.NEXT_PUBLIC_BUILD_SHA ?? 'dev').slice(0, 7),
+              })}
+            </p>
+          )}
         </footer>
       </div>
     </main>
