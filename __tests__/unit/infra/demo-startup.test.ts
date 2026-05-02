@@ -196,6 +196,13 @@ describe('scripts/vercel-build.sh', () => {
     expect(content).toContain('"preview"');
   });
 
+  it('requires VERCEL_PREVIEW_MIGRATE=true before running migrate', () => {
+    // Safety guard: migrations must only run when explicitly opted in,
+    // preventing accidental migration against an inherited production DB.
+    expect(content).toContain('VERCEL_PREVIEW_MIGRATE');
+    expect(content).toContain('"true"');
+  });
+
   it('runs prisma migrate deploy in preview without error suppression', () => {
     expect(content).toContain('npx prisma migrate deploy');
     // Must not wrap migration in "if ! ...; then continue" — that would
@@ -222,8 +229,11 @@ describe('scripts/vercel-build.sh', () => {
     expect(content).not.toContain('Preview will render');
   });
 
-  it('warns about production database risk', () => {
-    expect(content.toLowerCase()).toContain('production database');
+  it('warns about production database risk when VERCEL_PREVIEW_MIGRATE is unset', () => {
+    // Script must log a clear message when the opt-in flag is absent,
+    // explaining why migrations are skipped and what to do.
+    expect(content).toContain('production database');
+    expect(content).toContain('VERCEL_PREVIEW_MIGRATE');
   });
 
   it('skips bootstrap when VERCEL_ENV is not preview', () => {
