@@ -80,27 +80,45 @@ Group D — **demo / preview overrides**:
 
 ## 3. Build pipeline
 
-The build runs in this order on Vercel:
+`vercel.json` calls `bash scripts/vercel-build.sh` for every build.
+The script branches on `VERCEL_ENV`:
 
 ```
 1. install:   npm install --no-audit --no-fund
                 └── postinstall: prisma generate
-2. build:     prisma generate && next build
-                ↑ redundant prisma generate is idempotent and ~80ms
-                ↑ uses DATABASE_URL only for the schema; no DB hit
+2. build:     bash scripts/vercel-build.sh
+                ├── prisma generate   (always — idempotent guard)
+                ├── if VERCEL_ENV=preview:
+                │     prisma migrate deploy
+                │     if DEMO_MODE=true: npx prisma db seed
+                └── next build
 3. deploy:    Vercel uploads .next + serverless functions
 ```
 
-**Why `prisma generate` runs twice.** The `postinstall` hook covers
-Vercel's default install path; the explicit `buildCommand` covers
-the case where an operator overrides `installCommand` in the
-dashboard. Running `prisma generate` twice is cheap (~80ms) and
-prevents the "Prisma Client did not initialize yet" runtime error
-that bites when the client folder is missing.
+### Why `prisma generate` runs twice
 
-**The `output: 'standalone'` setting in `next.config.ts` is
-ignored by Vercel** (used only by Docker). Don't remove it — the
-Docker build relies on it.
+The `postinstall` hook covers Vercel's default install path; the
+build script covers the case where an operator overrides
+`installCommand` in the dashboard. Running `prisma generate` twice
+is cheap (~80ms) and prevents the "Prisma Client did not initialize
+yet" runtime error that bites when the client folder is missing.
+
+### Why preview deploys auto-migrate + auto-seed
+
+So a reviewer can click the PR's Vercel comment link and immediately
+interact with seeded demo data — no GitHub-OAuth flow, no manual
+`prisma migrate deploy` from a developer laptop. **Production deploys
+deliberately skip this**: operators run migrations from CI before
+promotion (see §4).
+
+The seed is keyed on stable IDs (`upsert`) so re-running on every
+preview deploy is safe — existing rows stay; only missing ones get
+created.
+
+### `output: 'standalone'`
+
+Ignored by Vercel (used only by Docker). Don't remove it from
+`next.config.ts` — the Docker build relies on it.
 
 ## 4. Database migrations
 
@@ -129,12 +147,72 @@ served at `https://equismile-git-<branch>-<team>.vercel.app`.
 Each preview is fully isolated (separate sandbox, separate env),
 but **shares the production `DATABASE_URL` unless you override
 it per-environment**. For destructive testing use a Neon preview
-branch DB.
+branch DB (see §5.1).
 
 The `vercel-for-github` integration comments preview URLs onto each
 PR (visible as the **`Vercel Preview Comments`** check the repo
 already shows). Cancellation behaviour is on by default — a new push
 to the same branch cancels the in-flight build.
+
+### 5.1 Recommended Neon Postgres setup (one-time)
+
+[Neon](https://neon.tech) offers per-branch DBs that pair naturally
+with Vercel previews. Result: every PR gets its own isolated DB,
+auto-created, auto-deleted on PR close.
+
+1. **Vercel Marketplace → Neon** → install integration.
+2. During install, link the EquiSmile project. Neon writes
+   `DATABASE_URL` (production) and a per-branch override
+   (preview) to your Vercel env vars automatically.
+3. Untick the "Production" checkbox on the Neon-managed
+   `DATABASE_URL` if you already have a production Postgres
+   elsewhere — keep it ticked only for Preview.
+
+Per-preview behaviour: when a PR opens, Neon creates a branch DB
+seeded from the latest production schema. The Vercel preview
+deploy hits that branch. When the PR closes, Neon deletes the
+branch DB.
+
+### 5.2 Reviewing a PR on Vercel — the operator walkthrough
+
+Once Neon is wired up and `DEMO_MODE=true` is set on the Preview
+environment:
+
+1. Open the PR on GitHub.
+2. Wait for the **Vercel Preview Comments** check to go green
+   (~2 min after push). The bot adds a comment with the preview
+   URL: `https://equismile-git-<branch>-<your-team>.vercel.app`.
+3. Click the URL. You'll land on `/en/login`.
+4. The login page shows the persona-picker because `DEMO_MODE=true`.
+   Click **Continue as Demo Vet** (Dr. Kathelijne Deberdt) to enter
+   as the practice owner, or expand the picker to sign in as Alex
+   (senior vet), Sophie (junior vet), Léa (nurse), or Marc
+   (read-only receptionist).
+5. The dashboard renders against the seed cohort (15 customers, 8
+   yards, 25 horses, 20 invoices across PAID / PARTIAL / OVERDUE
+   / OPEN). Every UI surface — triage, planning, route runs,
+   appointments, finance — has demo data to interact with.
+6. Build SHA is shown in the login footer (sourced from
+   `VERCEL_GIT_COMMIT_SHA`) so you can quote the exact commit
+   under review when filing feedback.
+
+If the preview URL responds with a 5xx instead of the login card,
+check the Vercel deploy log for the `[vercel-build]` script output
+— it logs every migrate/seed step. Most common causes:
+
+- `DATABASE_URL` unset on Preview → the script logs a warning and
+  skips DB bootstrap. Add the var (or install the Neon integration)
+  and redeploy.
+- Migration failure (e.g. branch DB stale) → re-deploy from the
+  Vercel dashboard; the script's `prisma migrate deploy` is
+  idempotent.
+
+### 5.3 `.env.preview.example`
+
+The repo ships a [`.env.preview.example`](../.env.preview.example)
+template with the minimum vars needed for an interactive preview.
+**Copy each var into the Vercel dashboard with the "Preview"
+checkbox ticked** — do not commit a real `.env.preview` to git.
 
 ## 6. Custom domain rollout
 
