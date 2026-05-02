@@ -1,0 +1,51 @@
+name: Claude Code Auto-Fix
+
+# Triggered when a bug issue is opened/labeled, or when @claude is mentioned in a comment.
+# Claude Code runs, analyzes the issue, creates a branch, commits a fix, and opens a PR.
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-fix:
+    # Run only on bug-labeled issues OR when a comment contains "@claude"
+    if: |
+      (github.event_name == 'issues' &&
+       contains(github.event.issue.labels.*.name, 'bug')) ||
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Authenticate using your Claude subscription via OAuth token
+          # (set CLAUDE_CODE_OAUTH_TOKEN as a repo or org secret).
+          # Alternatively swap to anthropic_api_key for pay-per-use API billing.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Optional: pin a model. Default is the latest Claude Code default.
+          # model: claude-sonnet-4-5
+          # Tell Claude what to do for bug-labeled issues
+          prompt: |
+            You are an autonomous bug-fixing agent for this repository.
+            Read the linked issue carefully, reproduce the bug if possible,
+            implement a minimal, well-tested fix, and open a pull request.
+
+            Guidelines:
+            - Follow conventions in CLAUDE.md and existing code style
+            - Add or update tests covering the bug
+            - Keep the diff small and focused
+            - In the PR body: summarize root cause, the fix, and how it was tested
+            - Reference the issue with "Closes #<number>"
