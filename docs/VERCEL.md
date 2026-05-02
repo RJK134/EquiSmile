@@ -113,9 +113,10 @@ yet" runtime error that bites when the client folder is missing.
 
 So a reviewer can click the PR's Vercel comment link and immediately
 interact with seeded demo data — no GitHub-OAuth flow, no manual
-`prisma migrate deploy` from a developer laptop. **Production deploys
-deliberately skip this**: operators run migrations from CI before
-promotion (see §4).
+`prisma migrate deploy` from a developer laptop. Preview deploys run
+`prisma migrate deploy` automatically in `scripts/vercel-build.sh`.
+**Production deploys deliberately do not use this preview-only path**:
+operators run migrations from CI before promotion (see §4).
 
 The seed uses upserts that **overwrite** existing rows to the canonical
 demo state on every preview deploy. Edits to seeded records (customers,
