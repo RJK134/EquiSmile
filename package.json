@@ -16,7 +16,8 @@
     "db:seed-demo": "npx tsx prisma/seed-demo.ts",
     "db:studio": "prisma studio",
     "preflight": "tsx scripts/preflight-check.ts",
-    "validate-env": "npx tsx scripts/validate-environment.ts"
+    "validate-env": "npx tsx scripts/validate-environment.ts",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
