@@ -166,6 +166,68 @@ describe('Dockerfile migrator stage', () => {
   });
 });
 
+describe('scripts/vercel-build.sh', () => {
+  const scriptPath = resolve(ROOT, 'scripts/vercel-build.sh');
+  const content = readFileSync(scriptPath, 'utf-8');
+
+  it('exists', () => {
+    expect(existsSync(scriptPath)).toBe(true);
+  });
+
+  itPosix('is executable', () => {
+    const stat = statSync(scriptPath);
+    expect(stat.mode & 0o111).toBeGreaterThan(0);
+  });
+
+  it('has correct shebang', () => {
+    expect(content.startsWith('#!/usr/bin/env bash')).toBe(true);
+  });
+
+  it('uses set -euo pipefail for safety', () => {
+    expect(content).toContain('set -euo pipefail');
+  });
+
+  it('always runs prisma generate', () => {
+    expect(content).toContain('prisma generate');
+  });
+
+  it('gates preview bootstrap on VERCEL_ENV=preview', () => {
+    expect(content).toContain('VERCEL_ENV');
+    expect(content).toContain('"preview"');
+  });
+
+  it('runs prisma migrate deploy in preview without error suppression', () => {
+    expect(content).toContain('npx prisma migrate deploy');
+    // Must not wrap migration in "if ! ...; then continue" — that would
+    // suppress the error and let a broken-schema preview go green.
+    expect(content).not.toMatch(/if\s*!\s*npx prisma migrate deploy/);
+  });
+
+  it('runs prisma db seed when DEMO_MODE=true without error suppression', () => {
+    expect(content).toContain('npx prisma db seed');
+    // Must not suppress seed failures — a preview with no demo data
+    // defeats the purpose of the persona-picker walkthrough.
+    expect(content).not.toMatch(/if\s*!\s*npx prisma db seed/);
+  });
+
+  it('warns when DATABASE_URL is unset rather than crashing', () => {
+    expect(content).toContain('DATABASE_URL');
+    expect(content).toContain('WARNING');
+  });
+
+  it('warns about production database risk', () => {
+    expect(content.toLowerCase()).toContain('production database');
+  });
+
+  it('skips bootstrap when VERCEL_ENV is not preview', () => {
+    expect(content).toContain('skipping preview-DB bootstrap');
+  });
+
+  it('always runs next build', () => {
+    expect(content).toContain('next build');
+  });
+});
+
 describe('n8n database init script', () => {
   const initScriptPath = resolve(ROOT, 'docker/init-databases.sh');
 

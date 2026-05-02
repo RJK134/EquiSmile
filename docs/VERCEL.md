@@ -45,7 +45,7 @@ Group A — **always required** (production + preview):
 |---|---|---|
 | `DATABASE_URL` | Postgres connection | Use a Vercel-region-local managed Postgres. **Recommended**: [Neon](https://neon.tech) (`postgresql://USER:PASS@HOST/DB?sslmode=require&pool_timeout=20&connection_limit=10`) — branch-DB pricing matches Vercel's preview deploys. **Alternatives**: Supabase, Railway, RDS. |
 | `AUTH_SECRET` | Auth.js JWT/session secret | `openssl rand -base64 32`. **Different value per environment** to prevent session bleed between preview and production. |
-| `AUTH_URL` | Auth.js callback origin | Production: `https://app.example.com`. Preview: leave unset and Vercel populates `VERCEL_URL` automatically; Auth.js's `trustHost` handles the preview-domain rotation. |
+| `AUTH_URL` | Auth.js callback origin | Production: `https://app.example.com`. Preview: leave unset — when running on Vercel (`VERCEL=1` is set automatically), `trustHost` is automatically enabled so Auth.js uses the request Host header. Only set on Preview if you've added a stable alias or custom domain. |
 | `NEXT_PUBLIC_APP_URL` | CORS allow-list anchor | Production custom domain only. |
 | `N8N_API_KEY` | Server-to-server n8n auth | Required even on preview — every webhook handler fail-closes when unset (per `KNOWN_ISSUES.md` KI-006). |
 
@@ -111,9 +111,11 @@ interact with seeded demo data — no GitHub-OAuth flow, no manual
 deliberately skip this**: operators run migrations from CI before
 promotion (see §4).
 
-The seed is keyed on stable IDs (`upsert`) so re-running on every
-preview deploy is safe — existing rows stay; only missing ones get
-created.
+The seed uses upserts that **overwrite** existing rows to the canonical
+demo state on every preview deploy. Edits to seeded records (customers,
+horses, appointments, etc.) will not survive the next push — the seed
+resets them. This is intentional: each deploy gets a fresh, reproducible
+fixture set.
 
 ### `output: 'standalone'`
 
@@ -203,8 +205,10 @@ check the Vercel deploy log for the `[vercel-build]` script output
 - `DATABASE_URL` unset on Preview → the script logs a warning and
   skips DB bootstrap. Add the var (or install the Neon integration)
   and redeploy.
-- Migration failure (e.g. branch DB stale) → re-deploy from the
-  Vercel dashboard; the script's `prisma migrate deploy` is
+- Migration failure → the **build fails** with a `[vercel-build]` error
+  visible in the Vercel build log. Fix the underlying schema issue (e.g.
+  conflicting migration state on a stale Neon branch — delete the branch
+  DB and let Neon recreate it) then redeploy; `prisma migrate deploy` is
   idempotent.
 
 ### 5.3 `.env.preview.example`

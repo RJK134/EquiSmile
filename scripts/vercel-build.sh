@@ -17,11 +17,21 @@
 #   3. Always — `next build`. Standard Next.js production build.
 #
 # Failure handling:
-#   - Hard-fail on any non-zero exit (`set -e`).
+#   - Hard-fail on any non-zero exit (`set -e`). A failed migration
+#     or seed aborts the build immediately — the operator sees a clear
+#     build failure rather than a green preview with a broken DB.
 #   - Log every meaningful step so the Vercel build log is debuggable.
 #   - When VERCEL_ENV=preview but DATABASE_URL is unset, skip the
 #     migrate+seed step with a loud warning rather than crashing —
 #     the operator can still see the static rendered HTML.
+#
+# ⚠ PRODUCTION DATABASE WARNING: DATABASE_URL for preview deploys
+#   MUST point to a preview-only database — NOT the production database.
+#   The script auto-runs `prisma migrate deploy` (and seed) on every
+#   preview build. Install the Neon Vercel integration (Marketplace →
+#   Neon) to get per-PR isolated branch databases automatically, or
+#   configure a separate Preview-environment DATABASE_URL in Vercel
+#   project settings with the "Production" checkbox unticked.
 
 set -euo pipefail
 
@@ -40,17 +50,17 @@ if [ "${VERCEL_ENV:-}" = "preview" ]; then
   if [ -z "${DATABASE_URL:-}" ]; then
     log "WARNING: DATABASE_URL is unset; skipping migrate + seed."
     log "         Preview will render but DB-backed pages will 5xx."
+    log "         Install the Neon Vercel integration or set a"
+    log "         Preview-only DATABASE_URL in Vercel project settings."
   else
-    log "Running prisma migrate deploy (idempotent)…"
-    if ! npx prisma migrate deploy; then
-      log "WARNING: migrate deploy failed; continuing build but DB may be stale."
-    fi
+    log "Running prisma migrate deploy…"
+    npx prisma migrate deploy
 
     if [ "${DEMO_MODE:-}" = "true" ]; then
-      log "DEMO_MODE=true — running demo seed (idempotent upserts)…"
-      if ! npx prisma db seed; then
-        log "WARNING: seed failed; the preview will start but lack demo data."
-      fi
+      log "DEMO_MODE=true — running demo seed…"
+      log "NOTE: seed uses upserts that overwrite existing rows to canonical"
+      log "      demo state. Edits to seeded records won't survive redeployment."
+      npx prisma db seed
     else
       log "DEMO_MODE not 'true' — skipping seed. Set DEMO_MODE=true on the"
       log "Preview environment in Vercel project settings to enable the"
