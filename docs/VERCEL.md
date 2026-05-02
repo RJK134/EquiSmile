@@ -287,9 +287,12 @@ out-of-band triggers.
 
 ### Use cases
 
-- **Demo refresh**: re-seed the demo database after manual mutation
-  by re-running the build (the build script's `prisma db seed` step
-  is idempotent).
+- **Demo refresh**: re-seed the demo database by triggering a fresh
+  preview build. Note: `prisma db seed` only runs during **preview**
+  deploys when both `VERCEL_PREVIEW_MIGRATE=true` and `DEMO_MODE=true`
+  are set. A deploy hook targeting the production environment will
+  **not** re-seed — create a hook that targets the preview branch, or
+  trigger the workflow from the relevant preview deploy instead.
 - **Recover a stuck deploy** without an empty commit.
 - **Scheduled refresh**: nightly cron via the GitHub Action below to
   keep the demo's `daysAgo()` timestamps current.

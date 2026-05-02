@@ -42,17 +42,23 @@ jobs:
             exit 1
           fi
 
+      - name: Install jq
+        run: |
+          if ! command -v jq &>/dev/null; then
+            sudo apt-get install -y --no-install-recommends jq
+          fi
+
       - name: Trigger deploy
         env:
           HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-          REASON: ${{ inputs.reason || 'scheduled or workflow_dispatch' }}
+          REASON: ${{ github.event.inputs.reason || 'scheduled or workflow_dispatch' }}
         run: |
           set -euo pipefail
           echo "Reason: $REASON"
           response=$(curl -fsS -X POST "$HOOK")
           echo "Vercel response:"
           echo "$response" | jq . || echo "$response"
-          job_id=$(echo "$response" | jq -r '.job.id // empty')
+          job_id=$(echo "$response" | jq -r '.job.id // empty' 2>/dev/null || true)
           if [ -n "$job_id" ]; then
             echo "Deploy job: $job_id"
             echo "Track progress: https://vercel.com/dashboard"
