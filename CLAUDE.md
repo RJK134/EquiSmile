@@ -39,7 +39,7 @@ Default behavior:
 - Do not create follow-up PRs for small fixes.
 - Update the existing PR instead.
 - Leave unrelated or risky work as deferred notes.
-- Final merge is always left to Freddie.
+- Final merge is always left to Richard or Freddie.
 
 ## Preferred vendor decisions
 ### WhatsApp
