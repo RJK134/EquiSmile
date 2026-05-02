@@ -17,8 +17,11 @@ deploys are mutually independent — pick one per environment.
    repo. Vercel auto-detects Next.js.
 2. Vercel will respect the `vercel.json` at the repo root:
    - **Framework**: `nextjs` (explicit, also auto-detected).
-   - **Build Command**: `prisma generate && next build` (Prisma client
-     must exist before `next build` walks the codebase).
+   - **Build Command**: `bash scripts/vercel-build.sh` (see §3 — this
+     handles `prisma generate`, preview-only migrate + seed, and
+     `next build` in one script; do **not** override it to
+     `prisma generate && next build`, which would bypass the preview
+     bootstrap).
    - **Install Command**: `npm install --no-audit --no-fund` (keeps the
      log readable; `postinstall` script also runs `prisma generate`
      as a belt-and-braces guard).
@@ -131,23 +134,24 @@ Ignored by Vercel (used only by Docker). Don't remove it from
 
 ## 4. Database migrations
 
-Vercel does **not** run `prisma migrate deploy` automatically. You
-have three options:
+**Preview deployments**: `scripts/vercel-build.sh` runs
+`prisma migrate deploy` automatically on every preview build (see §3).
+No manual action needed — the Neon Vercel integration provides the
+isolated per-PR branch DB that the script migrates.
 
-1. **Recommended for production** — run migrations from CI before
-   the Vercel deploy:
-   ```yaml
-   # .github/workflows/migrate-and-deploy.yml (sketch)
-   - run: npx prisma migrate deploy
-     env:
-       DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-   ```
-2. **For Neon previews** — point each preview deploy at a fresh
-   Neon branch (auto-created via Neon's GitHub app) and let Prisma's
-   migrate-on-startup handle the new branch. Add a one-shot script
-   to a Vercel Cron or Edge function if needed.
-3. **Manual** — run `npx prisma migrate deploy` against the prod DB
-   from a developer laptop on every deploy. Not recommended.
+**Production deployments**: the build script deliberately skips the
+bootstrap when `VERCEL_ENV` is not `preview`. Run migrations from CI
+before the Vercel deploy:
+
+```yaml
+# .github/workflows/migrate-and-deploy.yml (sketch)
+- run: npx prisma migrate deploy
+  env:
+    DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+```
+
+**Manual fallback**: `npx prisma migrate deploy` against the prod DB
+from a developer laptop. Not recommended for regular use.
 
 ## 5. Preview deployments
 
@@ -209,9 +213,9 @@ If the preview URL responds with a 5xx instead of the login card,
 check the Vercel deploy log for the `[vercel-build]` script output
 — it logs every migrate/seed step. Most common causes:
 
-- `DATABASE_URL` unset on Preview → the script logs a warning and
-  skips DB bootstrap. Add the var (or install the Neon integration)
-  and redeploy.
+- `DATABASE_URL` unset on Preview → the build **fails** (the
+  application validates `DATABASE_URL` at import time). Add the var
+  via the Neon integration or Vercel project settings, then redeploy.
 - Migration failure → the **build fails** with a `[vercel-build]` error
   visible in the Vercel build log. Fix the underlying schema issue (e.g.
   conflicting migration state on a stale Neon branch — delete the branch

@@ -215,6 +215,13 @@ describe('scripts/vercel-build.sh', () => {
     expect(content).toContain('WARNING');
   });
 
+  it('warning for unset DATABASE_URL accurately says build will fail, not that app renders', () => {
+    // The app validates DATABASE_URL at import time so next build fails;
+    // the warning must not claim the preview will load or "5xx at runtime".
+    expect(content).not.toContain('DB-backed pages will 5xx');
+    expect(content).not.toContain('Preview will render');
+  });
+
   it('warns about production database risk', () => {
     expect(content.toLowerCase()).toContain('production database');
   });

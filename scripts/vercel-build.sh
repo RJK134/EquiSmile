@@ -21,9 +21,11 @@
 #     or seed aborts the build immediately — the operator sees a clear
 #     build failure rather than a green preview with a broken DB.
 #   - Log every meaningful step so the Vercel build log is debuggable.
-#   - When VERCEL_ENV=preview but DATABASE_URL is unset, skip the
-#     migrate+seed step with a loud warning rather than crashing —
-#     the operator can still see the static rendered HTML.
+#   - When VERCEL_ENV=preview but DATABASE_URL is unset, log a clear
+#     error and let `next build` propagate the failure — the app
+#     validates DATABASE_URL at import time, so the build will fail.
+#     This keeps the error visible rather than hiding it behind a
+#     misleading "successful" deploy.
 #
 # ⚠ PRODUCTION DATABASE WARNING: DATABASE_URL for preview deploys
 #   MUST point to a preview-only database — NOT the production database.
@@ -48,10 +50,11 @@ if [ "${VERCEL_ENV:-}" = "preview" ]; then
   log "VERCEL_ENV=preview — running preview-DB bootstrap"
 
   if [ -z "${DATABASE_URL:-}" ]; then
-    log "WARNING: DATABASE_URL is unset; skipping migrate + seed."
-    log "         Preview will render but DB-backed pages will 5xx."
-    log "         Install the Neon Vercel integration or set a"
-    log "         Preview-only DATABASE_URL in Vercel project settings."
+    log "WARNING: DATABASE_URL is unset — skipping migrate + seed."
+    log "         next build will fail: DATABASE_URL is required by the"
+    log "         application and validated at import time (lib/env.ts)."
+    log "         Install the Neon Vercel integration or set a Preview-only"
+    log "         DATABASE_URL in Vercel project settings, then redeploy."
   else
     log "Running prisma migrate deploy…"
     npx prisma migrate deploy
