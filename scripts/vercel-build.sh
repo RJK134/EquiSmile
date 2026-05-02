@@ -42,14 +42,21 @@ if [ "${VERCEL_ENV:-}" = "preview" ]; then
     log "         Preview will render but DB-backed pages will 5xx."
   else
     log "Running prisma migrate deploy (idempotent)…"
+    migrate_ok=true
     if ! npx prisma migrate deploy; then
+      migrate_ok=false
       log "WARNING: migrate deploy failed; continuing build but DB may be stale."
     fi
 
     if [ "${DEMO_MODE:-}" = "true" ]; then
-      log "DEMO_MODE=true — running demo seed (idempotent upserts)…"
-      if ! npx prisma db seed; then
-        log "WARNING: seed failed; the preview will start but lack demo data."
+      if [ "$migrate_ok" = "true" ]; then
+        log "DEMO_MODE=true — running demo seed (idempotent upserts)…"
+        if ! npx prisma db seed; then
+          log "WARNING: seed failed; the preview will start but lack demo data."
+        fi
+      else
+        log "Skipping demo seed because migrate deploy failed; seeding against"
+        log "a stale schema would risk leaving the preview DB inconsistent."
       fi
     else
       log "DEMO_MODE not 'true' — skipping seed. Set DEMO_MODE=true on the"
