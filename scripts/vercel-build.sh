@@ -17,7 +17,7 @@
 #   3. Always — `next build`. Standard Next.js production build.
 #
 # Failure handling:
-#   - Hard-fail on any non-zero exit (`set -e`). A failed migration
+#   - Hard-fail on any non-zero exit (`set -euo pipefail`). A failed migration
 #     or seed aborts the build immediately — the operator sees a clear
 #     build failure rather than a green preview with a broken DB.
 #   - Log every meaningful step so the Vercel build log is debuggable.
