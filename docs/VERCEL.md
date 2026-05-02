@@ -278,6 +278,61 @@ curl -fsS -o test.pdf https://<your-vercel-url>/api/invoices/<id>/qr-bill.pdf
 file test.pdf  # should print "PDF document, version 1.x"
 ```
 
+## 9. Triggering deploys without a code push
+
+Vercel auto-deploys on every push to `main` (and on every push to a
+non-`main` branch as a preview). For everything else there's the
+**deploy hook** — a project-specific URL that Vercel exposes for
+out-of-band triggers.
+
+### Use cases
+
+- **Demo refresh**: re-seed the demo database by triggering a fresh
+  preview build. Note: `prisma db seed` only runs during **preview**
+  deploys when both `VERCEL_PREVIEW_MIGRATE=true` and `DEMO_MODE=true`
+  are set. A deploy hook targeting the production environment will
+  **not** re-seed — create a hook that targets the preview branch, or
+  trigger the workflow from the relevant preview deploy instead.
+- **Recover a stuck deploy** without an empty commit.
+- **Scheduled refresh**: nightly cron via the GitHub Action below to
+  keep the demo's `daysAgo()` timestamps current.
+
+### One-time setup
+
+1. **Vercel dashboard → Project Settings → Git → Deploy Hooks** →
+   create a hook (or reuse an existing one). Copy the URL — it
+   contains a secret token.
+2. **GitHub repo → Settings → Secrets and variables → Actions →
+   New repository secret** → name `VERCEL_DEPLOY_HOOK_URL`, value
+   = the URL from step 1. The repo's `.gitignore` covers `.env.local`
+   for the local-script case (see below); the URL itself is **never
+   committed to git**.
+3. **Local laptop** (optional, for `bash scripts/trigger-vercel-deploy.sh`):
+   add the same line to `.env.local`:
+   ```
+   VERCEL_DEPLOY_HOOK_URL=https://api.vercel.com/v1/integrations/deploy/prj_.../...
+   ```
+
+### Triggering
+
+| Path | How |
+|---|---|
+| **GitHub Actions UI** | Repo → Actions tab → "Vercel deploy (manual trigger)" → "Run workflow". Optional `reason` field for the audit trail. |
+| **Local laptop** | `bash scripts/trigger-vercel-deploy.sh`. Reads `VERCEL_DEPLOY_HOOK_URL` from `.env.local` or the shell. |
+| **Programmatic / curl** | `curl -X POST "$VERCEL_DEPLOY_HOOK_URL"`. |
+
+All three return JSON like `{"job":{"id":"…","state":"PENDING"}}` —
+the job ID can be tracked at `https://vercel.com/dashboard`.
+
+### Scheduled refresh (optional)
+
+`.github/workflows/vercel-deploy-trigger.yml` ships with a
+commented-out `schedule:` block. Uncomment to enable a daily 06:00 UTC
+re-deploy — useful when the demo is being kept "always fresh" for a
+long-running pilot. Costs one Vercel build per day plus the Neon
+branch-DB writes from re-seeding.
+
+
 If `/api/health` returns 503: check the `missing[]` field in the env
 section, populate the gap in Vercel's env-var dashboard, and
 redeploy.
