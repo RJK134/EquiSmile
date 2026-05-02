@@ -166,6 +166,85 @@ describe('Dockerfile migrator stage', () => {
   });
 });
 
+describe('scripts/vercel-build.sh', () => {
+  const scriptPath = resolve(ROOT, 'scripts/vercel-build.sh');
+  const content = readFileSync(scriptPath, 'utf-8');
+
+  it('exists', () => {
+    expect(existsSync(scriptPath)).toBe(true);
+  });
+
+  itPosix('is executable', () => {
+    const stat = statSync(scriptPath);
+    expect(stat.mode & 0o111).toBeGreaterThan(0);
+  });
+
+  it('has correct shebang', () => {
+    expect(content.startsWith('#!/usr/bin/env bash')).toBe(true);
+  });
+
+  it('uses set -euo pipefail for safety', () => {
+    expect(content).toContain('set -euo pipefail');
+  });
+
+  it('always runs prisma generate', () => {
+    expect(content).toContain('prisma generate');
+  });
+
+  it('gates preview bootstrap on VERCEL_ENV=preview', () => {
+    expect(content).toContain('VERCEL_ENV');
+    expect(content).toContain('"preview"');
+  });
+
+  it('requires VERCEL_PREVIEW_MIGRATE=true before running migrate', () => {
+    // Safety guard: migrations must only run when explicitly opted in,
+    // preventing accidental migration against an inherited production DB.
+    expect(content).toContain('VERCEL_PREVIEW_MIGRATE');
+    expect(content).toContain('"true"');
+  });
+
+  it('runs prisma migrate deploy in preview without error suppression', () => {
+    expect(content).toContain('npx prisma migrate deploy');
+    // Must not wrap migration in "if ! ...; then continue" — that would
+    // suppress the error and let a broken-schema preview go green.
+    expect(content).not.toMatch(/if\s*!\s*npx prisma migrate deploy/);
+  });
+
+  it('runs prisma db seed when DEMO_MODE=true without error suppression', () => {
+    expect(content).toContain('npx prisma db seed');
+    // Must not suppress seed failures — a preview with no demo data
+    // defeats the purpose of the persona-picker walkthrough.
+    expect(content).not.toMatch(/if\s*!\s*npx prisma db seed/);
+  });
+
+  it('warns when DATABASE_URL is unset rather than crashing', () => {
+    expect(content).toContain('DATABASE_URL');
+    expect(content).toContain('WARNING');
+  });
+
+  it('warning for unset DATABASE_URL accurately says build will fail, not that app renders', () => {
+    // The app validates DATABASE_URL at import time so next build fails;
+    // the warning must not claim the preview will load or "5xx at runtime".
+    expect(content).not.toContain('DB-backed pages will 5xx');
+    expect(content).not.toContain('Preview will render');
+  });
+
+  it('warns about production database risk when VERCEL_PREVIEW_MIGRATE is unset', () => {
+    // Script must log a clear message when the opt-in flag is absent,
+    // explaining why migrations are skipped and what to do.
+    expect(content).toContain('production database');
+    expect(content).toContain('VERCEL_PREVIEW_MIGRATE');
+  });
+
+  it('skips bootstrap when VERCEL_ENV is not preview', () => {
+    expect(content).toContain('skipping preview-DB bootstrap');
+  });
+
+  it('always runs next build', () => {
+    expect(content).toContain('next build');
+  });
+});
+
 describe('n8n database init script', () => {
   const initScriptPath = resolve(ROOT, 'docker/init-databases.sh');
 

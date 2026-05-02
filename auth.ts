@@ -119,10 +119,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     maxAge: 30 * 24 * 60 * 60,
     updateAge: 24 * 60 * 60,
   },
-  // Trust the `AUTH_URL` host explicitly — required when the app sits
-  // behind a reverse proxy (Caddy, nginx) so Auth.js constructs the
-  // correct callback origin instead of guessing from the Host header.
-  trustHost: Boolean(process.env.AUTH_URL),
+  // Trust the host when running on Vercel (VERCEL=1 is set automatically
+  // in all Vercel environments), or when AUTH_URL is explicitly set (required
+  // when the app sits behind a reverse proxy — Caddy, nginx — so Auth.js
+  // constructs the correct callback origin instead of guessing from the Host
+  // header).
+  trustHost: Boolean(process.env.AUTH_URL) || Boolean(process.env.VERCEL),
   useSecureCookies: IS_PRODUCTION,
   cookies: SECURE_COOKIES,
   providers: buildProviders(),
