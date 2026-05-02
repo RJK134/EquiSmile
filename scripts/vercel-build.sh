@@ -17,11 +17,19 @@
 #   3. Always — `next build`. Standard Next.js production build.
 #
 # Failure handling:
-#   - Hard-fail on any non-zero exit (`set -e`).
+#   - `next build` hard-fails on any non-zero exit (`set -euo pipefail`).
 #   - Log every meaningful step so the Vercel build log is debuggable.
 #   - When VERCEL_ENV=preview but DATABASE_URL is unset, skip the
 #     migrate+seed step with a loud warning rather than crashing —
 #     the operator can still see the static rendered HTML.
+#   - `prisma migrate deploy` failure is intentionally non-fatal: the
+#     build continues so a reviewer can still inspect static pages.
+#     A warning is logged and the deploy-log entry is clearly labelled.
+#   - `prisma db seed` is gated on a successful `prisma migrate deploy`:
+#     seeding against a stale schema could leave the preview DB in an
+#     inconsistent state, so the seed step is skipped when migrate
+#     failed.  Seed failure is itself also non-fatal — the preview
+#     starts but will lack demo data.
 
 set -euo pipefail
 

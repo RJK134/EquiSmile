@@ -88,10 +88,13 @@ The script branches on `VERCEL_ENV`:
                 └── postinstall: prisma generate
 2. build:     bash scripts/vercel-build.sh
                 ├── prisma generate   (always — idempotent guard)
-                ├── if VERCEL_ENV=preview:
-                │     prisma migrate deploy
-                │     if DEMO_MODE=true: npx prisma db seed
-                └── next build
+                ├── if VERCEL_ENV=preview AND DATABASE_URL set:
+                │     prisma migrate deploy  ← non-fatal; warns on failure
+                │     if DEMO_MODE=true AND migrate succeeded:
+                │       prisma db seed       ← non-fatal; warns on failure
+                │     (seed is skipped when migrate failed to avoid
+                │      writing to a stale schema)
+                └── next build              ← hard-fails on error
 3. deploy:    Vercel uploads .next + serverless functions
 ```
 
@@ -110,6 +113,14 @@ interact with seeded demo data — no GitHub-OAuth flow, no manual
 `prisma migrate deploy` from a developer laptop. **Production deploys
 deliberately skip this**: operators run migrations from CI before
 promotion (see §4).
+
+Both `prisma migrate deploy` and `prisma db seed` are **intentionally
+non-fatal** in the preview build. If either fails the build continues,
+a clearly labelled warning is written to the Vercel deploy log, and
+the reviewer can still inspect static pages. Seed is gated on a
+successful migrate: if migrate failed, seed is skipped to avoid
+writing rows against a stale schema and leaving the preview DB in an
+inconsistent state.
 
 The seed is keyed on stable IDs (`upsert`) so re-running on every
 preview deploy is safe — existing rows stay; only missing ones get
