@@ -81,6 +81,12 @@ Group D — **demo / preview overrides**:
 ## 3. Build pipeline
 
 `vercel.json` calls `bash scripts/vercel-build.sh` for every build.
+In the Vercel dashboard, leave the **Build Command** unset so
+`vercel.json` stays authoritative, or set it explicitly to
+`bash scripts/vercel-build.sh` if you must override it manually.
+Do **not** set it to `prisma generate && next build`, because that
+bypasses the preview-only migration / seed logic below.
+
 The script branches on `VERCEL_ENV`:
 
 ```
