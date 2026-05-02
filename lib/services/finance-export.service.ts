@@ -17,6 +17,7 @@ import ExcelJS from 'exceljs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { emailService } from '@/lib/services/email.service';
+import { BRAND_NAME, BRAND_PRIMARY_HEX, loadLogoPng } from '@/lib/branding/asset';
 
 export interface MonthlyExportInput {
   year: number;
@@ -72,15 +73,44 @@ export function buildWorkbook(args: {
   summary: MonthlyReportSummary;
 }): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'EquiSmile';
+  wb.creator = BRAND_NAME;
   wb.created = new Date();
 
   // Summary sheet
   const summarySheet = wb.addWorksheet('Summary');
+
+  // Logo + report title — embed the EquiSmile mark when public/logo.png
+  // is available; otherwise drop in a brand-coloured text title so the
+  // workbook always carries the practice name on the first sheet.
+  const logoPng = loadLogoPng();
+  if (logoPng) {
+    // ExcelJS's Buffer typing is older than Node 22's Buffer<ArrayBufferLike>.
+    // base64 is universally accepted and avoids the cast.
+    const imageId = wb.addImage({
+      base64: `data:image/png;base64,${logoPng.toString('base64')}`,
+      extension: 'png',
+    });
+    summarySheet.addImage(imageId, {
+      tl: { col: 0, row: 0 },
+      ext: { width: 160, height: 40 },
+    });
+    // Reserve the visual space — three blank rows before the table.
+    summarySheet.addRow([]);
+    summarySheet.addRow([]);
+    summarySheet.addRow([]);
+  } else {
+    const titleRow = summarySheet.addRow([`${BRAND_NAME} — Monthly Finance Report`]);
+    titleRow.font = { name: 'Calibri', size: 18, bold: true, color: { argb: `FF${BRAND_PRIMARY_HEX.toUpperCase()}` } };
+    summarySheet.mergeCells(`A${titleRow.number}:B${titleRow.number}`);
+    summarySheet.addRow([]);
+  }
+
   summarySheet.columns = [
     { header: 'Metric', key: 'metric', width: 32 },
     { header: 'Value', key: 'value', width: 20 },
   ];
+  // The columns directive resets row 1's header, but we've already
+  // pushed our title above — addRow continues from the current cursor.
   summarySheet.addRow({ metric: 'Reporting period', value: args.ym });
   summarySheet.addRow({ metric: 'Invoices issued', value: args.summary.invoiceCount });
   summarySheet.addRow({ metric: 'Payments received', value: args.summary.paymentCount });

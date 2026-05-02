@@ -15,6 +15,7 @@ import PDFDocument from 'pdfkit';
 import { SwissQRBill } from 'swissqrbill/pdf';
 import type { Data as QRBillData } from 'swissqrbill/types';
 import { Prisma } from '@prisma/client';
+import { BRAND_NAME, loadLogoPng } from '@/lib/branding/asset';
 
 export interface QRBillCreditor {
   name: string;
@@ -133,7 +134,17 @@ export async function renderQRBillPdf(input: RenderQRBillInput): Promise<Buffer>
     // Optional: render an invoice header above the payment part so
     // the operator has context. Keep it minimal; real branded
     // templates can replace this in a follow-up.
-    doc.fontSize(20).text('EquiSmile', 50, 50);
+    // Optional: render an invoice header above the payment part so
+    // the operator has context. The logo is loaded from public/logo.png
+    // when present — until the real asset lands, falls back to a
+    // styled-text wordmark in the brand maroon (#9b214d).
+    const logoPng = loadLogoPng();
+    if (logoPng) {
+      doc.image(logoPng, 50, 40, { fit: [120, 30] });
+    } else {
+      doc.fontSize(22).fillColor('#9b214d').text(BRAND_NAME, 50, 45, { oblique: 15 });
+      doc.fillColor('black');
+    }
     doc.fontSize(10).text(`Invoice ${input.invoiceNumber}`, 50, 80);
     doc.text(`Amount: ${data.currency} ${(data.amount ?? 0).toFixed(2)}`, 50, 95);
     if (input.debtor?.name) {
