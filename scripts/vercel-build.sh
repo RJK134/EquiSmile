@@ -17,19 +17,21 @@
 #   3. Always — `next build`. Standard Next.js production build.
 #
 # Failure handling:
-#   - `next build` hard-fails on any non-zero exit (`set -euo pipefail`).
+#   - Hard-fail on any non-zero exit (`set -e`). A failed migration
+#     or seed aborts the build immediately — the operator sees a clear
+#     build failure rather than a green preview with a broken DB.
 #   - Log every meaningful step so the Vercel build log is debuggable.
 #   - When VERCEL_ENV=preview but DATABASE_URL is unset, skip the
 #     migrate+seed step with a loud warning rather than crashing —
 #     the operator can still see the static rendered HTML.
-#   - `prisma migrate deploy` failure is intentionally non-fatal: the
-#     build continues so a reviewer can still inspect static pages.
-#     A warning is logged and the deploy-log entry is clearly labelled.
-#   - `prisma db seed` is gated on a successful `prisma migrate deploy`:
-#     seeding against a stale schema could leave the preview DB in an
-#     inconsistent state, so the seed step is skipped when migrate
-#     failed.  Seed failure is itself also non-fatal — the preview
-#     starts but will lack demo data.
+#
+# ⚠ PRODUCTION DATABASE WARNING: DATABASE_URL for preview deploys
+#   MUST point to a preview-only database — NOT the production database.
+#   The script auto-runs `prisma migrate deploy` (and seed) on every
+#   preview build. Install the Neon Vercel integration (Marketplace →
+#   Neon) to get per-PR isolated branch databases automatically, or
+#   configure a separate Preview-environment DATABASE_URL in Vercel
+#   project settings with the "Production" checkbox unticked.
 
 set -euo pipefail
 
@@ -48,24 +50,17 @@ if [ "${VERCEL_ENV:-}" = "preview" ]; then
   if [ -z "${DATABASE_URL:-}" ]; then
     log "WARNING: DATABASE_URL is unset; skipping migrate + seed."
     log "         Preview will render but DB-backed pages will 5xx."
+    log "         Install the Neon Vercel integration or set a"
+    log "         Preview-only DATABASE_URL in Vercel project settings."
   else
-    log "Running prisma migrate deploy (idempotent)…"
-    migrate_ok=true
-    if ! npx prisma migrate deploy; then
-      migrate_ok=false
-      log "WARNING: migrate deploy failed; continuing build but DB may be stale."
-    fi
+    log "Running prisma migrate deploy…"
+    npx prisma migrate deploy
 
     if [ "${DEMO_MODE:-}" = "true" ]; then
-      if [ "$migrate_ok" = "true" ]; then
-        log "DEMO_MODE=true — running demo seed (idempotent upserts)…"
-        if ! npx prisma db seed; then
-          log "WARNING: seed failed; the preview will start but lack demo data."
-        fi
-      else
-        log "Skipping demo seed because migrate deploy failed; seeding against"
-        log "a stale schema would risk leaving the preview DB inconsistent."
-      fi
+      log "DEMO_MODE=true — running demo seed…"
+      log "NOTE: seed uses upserts that overwrite existing rows to canonical"
+      log "      demo state. Edits to seeded records won't survive redeployment."
+      npx prisma db seed
     else
       log "DEMO_MODE not 'true' — skipping seed. Set DEMO_MODE=true on the"
       log "Preview environment in Vercel project settings to enable the"
