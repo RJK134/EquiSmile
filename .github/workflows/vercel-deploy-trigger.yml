@@ -1,0 +1,60 @@
+name: Vercel deploy (manual trigger)
+
+# Triggers a Vercel production deploy on demand by POSTing to the
+# project's deploy hook. Used for:
+#   - Refreshing the demo data after a manual mutation
+#   - Recovering from a stuck preview/production deploy without a
+#     gratuitous code commit
+#   - Daily/weekly scheduled refresh (cron block below — disabled
+#     by default to avoid burning Vercel build minutes)
+#
+# The deploy-hook URL is project-specific and contains a secret token.
+# It MUST be stored as the `VERCEL_DEPLOY_HOOK_URL` repo secret
+# (Settings → Secrets and variables → Actions → New repository secret).
+# The URL itself is NEVER committed to source control.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you triggering this deploy? (audit-trail only)'
+        required: false
+        default: 'Manual trigger from GitHub Actions UI'
+  # Uncomment the schedule block to fire a daily refresh at 06:00 UTC
+  # (07:00 CET / 08:00 CEST). Useful when the demo's `daysAgo()`
+  # timestamps drift away from "now" — re-seeding nightly keeps the
+  # "1 hour ago" overdue triage task feeling current.
+  # schedule:
+  #   - cron: '0 6 * * *'
+
+jobs:
+  trigger:
+    name: POST to Vercel deploy hook
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate secret
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "${HOOK:-}" ]; then
+            echo "::error::VERCEL_DEPLOY_HOOK_URL secret is not set."
+            echo "::error::Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Trigger deploy
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          REASON: ${{ inputs.reason || 'scheduled or workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          echo "Reason: $REASON"
+          response=$(curl -fsS -X POST "$HOOK")
+          echo "Vercel response:"
+          echo "$response" | jq . || echo "$response"
+          job_id=$(echo "$response" | jq -r '.job.id // empty')
+          if [ -n "$job_id" ]; then
+            echo "Deploy job: $job_id"
+            echo "Track progress: https://vercel.com/dashboard"
+            echo "deploy_job_id=$job_id" >> "$GITHUB_OUTPUT"
+          fi
