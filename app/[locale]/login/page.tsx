@@ -82,7 +82,11 @@ export default async function LoginPage({ params, searchParams }: LoginPageProps
           {demoMode && (
             <p className="text-[10px] font-mono text-gray-400">
               {t('buildLabel', {
-                sha: (process.env.NEXT_PUBLIC_BUILD_SHA ?? 'dev').slice(0, 7),
+                sha: (
+                  process.env.NEXT_PUBLIC_BUILD_SHA ??
+                  process.env.VERCEL_GIT_COMMIT_SHA ??
+                  'dev'
+                ).slice(0, 7),
               })}
             </p>
           )}

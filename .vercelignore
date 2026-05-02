@@ -1,0 +1,62 @@
+# Files / directories that don't need to ship in the Vercel build
+# context. Mirrors .gitignore plus everything that's only useful for
+# local dev, Docker, the Windows demo bat, n8n exports, and docs.
+# Trimming the upload makes builds noticeably faster and reduces the
+# attack surface (less code on the runner, fewer secrets exposed if
+# anyone misconfigures).
+
+# ─── Repo-level dev tooling ─────────────────────────────────────────
+.git
+.github
+.claude
+AGENTS.md
+CLAUDE.md
+
+# ─── Local-only operator scripts ────────────────────────────────────
+DEMO.bat
+LAUNCH.bat
+STOP.bat
+FIX.bat
+REBUILD.bat
+*.bat
+*.ps1
+scripts/windows/
+dev-bootstrap/
+
+# ─── Docker / compose stack (not used on Vercel) ────────────────────
+Dockerfile
+docker-compose.yml
+docker/
+.dockerignore
+
+# ─── Tests + test fixtures ──────────────────────────────────────────
+__tests__/
+vitest.config.ts
+vitest.setup.ts
+coverage/
+
+# ─── n8n workflow exports ───────────────────────────────────────────
+n8n/
+
+# ─── Documentation (kept in repo, not shipped to runtime) ──────────
+docs/
+
+# ─── Local env files (Vercel uses dashboard env vars) ───────────────
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+
+# ─── Build artifacts that Vercel re-creates ─────────────────────────
+.next/
+out/
+.vercel/
+node_modules/
+
+# ─── Editor / OS noise ──────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+*.log
