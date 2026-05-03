@@ -230,6 +230,14 @@
     "inactive": "Inactive",
     "customer": "Owner",
     "yard": "Yard",
+    "clinicalHistory": {
+      "title": "Clinical history",
+      "empty": "No clinical records yet.",
+      "dentalCharts": "Dental charts",
+      "findings": "Findings",
+      "prescriptions": "Prescriptions",
+      "attachments": "Attachments"
+    },
     "form": {
       "title": "Create Horse",
       "editTitle": "Edit Horse",

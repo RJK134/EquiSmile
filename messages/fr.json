@@ -230,6 +230,14 @@
     "inactive": "Inactif",
     "customer": "Propriétaire",
     "yard": "Écurie",
+    "clinicalHistory": {
+      "title": "Historique clinique",
+      "empty": "Aucun dossier clinique pour le moment.",
+      "dentalCharts": "Schémas dentaires",
+      "findings": "Constatations",
+      "prescriptions": "Ordonnances",
+      "attachments": "Pièces jointes"
+    },
     "form": {
       "title": "Créer un cheval",
       "editTitle": "Modifier le cheval",

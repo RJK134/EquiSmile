@@ -1004,6 +1004,124 @@ async function main() {
   }
   console.log(`  Created ${chartCount} dental charts, ${findingCount} clinical findings, ${prescriptionCount} prescriptions`);
 
+  // The clinical-records loop above caps at 30 horses; the four DEMO-06
+  // matcher horses (Bella, Thunder, Luna, Max — added at the end of the
+  // horse seed) sit past the cap. Seed them explicitly so the horse
+  // detail page's Clinical History card has something to show on Marie's
+  // headline horse during the demo (G-6a from the May 2026 client
+  // user-story triage).
+  const matcherClinicalSeed: Array<{
+    horseId: string;
+    chartNotes: string;
+    findings: Array<{ tooth: string; category: typeof findingCategories[number]; severity: typeof severities[number]; description: string }>;
+    prescription: { medicine: string; dosage: string; durationDays: number; status: 'ACTIVE' | 'COMPLETED' } | null;
+  }> = [
+    {
+      horseId: 'demo-horse-bella',
+      chartNotes: 'Annual check at Centre Équestre Riviera. Light sedation, full mouth balance.',
+      findings: [
+        { tooth: '107', category: 'HOOK', severity: 'MILD', description: 'Mild hook on upper right premolar — reduced this visit.' },
+        { tooth: '306', category: 'DIASTEMA', severity: 'MODERATE', description: 'Diastema between 306-307 with food packing. Flushed and rinsed.' },
+      ],
+      prescription: {
+        medicine: 'Chlorhexidine oral rinse',
+        dosage: 'Rinse affected diastema once daily for 7 days',
+        durationDays: 7,
+        status: 'ACTIVE',
+      },
+    },
+    {
+      horseId: 'demo-horse-thunder',
+      chartNotes: 'Routine dental float. Sharp enamel points reduced bilaterally.',
+      findings: [
+        { tooth: '208', category: 'WEAR', severity: 'MILD', description: 'Sharp buccal enamel points on upper left.' },
+      ],
+      prescription: null,
+    },
+    {
+      horseId: 'demo-horse-luna',
+      chartNotes: 'Sensitive mouth — extra-light sedation. Quick float only.',
+      findings: [
+        { tooth: '406', category: 'OTHER', severity: 'MILD', description: 'Mild gingivitis along lower right gum line.' },
+      ],
+      prescription: null,
+    },
+    {
+      horseId: 'demo-horse-max',
+      chartNotes: 'Older horse — periodontal monitoring. EOTRH watch on incisors.',
+      findings: [
+        { tooth: '101', category: 'EOTRH', severity: 'MODERATE', description: 'Early EOTRH on lower incisors — recommend radiographs at next visit.' },
+        { tooth: '209', category: 'MISSING', severity: 'MILD', description: 'Previously extracted 209, no issues.' },
+      ],
+      prescription: {
+        medicine: 'Phenylbutazone (Bute)',
+        dosage: '2.2 mg/kg PO BID for 5 days',
+        durationDays: 5,
+        status: 'COMPLETED',
+      },
+    },
+  ];
+
+  for (const seed of matcherClinicalSeed) {
+    const chartId = `demo-chart-${seed.horseId}`;
+    const recordedAt = daysAgo(45);
+    await prisma.dentalChart.upsert({
+      where: { id: chartId },
+      update: {},
+      create: {
+        id: chartId,
+        horseId: seed.horseId,
+        recordedById: 'demo-staff-owner',
+        recordedAt,
+        generalNotes: seed.chartNotes,
+      },
+    });
+    chartCount++;
+
+    for (let fi = 0; fi < seed.findings.length; fi++) {
+      const f = seed.findings[fi];
+      const findingId = `demo-finding-${seed.horseId}-${fi + 1}`;
+      await prisma.clinicalFinding.upsert({
+        where: { id: findingId },
+        update: {},
+        create: {
+          id: findingId,
+          horseId: seed.horseId,
+          dentalChartId: chartId,
+          findingDate: recordedAt,
+          toothId: f.tooth,
+          category: f.category,
+          severity: f.severity,
+          description: f.description,
+          createdById: 'demo-staff-owner',
+        },
+      });
+      findingCount++;
+    }
+
+    if (seed.prescription) {
+      const rxId = `demo-rx-${seed.horseId}`;
+      await prisma.prescription.upsert({
+        where: { id: rxId },
+        update: {},
+        create: {
+          id: rxId,
+          horseId: seed.horseId,
+          prescribedById: 'demo-staff-owner',
+          prescribedAt: recordedAt,
+          medicineName: seed.prescription.medicine,
+          dosage: seed.prescription.dosage,
+          durationDays: seed.prescription.durationDays,
+          withdrawalPeriodDays: 0,
+          instructions: 'See chart notes for context.',
+          status: seed.prescription.status,
+        },
+      });
+      prescriptionCount++;
+    }
+  }
+  console.log(`  Seeded clinical records for ${matcherClinicalSeed.length} matcher demo horses (Bella + 3)`);
+
   // ══════════════════════════════════════════════════════════════════════════
   // 11. TRIAGE AUDIT LOGS (sample)
   // ══════════════════════════════════════════════════════════════════════════
