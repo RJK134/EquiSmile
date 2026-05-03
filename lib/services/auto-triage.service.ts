@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/prisma';
 import { runTriageRules, type TriageInput } from './triage-rules.service';
 import { parseMessage } from '@/lib/utils/message-parser';
+import { logger } from '@/lib/utils/logger';
 
 export interface AutoTriageResult {
   visitRequestId: string;
@@ -55,7 +56,12 @@ export const autoTriageService = {
     // Run rules engine
     const result = runTriageRules(input);
 
-    // Determine planning status
+    // Determine planning status. DEMO-04 — when the inbound message
+    // arrives complete (yard matched, horse count present, no urgent
+    // keywords), promote straight to PLANNING_POOL so the visit
+    // never sits in the operator's triage queue. Pulled out as
+    // explicit branches so the audit log can announce the path
+    // taken.
     let planningStatus: string;
     if (result.urgency === 'URGENT') {
       planningStatus = 'READY_FOR_REVIEW';
@@ -63,6 +69,13 @@ export const autoTriageService = {
       planningStatus = 'UNTRIAGED';
     } else {
       planningStatus = 'PLANNING_POOL';
+      logger.info('Auto-promoted visit request to planning pool', {
+        service: 'auto-triage-service',
+        operation: 'auto-promote',
+        visitRequestId,
+        enquiryId,
+        confidence: result.confidence,
+      });
     }
 
     // Determine enquiry triage status

@@ -36,6 +36,11 @@ const envSchema = z.object({
   WHATSAPP_API_TOKEN: z.string().optional().default(''),
   WHATSAPP_VERIFY_TOKEN: z.string().optional().default(''),
   WHATSAPP_APP_SECRET: z.string().optional().default(''),
+  // DEMO-02 — template names so the in-app code can reference a name
+  // that maps to an approved Meta template in production. Defaults
+  // match the demo registry in lib/demo/template-registry.ts.
+  WHATSAPP_CONFIRMATION_TEMPLATE: z.string().optional().default('appointment_confirmation_v1'),
+  WHATSAPP_REMINDER_TEMPLATE: z.string().optional().default('appointment_reminder_v1'),
 
   // Email (SMTP — outbound only; inbound email is handled by n8n)
   SMTP_HOST: z.string().optional().default(''),

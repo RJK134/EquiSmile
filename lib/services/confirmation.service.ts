@@ -9,8 +9,26 @@ import { emailService } from '@/lib/services/email.service';
 import { whatsappService } from '@/lib/services/whatsapp.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
 import { logger } from '@/lib/utils/logger';
+import { isDemoMode } from '@/lib/demo/demo-mode';
+import { env } from '@/lib/env';
 import type { ActorContext } from '@/lib/types/actor';
 import type { ConfirmationChannel, PreferredChannel } from '@prisma/client';
+
+/**
+ * DEMO-02 — In demo mode we always send via the approved template
+ * path so the demo workflow exercises the same call path that
+ * production needs (Meta rejects free-text outside the 24-hour
+ * customer-service window). Production will use this branch too once
+ * the conversation-window check is wired (deferred — see DEMO-02
+ * task brief for rationale).
+ */
+function shouldUseTemplate(): boolean {
+  if (isDemoMode()) return true;
+  // TODO(prod): check `EnquiryMessage` for the customer's most-recent
+  //   inbound message; if older than 24h, return true. Until then,
+  //   fall through to free text in production.
+  return false;
+}
 
 interface AppointmentWithDetails {
   id: string;
@@ -235,13 +253,38 @@ export const confirmationService = {
         });
         const confirmationOperationKey = `wa-confirmation:${appointmentId}:${priorDispatches}`;
 
-        const result = await whatsappService.sendTextMessage(
-          customer.mobilePhone,
-          message,
-          appointment.visitRequest.enquiryId ?? undefined,
-          lang,
-          { operationKey: confirmationOperationKey },
-        );
+        // DEMO-02 — use the approved template path in demo mode (and,
+        // later, in production whenever the customer is outside the
+        // 24-hour service window). Falls back to free text otherwise.
+        let result: Awaited<ReturnType<typeof whatsappService.sendTextMessage>>;
+        if (shouldUseTemplate()) {
+          const yardName = appointment.visitRequest.yard?.yardName ?? '';
+          const date = formatDate(appointment.appointmentStart, lang);
+          const startTime = formatTime(appointment.appointmentStart, lang);
+          const horseCount = String(appointment.visitRequest.horseCount ?? 1);
+          result = await whatsappService.sendTemplateMessage(
+            customer.mobilePhone,
+            env.WHATSAPP_CONFIRMATION_TEMPLATE,
+            lang,
+            [customer.fullName, date, startTime, yardName, horseCount],
+            appointment.visitRequest.enquiryId ?? undefined,
+            { operationKey: confirmationOperationKey },
+          );
+          logger.info('Confirmation dispatched via approved template', {
+            service: 'confirmation-service',
+            operation: 'send-whatsapp-confirmation-template',
+            appointmentId,
+            templateName: env.WHATSAPP_CONFIRMATION_TEMPLATE,
+          });
+        } else {
+          result = await whatsappService.sendTextMessage(
+            customer.mobilePhone,
+            message,
+            appointment.visitRequest.enquiryId ?? undefined,
+            lang,
+            { operationKey: confirmationOperationKey },
+          );
+        }
         sent = result.success;
         externalMessageId = result.messageId || null;
         if (!sent) error = 'WhatsApp send failed';

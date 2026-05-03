@@ -9,12 +9,43 @@ import {
   markAsProcessed,
 } from '@/lib/utils/retry';
 import { logger } from '@/lib/utils/logger';
+import { isDemoMode, demoLog } from '@/lib/demo/demo-mode';
+import { simulateSendMessage } from '@/lib/demo/whatsapp-simulator';
 
 const GRAPH_API_VERSION = 'v21.0';
 
 interface SendTextResult {
   messageId: string;
   success: boolean;
+}
+
+/**
+ * In demo mode (DEMO_MODE=true) when Meta credentials are unset,
+ * route the send through the simulator so the operator-facing audit
+ * trail records `success: true` + a fake `wamid.demo-…` rather than
+ * silently dropping outbound. The simulator is a pure in-process
+ * function — no external calls — so the demo workflow stays clean.
+ *
+ * Returns null when the live path should run instead.
+ */
+async function maybeSimulateSend(
+  to: string,
+  text: string,
+  context: 'text' | 'template',
+  templateName?: string,
+): Promise<SendTextResult | null> {
+  const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
+  const accessToken = env.WHATSAPP_ACCESS_TOKEN || env.WHATSAPP_API_TOKEN;
+  if (phoneNumberId && accessToken) return null; // creds present → live path
+  if (!isDemoMode()) return null; // production with missing creds → fall through to warn-and-fail
+
+  demoLog(`WhatsApp ${context} (demo simulator)`, {
+    to,
+    templateName,
+    preview: text.slice(0, 80),
+  });
+  const result = await simulateSendMessage(to, text);
+  return { messageId: result.messageId, success: result.success };
 }
 
 interface WhatsAppApiResponse {
@@ -50,6 +81,25 @@ export const whatsappService = {
     language: string = 'en',
     options: WhatsAppSendOptions = {},
   ): Promise<SendTextResult> {
+    // Demo-mode short-circuit (DEMO-01) — route through the simulator
+    // so audit/dispatch rows reflect a successful send rather than a
+    // silent credential-missing fallback. Returns null when the live
+    // path should run.
+    const simulated = await maybeSimulateSend(to, text, 'text');
+    if (simulated) {
+      if (enquiryId) {
+        await messageLogService.logMessage({
+          enquiryId,
+          direction: 'OUTBOUND',
+          channel: 'WHATSAPP',
+          messageText: text,
+          sentOrReceivedAt: new Date(),
+          externalMessageId: simulated.messageId,
+        });
+      }
+      return simulated;
+    }
+
     const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
     const accessToken = env.WHATSAPP_ACCESS_TOKEN || env.WHATSAPP_API_TOKEN;
 
@@ -171,6 +221,26 @@ export const whatsappService = {
     enquiryId?: string,
     options: WhatsAppSendOptions = {},
   ): Promise<SendTextResult> {
+    // Demo-mode short-circuit (DEMO-01) — same simulator path as
+    // sendTextMessage, but the message-log entry preserves the
+    // `[Template: ...] params` shape so the demo UI can show the
+    // template name explicitly.
+    const simulatedBody = `[Template: ${templateName}] ${parameters.join(', ')}`;
+    const simulated = await maybeSimulateSend(to, simulatedBody, 'template', templateName);
+    if (simulated) {
+      if (enquiryId) {
+        await messageLogService.logMessage({
+          enquiryId,
+          direction: 'OUTBOUND',
+          channel: 'WHATSAPP',
+          messageText: simulatedBody,
+          sentOrReceivedAt: new Date(),
+          externalMessageId: simulated.messageId,
+        });
+      }
+      return simulated;
+    }
+
     const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
     const accessToken = env.WHATSAPP_ACCESS_TOKEN || env.WHATSAPP_API_TOKEN;
 

@@ -240,6 +240,10 @@ async function main() {
     { id: 'demo-yard-gstaad', customerId: 'demo-cust-james', name: 'Gstaad Polo Fields', addr: '2 Promenade Platz', town: 'Saanen', county: 'Bern', postcode: '3792', lat: 46.4756, lng: 7.2867, access: 'Behind the polo grounds. Ask reception for access.', area: 'Gstaad' },
     { id: 'demo-yard-morges', customerId: 'demo-cust-nicole', name: 'Écurie de Morges', addr: '30 Rue du Port', town: 'Morges', county: 'Vaud', postcode: '1110', lat: 46.5107, lng: 6.4973, access: 'Centre équestre municipal, parking visiteurs.', area: 'Morges' },
     { id: 'demo-yard-rolle', customerId: 'demo-cust-anne', name: 'Les Poneys de Rolle', addr: '7 Chemin du Vignoble', town: 'Rolle', county: 'Vaud', postcode: '1180', lat: 46.4575, lng: 6.3391, access: 'Petit paddock après le vignoble. Calme requis.', area: 'Rolle' },
+    // DEMO-06 — second yard for Marie so the yard-matcher demo has
+    // two candidates to disambiguate between (Écurie du Lac in
+    // Villeneuve vs Centre Équestre Riviera in Montreux).
+    { id: 'demo-yard-marie-montreux', customerId: 'demo-cust-marie', name: 'Centre Équestre Riviera', addr: '22 Avenue du Théâtre', town: 'Montreux', county: 'Vaud', postcode: '1820', lat: 46.4312, lng: 6.9107, access: 'Entrée principale, demander à l\'accueil.', area: 'Montreux' },
   ];
 
   const yards: Record<string, { id: string; name: string; customerId: string }> = {};
@@ -310,6 +314,10 @@ async function main() {
     'demo-yard-gstaad': { custId: 'demo-cust-james', count: 4, lang: 'en' },
     'demo-yard-morges': { custId: 'demo-cust-nicole', count: 6, lang: 'fr' },
     'demo-yard-rolle': { custId: 'demo-cust-anne', count: 2, lang: 'fr' },
+    // DEMO-06 — Marie's second yard. Four named horses (Bella,
+    // Thunder, Luna, Max) get seeded explicitly below so the
+    // horse-matcher demo can find them by name.
+    'demo-yard-marie-montreux': { custId: 'demo-cust-marie', count: 0, lang: 'fr' },
   };
 
   const frNames = [...HORSE_NAMES_FR];
@@ -358,6 +366,28 @@ async function main() {
       });
       horseIdx++;
     }
+  }
+
+  // DEMO-06 — explicit named horses for the matcher demo. Stable IDs
+  // + recognisable English names so an inbound message like
+  // "Need visit for Bella at Aigle" reliably auto-fills
+  // VisitRequest.specificHorses=['Bella'].
+  const matcherDemoHorses: Array<{ id: string; name: string; yardId: string; notes: string }> = [
+    { id: 'demo-horse-bella', name: 'Bella', yardId: 'demo-yard-marie-montreux', notes: 'Routine annual check.' },
+    { id: 'demo-horse-thunder', name: 'Thunder', yardId: 'demo-yard-marie-montreux', notes: 'Sharp enamel points last visit.' },
+    { id: 'demo-horse-luna', name: 'Luna', yardId: 'demo-yard-villeneuve', notes: 'Gentle handling — sensitive mouth.' },
+    { id: 'demo-horse-max', name: 'Max', yardId: 'demo-yard-villeneuve', notes: 'Older horse, periodontal monitoring.' },
+  ];
+  for (const h of matcherDemoHorses) {
+    horseDefs.push({
+      id: h.id,
+      name: h.name,
+      age: 8,
+      customerId: 'demo-cust-marie',
+      yardId: h.yardId,
+      notes: h.notes,
+      dueInDays: 30,
+    });
   }
 
   const horses: Array<{ id: string; name: string; customerId: string; yardId: string }> = [];
