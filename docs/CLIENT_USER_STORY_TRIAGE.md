@@ -249,7 +249,7 @@ ticked. (Production needs the same minus `DEMO_MODE` and
 | `DATABASE_URL` | Neon Vercel-integration auto-populated, OR a preview-only Postgres URL | Without this, build fails at import time. |
 | `AUTH_SECRET` | `openssl rand -base64 32` (different from production) | Auth.js refuses to mint sessions without it. |
 | `N8N_API_KEY` | Any pseudo-random string | Set this on Preview too: when `DEMO_MODE=true`, an unset key can allow anonymous webhook access; handlers only fail-closed when demo mode is off. Preview URLs are public, so use a real random value. |
-| `DEMO_MODE` | `true` | Enables `/api/demo/sign-in`, persona picker, WhatsApp/email simulators. **The single most likely cause of "can't get past the login screen".** |
+| `DEMO_MODE` | `true` | Without this, `/api/demo/sign-in` and the persona-picker card are disabled; reviewers will land on the standard login page and must authenticate via a real OAuth provider. Enables WhatsApp/email simulators. |
 | `VERCEL_PREVIEW_MIGRATE` | `true` | Tells `scripts/vercel-build.sh` to run `prisma migrate deploy` + (because `DEMO_MODE=true`) `prisma db seed`. |
 
 Leave **unset** on Preview unless explicitly needed: `AUTH_URL`,
@@ -300,7 +300,7 @@ curl -fsS https://<the-preview-url>/api/health | jq .
 
 Expect:
 - `checks.database.status: "up"`
-- `checks.environment.status: "ok"` (or `"degraded"` with `missing[]` listing optional Group-B/C vars — fine for demo).
+- `checks.environment.status: "ok"` — `missing[]` is empty. (The only required var tracked here is `DATABASE_URL`; optional Group-B/C vars are not listed.)
 
 Then from the test device, open `/en/login` and confirm:
 - The "Continue as Demo Vet" persona-picker card is visible.
@@ -308,8 +308,9 @@ Then from the test device, open `/en/login` and confirm:
   Dr. Kathelijne Deberdt.
 - Build SHA visible in the login footer (matches the merged commit).
 
-If `/api/health` is 503 → read the `missing[]` list, set the missing
-var(s) in Vercel, redeploy.
+If `/api/health` returns 503, the overall `status` will be `"unhealthy"`. Two conditions trigger this:
+- `checks.database.status: "down"` — verify `DATABASE_URL` is set and the Neon branch is live.
+- `checks.environment.status: "missing"` — `DATABASE_URL` is unset. Set it in Vercel and redeploy.
 
 ### 6.7 — Pre-demo dry run (T-24h)
 
