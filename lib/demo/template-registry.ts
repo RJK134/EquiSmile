@@ -51,6 +51,37 @@ export const DEMO_TEMPLATES: Record<string, TemplateDefinition> = {
     approved: true,
     category: 'APPOINTMENT_UPDATE',
   },
+  // Phase A (May 2026 client user-story triage) — annual dental reminder.
+  // Sent ~30 days before Horse.dentalDueDate, debounced 14d via AuditLog.
+  // Reminder.service builds the body string today; this registry entry
+  // exists so the dispatch path can swap to a Meta-approved template
+  // when production WhatsApp Business templates are registered.
+  dental_due_reminder_v1: {
+    name: 'dental_due_reminder_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name', 'horse_name', 'due_date'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  // Phase A — annual vaccination reminder. Same dispatch shape as dental.
+  vaccination_due_reminder_v1: {
+    name: 'vaccination_due_reminder_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name', 'horse_name', 'due_date'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  // Phase A — overdue-invoice reminder. Sent ≥30 days past invoice due
+  // date, debounced 14d via Invoice.lastReminderSentAt. WhatsApp-first
+  // per the client acceptance criterion in
+  // docs/CLIENT_USER_STORY_TRIAGE.md §1.
+  invoice_overdue_reminder_v1: {
+    name: 'invoice_overdue_reminder_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name', 'invoice_number', 'amount', 'days_past_due'],
+    approved: true,
+    category: 'UTILITY',
+  },
 };
 
 /**

@@ -392,6 +392,18 @@ async function main() {
 
   const horses: Array<{ id: string; name: string; customerId: string; yardId: string }> = [];
   for (const h of horseDefs) {
+    // Phase A — vaccinationDueDate spread so the reminder cron has both
+    // imminently-due (within 30d) and far-future fixtures. Pattern:
+    //   - every 5th horse: due in 7d  (will trigger dispatch on a fresh seed)
+    //   - every 4th horse: null       (untracked vaccination history)
+    //   - everyone else: due 90-300d out
+    const vaccinationDueDate =
+      horseDefs.indexOf(h) % 5 === 0
+        ? daysFromNow(7)
+        : horseDefs.indexOf(h) % 4 === 0
+        ? null
+        : daysFromNow(90 + (horseDefs.indexOf(h) * 13) % 210);
+
     await prisma.horse.upsert({
       where: { id: h.id },
       update: {
@@ -400,6 +412,7 @@ async function main() {
         horseName: h.name,
         age: h.age,
         active: true,
+        vaccinationDueDate,
       },
       create: {
         id: h.id,
@@ -409,12 +422,23 @@ async function main() {
         age: h.age,
         notes: h.notes,
         dentalDueDate: daysFromNow(h.dueInDays),
+        vaccinationDueDate,
         active: true,
       },
     });
     horses.push({ id: h.id, name: h.name, customerId: h.customerId, yardId: h.yardId });
   }
   console.log(`  Created ${horses.length} horses across ${Object.keys(yardHorseCounts).length} yards`);
+
+  // Phase A — pin Bella's vaccinationDueDate to 7 days from now so the
+  // reminder dispatch reliably triggers on her during a fresh-seed demo.
+  // Marie Dupont is the headline customer and Bella is her headline horse;
+  // having "Bella's annual vaccination is due Tuesday" land in the demo
+  // log makes the G-3b path concretely demoable.
+  await prisma.horse.update({
+    where: { id: 'demo-horse-bella' },
+    data: { vaccinationDueDate: daysFromNow(7) },
+  });
 
   // ══════════════════════════════════════════════════════════════════════════
   // 5. ENQUIRIES (25: mix of stages)

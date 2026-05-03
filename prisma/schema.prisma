@@ -264,19 +264,24 @@ model Yard {
 }
 
 model Horse {
-  id            String    @id @default(uuid())
-  customerId    String
-  primaryYardId String?
-  horseName     String
-  age           Int?
-  notes         String?
-  dentalDueDate DateTime?
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  customerId          String
+  primaryYardId       String?
+  horseName           String
+  age                 Int?
+  notes               String?
+  dentalDueDate       DateTime?
+  // Phase A (May 2026 client user-story triage, G-3b) — annual vaccination
+  // reminder field. Nullable; nothing back-fills it. Reminder dispatch
+  // reads it and sends a WhatsApp/email reminder when it falls within a
+  // 30-day look-ahead window.
+  vaccinationDueDate  DateTime?
+  active              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   // Phase 15 production-readiness — soft delete.
-  deletedAt     DateTime?
-  deletedById   String?
+  deletedAt           DateTime?
+  deletedById         String?
 
   customer    Customer @relation(fields: [customerId], references: [id])
   primaryYard Yard?    @relation(fields: [primaryYardId], references: [id])
@@ -889,6 +894,12 @@ model Invoice {
   // used. Unique so bank-import auto-match is unambiguous.
   qrReference     String?               @unique
   notes           String?
+  // Phase A (May 2026 client user-story triage, G-3c) — debounce field for
+  // overdue-invoice reminders. Set to NOW() each time a reminder dispatches
+  // for this invoice. Reminder service skips invoices with a fresh value
+  // (within the debounce window, default 14d) to avoid pestering the
+  // customer on every cron tick.
+  lastReminderSentAt DateTime?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 

@@ -226,6 +226,7 @@
     "horseName": "Nom",
     "age": "Âge",
     "dentalDue": "Soins dentaires prévus",
+    "vaccinationDue": "Vaccination prévue",
     "active": "Actif",
     "inactive": "Inactif",
     "customer": "Propriétaire",

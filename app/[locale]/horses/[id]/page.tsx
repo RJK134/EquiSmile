@@ -52,6 +52,7 @@ interface HorseDetail {
   age: number | null;
   notes: string | null;
   dentalDueDate: string | null;
+  vaccinationDueDate: string | null;
   active: boolean;
   customer: { id: string; fullName: string };
   primaryYard: { id: string; yardName: string; postcode: string } | null;
@@ -124,6 +125,7 @@ export default function HorseDetailPage() {
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between"><dt className="text-muted">{t('age')}</dt><dd>{horse.age ?? '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted">{t('dentalDue')}</dt><dd>{horse.dentalDueDate ? format.dateTime(new Date(horse.dentalDueDate), { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted">{t('vaccinationDue')}</dt><dd>{horse.vaccinationDueDate ? format.dateTime(new Date(horse.vaccinationDueDate), { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted">{t('active')}</dt><dd className={horse.active ? 'text-green-600' : 'text-muted'}>{horse.active ? t('active') : t('inactive')}</dd></div>
                 {horse.notes && <div><dt className="text-muted">{t('form.notes')}</dt><dd className="mt-1">{horse.notes}</dd></div>}
               </dl>
