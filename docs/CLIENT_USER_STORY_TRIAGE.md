@@ -248,7 +248,7 @@ ticked. (Production needs the same minus `DEMO_MODE` and
 |---|---|---|
 | `DATABASE_URL` | Neon Vercel-integration auto-populated, OR a preview-only Postgres URL | Without this, build fails at import time. |
 | `AUTH_SECRET` | `openssl rand -base64 32` (different from production) | Auth.js refuses to mint sessions without it. |
-| `N8N_API_KEY` | Any pseudo-random string | Webhook handlers fail-closed when unset (KI-006). |
+| `N8N_API_KEY` | Any pseudo-random string | Set this on Preview too: when `DEMO_MODE=true`, an unset key can allow anonymous webhook access; handlers only fail-closed when demo mode is off. Preview URLs are public, so use a real random value. |
 | `DEMO_MODE` | `true` | Enables `/api/demo/sign-in`, persona picker, WhatsApp/email simulators. **The single most likely cause of "can't get past the login screen".** |
 | `VERCEL_PREVIEW_MIGRATE` | `true` | Tells `scripts/vercel-build.sh` to run `prisma migrate deploy` + (because `DEMO_MODE=true`) `prisma db seed`. |
 
