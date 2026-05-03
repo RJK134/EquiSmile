@@ -222,6 +222,10 @@ describe('reminderService', () => {
 
     it('sends a vaccination reminder via WhatsApp', async () => {
       (prisma.horse.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([horseVaccineDue]);
+      // Reset debounce check explicitly: previous tests may have set the
+      // mock to return a non-null record. clearAllMocks in beforeEach
+      // wipes call history but not return values.
+      (prisma.auditLog.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const results = await reminderService.dispatchVaccinationDueReminders(new Date('2026-05-03T00:00:00Z'));
 

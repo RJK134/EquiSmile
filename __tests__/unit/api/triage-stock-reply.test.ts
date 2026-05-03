@@ -107,10 +107,9 @@ describe('POST /api/triage-ops/stock-reply', () => {
     expect(body.error).toContain('Customer has no contact channels');
   });
 
-  it('rejects a READONLY user', async () => {
-    requireRoleMock.mockRejectedValueOnce(
-      Object.assign(new Error('forbidden'), { name: 'AuthzError', code: 'INSUFFICIENT_ROLE' }),
-    );
+  it('rejects a READONLY user with 403', async () => {
+    const { AuthzError } = await import('@/lib/auth/rbac');
+    requireRoleMock.mockRejectedValueOnce(new AuthzError('Insufficient role', 403));
 
     const { POST } = await import('@/app/api/triage-ops/stock-reply/route');
     const request = new NextRequest('http://localhost:3000/api/triage-ops/stock-reply', {
@@ -120,7 +119,7 @@ describe('POST /api/triage-ops/stock-reply', () => {
     });
     const response = await POST(request);
 
-    expect([401, 403]).toContain(response.status);
+    expect(response.status).toBe(403);
     expect(sendStockReplyMock).not.toHaveBeenCalled();
   });
 });

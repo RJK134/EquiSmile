@@ -5,7 +5,9 @@ import { useTranslations } from 'next-intl';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { STOCK_REPLY_TEMPLATES, type StockReplyTemplateName } from '@/lib/demo/template-registry';
-import { buildStockReplyBody } from '@/lib/services/stock-reply.service';
+// Body builder lives in a pure file (no server-only deps) so it bundles
+// safely into this client component.
+import { buildStockReplyBody } from '@/lib/demo/stock-reply-bodies';
 
 /**
  * Modal that lets a vet pick one of four stock-reply templates, preview

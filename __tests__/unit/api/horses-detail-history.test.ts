@@ -135,17 +135,14 @@ describe('GET /api/horses/[id] — clinical history', () => {
     expect(response.status).toBe(404);
   });
 
-  it('rejects with 401/403 when no session/role', async () => {
-    requireRoleMock.mockRejectedValueOnce(
-      Object.assign(new Error('Unauthenticated'), { name: 'AuthzError', code: 'NO_SESSION' }),
-    );
-    // The route catches AuthzError and returns the authzErrorResponse
-    // wrapper. We assert the call attempted requireRole; the behaviour
-    // of authzErrorResponse is covered by lib/auth/rbac.test.ts.
+  it('rejects with 401 when no session', async () => {
+    const { AuthzError } = await import('@/lib/auth/rbac');
+    requireRoleMock.mockRejectedValueOnce(new AuthzError('Authentication required', 401));
+
     const { GET } = await import('@/app/api/horses/[id]/route');
     const request = new NextRequest('http://localhost:3000/api/horses/h1');
     const response = await GET(request, { params: Promise.resolve({ id: 'h1' }) });
-    // Response is one of 401/403 depending on the AuthzError code shape.
-    expect([401, 403]).toContain(response.status);
+
+    expect(response.status).toBe(401);
   });
 });
