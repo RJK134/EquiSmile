@@ -55,8 +55,12 @@ docker-compose.override.yml
 .vscode/
 .idea/
 
-# claude
-.claude/
+# claude — session scratch is ignored, but persistent memory IS committed
+# so cross-session/cross-machine sessions can read it (CLAUDE.md says
+# "Read this file at the start of every session").
+# Use .claude/* (not .claude/) so the negation below can re-include.
+.claude/*
+!.claude/memory.md
 
 # Clinical attachment storage (Phase 12)
 data/attachments/
