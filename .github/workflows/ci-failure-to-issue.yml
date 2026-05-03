@@ -1,0 +1,76 @@
+name: CI failure → bug issue
+
+# Whenever ANY workflow run on the default branch finishes in failure,
+# open (or update) a bug-labeled issue. The bug label triggers
+# claude-code-fix.yml, which assigns Claude Code to investigate.
+on:
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  open-bug:
+    if: >
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+      github.event.workflow_run.name != 'CI failure → bug issue' &&
+      github.event.workflow_run.name != 'Claude Code Auto-Fix'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update bug issue
+        uses: actions/github-script@v7
+        env:
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          WF_URL: ${{ github.event.workflow_run.html_url }}
+          WF_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_ACTOR: ${{ github.event.workflow_run.actor.login }}
+          WF_EVENT: ${{ github.event.workflow_run.event }}
+          WF_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        with:
+          script: |
+            const { WF_NAME, WF_URL, WF_SHA, WF_ACTOR, WF_EVENT, WF_BRANCH } = process.env;
+            const sha7 = WF_SHA.slice(0, 7);
+            const title = `[CI] "${WF_NAME}" failed on ${WF_BRANCH} (${sha7})`;
+
+            // Look for an existing OPEN issue with the same workflow name to dedupe.
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "[CI]" "${WF_NAME}"`,
+              per_page: 5,
+            });
+            const existing = search.data.items.find(i => i.title.includes(`"${WF_NAME}"`));
+
+            const body = [
+              `**Workflow:** ${WF_NAME}`,
+              `**Branch:** \`${WF_BRANCH}\``,
+              `**Commit:** \`${WF_SHA}\``,
+              `**Triggered by:** @${WF_ACTOR} via \`${WF_EVENT}\``,
+              `**Run:** ${WF_URL}`,
+              ``,
+              `Auto-filed by \`ci-failure-to-issue.yml\`. Bug label will trigger Claude Code auto-fix.`,
+              ``,
+              `@claude please investigate this CI failure: read the failing workflow logs at ${WF_URL}, identify the root cause, and open a fix PR per the repo's CLAUDE.md guidelines.`,
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `New failure on \`${sha7}\`:\n\n${body}`,
+              });
+              core.notice(`Updated existing issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['bug', 'ci-failure'],
+              });
+              core.notice(`Opened bug issue #${created.data.number}`);
+            }
