@@ -12,7 +12,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { isDemoMode } from '@/lib/demo/demo-mode';
+import { requireDemoMode } from '@/lib/demo/demo-mode';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -46,8 +46,9 @@ function extractTemplate(body: string): { templateName: string | null; renderedB
 }
 
 export async function GET() {
-  if (!isDemoMode()) {
-    return NextResponse.json({ error: 'Demo-only endpoint' }, { status: 403 });
+  const guard = requireDemoMode();
+  if (!guard.allowed) {
+    return NextResponse.json({ error: guard.reason }, { status: 403 });
   }
 
   const rows = await prisma.enquiryMessage.findMany({

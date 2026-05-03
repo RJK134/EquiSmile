@@ -9,9 +9,11 @@
  * docs/OPERATIONS.md §1 for the token + onboarding runbook.
  *
  * The names below match the env-var defaults consumed by
- * lib/services/confirmation.service.ts and lib/services/reminder.service.ts:
+ * lib/services/confirmation.service.ts:
  *   WHATSAPP_CONFIRMATION_TEMPLATE  → appointment_confirmation_v1
- *   WHATSAPP_REMINDER_TEMPLATE       → appointment_reminder_v1
+ *   WHATSAPP_REMINDER_TEMPLATE       → appointment_reminder_v1 (reserved for
+ *     when reminder.service.ts is updated to send via template rather than
+ *     the current free-text sendTextMessage path)
  *
  * In production, the env var should point at the actual approved
  * template name on the Meta side (which may carry a different

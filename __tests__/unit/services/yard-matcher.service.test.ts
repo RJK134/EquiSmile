@@ -69,4 +69,17 @@ describe('yardMatcherService.matchYard', () => {
     );
     expect(m).toBeNull();
   });
+
+  it('returns null when multiple yard names share matching tokens (ambiguous)', async () => {
+    // Both yards contain "ecurie" — matcher cannot auto-assign.
+    const m = await yardMatcherService.matchYard(
+      'cust-1',
+      'visit at the ecurie please',
+      stub([
+        { id: 'y1', yardName: 'Écurie du Lac', postcode: '1844', town: 'Villeneuve' },
+        { id: 'y2', yardName: 'Écurie des Alpes', postcode: '3960', town: 'Sierre' },
+      ]),
+    );
+    expect(m).toBeNull();
+  });
 });

@@ -81,12 +81,35 @@ export const whatsappService = {
     language: string = 'en',
     options: WhatsAppSendOptions = {},
   ): Promise<SendTextResult> {
+    // Idempotency check shared by both the simulator and the live path.
+    // The previous `${to}:${enquiryId}:${Date.now()}` form minted a fresh
+    // key every call and never deduplicated — which meant a retrying cron
+    // could fire the same confirmation twice. Callers that want at-most-once
+    // semantics (confirmation, reminder, cancellation ack) pass e.g.
+    // `wa-confirmation:<appointmentId>`.
+    const idempotencyKey = options.operationKey
+      ? generateIdempotencyKey('wa-text', options.operationKey)
+      : null;
+    if (idempotencyKey && (await hasBeenProcessed(idempotencyKey))) {
+      logger.warn('Duplicate WhatsApp send prevented', {
+        service: 'whatsapp-service',
+        operation: 'send-text',
+        to,
+        enquiryId,
+        operationKey: options.operationKey,
+      });
+      return { messageId: '', success: true };
+    }
+
     // Demo-mode short-circuit (DEMO-01) — route through the simulator
     // so audit/dispatch rows reflect a successful send rather than a
     // silent credential-missing fallback. Returns null when the live
     // path should run.
     const simulated = await maybeSimulateSend(to, text, 'text');
     if (simulated) {
+      if (idempotencyKey) {
+        await markAsProcessed(idempotencyKey, 'wa-text');
+      }
       if (enquiryId) {
         await messageLogService.logMessage({
           enquiryId,
@@ -109,27 +132,6 @@ export const whatsappService = {
         operation: 'send-text',
       });
       return { messageId: '', success: false };
-    }
-
-    // Idempotency: only when the caller provides a deterministic
-    // operationKey. The previous `${to}:${enquiryId}:${Date.now()}` form
-    // minted a fresh key every call and never deduplicated — which
-    // meant a retrying cron could fire the same confirmation twice.
-    // Callers that genuinely want at-most-once semantics (confirmation,
-    // reminder, cancellation ack) now pass e.g.
-    // `wa-confirmation:<appointmentId>`.
-    const idempotencyKey = options.operationKey
-      ? generateIdempotencyKey('wa-text', options.operationKey)
-      : null;
-    if (idempotencyKey && (await hasBeenProcessed(idempotencyKey))) {
-      logger.warn('Duplicate WhatsApp send prevented', {
-        service: 'whatsapp-service',
-        operation: 'send-text',
-        to,
-        enquiryId,
-        operationKey: options.operationKey,
-      });
-      return { messageId: '', success: true };
     }
 
     const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
@@ -221,6 +223,24 @@ export const whatsappService = {
     enquiryId?: string,
     options: WhatsAppSendOptions = {},
   ): Promise<SendTextResult> {
+    // Idempotency check shared by both the simulator and the live path.
+    // Same rule as sendTextMessage: only idempotent when the caller
+    // supplies a deterministic operationKey. Fall back to none.
+    const idempotencyKey = options.operationKey
+      ? generateIdempotencyKey('wa-tpl', options.operationKey)
+      : null;
+    if (idempotencyKey && (await hasBeenProcessed(idempotencyKey))) {
+      logger.warn('Duplicate WhatsApp template send prevented', {
+        service: 'whatsapp-service',
+        operation: 'send-template',
+        to,
+        templateName,
+        enquiryId,
+        operationKey: options.operationKey,
+      });
+      return { messageId: '', success: true };
+    }
+
     // Demo-mode short-circuit (DEMO-01) — same simulator path as
     // sendTextMessage, but the message-log entry preserves the
     // `[Template: ...] params` shape so the demo UI can show the
@@ -228,6 +248,9 @@ export const whatsappService = {
     const simulatedBody = `[Template: ${templateName}] ${parameters.join(', ')}`;
     const simulated = await maybeSimulateSend(to, simulatedBody, 'template', templateName);
     if (simulated) {
+      if (idempotencyKey) {
+        await markAsProcessed(idempotencyKey, 'wa-tpl');
+      }
       if (enquiryId) {
         await messageLogService.logMessage({
           enquiryId,
@@ -250,23 +273,6 @@ export const whatsappService = {
         operation: 'send-template',
       });
       return { messageId: '', success: false };
-    }
-
-    // Same rule as sendTextMessage: only idempotent when the caller
-    // supplies a deterministic operationKey. Fall back to none.
-    const idempotencyKey = options.operationKey
-      ? generateIdempotencyKey('wa-tpl', options.operationKey)
-      : null;
-    if (idempotencyKey && (await hasBeenProcessed(idempotencyKey))) {
-      logger.warn('Duplicate WhatsApp template send prevented', {
-        service: 'whatsapp-service',
-        operation: 'send-template',
-        to,
-        templateName,
-        enquiryId,
-        operationKey: options.operationKey,
-      });
-      return { messageId: '', success: true };
     }
 
     const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;

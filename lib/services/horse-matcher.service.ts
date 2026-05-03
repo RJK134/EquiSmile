@@ -18,7 +18,7 @@ export interface HorseMatchResult {
 export interface HorseMatcherClient {
   horse: {
     findMany: (args: {
-      where: { customer: { id: string }; deletedAt: null };
+      where: { customerId: string; deletedAt: null };
       select: { horseName: true };
     }) => Promise<Array<{ horseName: string }>>;
   };
@@ -51,7 +51,7 @@ export const horseMatcherService = {
     client: PrismaTransactionClient | HorseMatcherClient,
   ): Promise<HorseMatchResult> {
     const horses = await client.horse.findMany({
-      where: { customer: { id: customerId }, deletedAt: null },
+      where: { customerId, deletedAt: null },
       select: { horseName: true },
     });
 

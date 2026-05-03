@@ -29,7 +29,10 @@ export interface YardMatcherClient {
   };
 }
 
-const SWISS_POSTCODE = /\b\d{4}\b/g;
+// Matches a standalone 4-digit Swiss postcode (1000–9999).
+// Negative lookbehind/lookahead for date separators (/ . -) prevents
+// matching date fragments like "15/03/2024" or "2024-01-15".
+const SWISS_POSTCODE = /(?<![/.\-])\b\d{4}\b(?![/.\-])/g;
 
 function normalise(s: string): string {
   return s
