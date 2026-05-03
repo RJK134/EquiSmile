@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { SkipToContent } from '@/components/ui/SkipToContent';
+import { WhatsAppMessageLog } from './components/WhatsAppMessageLog';
 
 interface DemoStatus {
   demoMode: boolean;
@@ -152,6 +153,11 @@ export default function DemoPage() {
           </div>
 
           <h1 className="mb-4 text-xl font-bold">Demo Control Panel / Panneau de contrôle</h1>
+
+          {/* DEMO-05 — outbound WhatsApp visibility */}
+          <Card className="mb-4">
+            <WhatsAppMessageLog />
+          </Card>
 
           {/* Integration Status */}
           <Card className="mb-4">

@@ -28,9 +28,15 @@ const mockPrisma = vi.hoisted(() => {
     },
     yard: {
       updateMany: vi.fn(),
+      // DEMO-03 — yardMatcherService calls findMany. Default to no
+      // yards so the matcher returns null and existing tests stay
+      // green; specific cases can override per-test.
+      findMany: vi.fn().mockResolvedValue([]),
     },
     horse: {
       updateMany: vi.fn(),
+      // DEMO-03 — same for horseMatcherService.
+      findMany: vi.fn().mockResolvedValue([]),
     },
     visitRequest: {
       create: vi.fn(),

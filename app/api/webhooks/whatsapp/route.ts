@@ -11,6 +11,8 @@ import { logger } from '@/lib/utils/logger';
 import { resolveInboundCustomer } from '@/lib/services/inbound-customer.service';
 import { rescheduleService } from '@/lib/services/reschedule.service';
 import { appointmentAuditService } from '@/lib/services/appointment-audit.service';
+import { yardMatcherService } from '@/lib/services/yard-matcher.service';
+import { horseMatcherService } from '@/lib/services/horse-matcher.service';
 import type { AppointmentResponseKind } from '@prisma/client';
 
 // Per-IP cap: Meta typically pushes <60 req/min per app. 300/min is an
@@ -358,14 +360,50 @@ async function processWebhookPayload(payload: WhatsAppPayload) {
           );
         }
 
+        // DEMO-03 — try to identify yard + horses from the message
+        // text so a complete enquiry can flow straight to the planning
+        // pool without operator triage. Both matchers are best-effort:
+        // failure leaves the field unset and the operator picks via
+        // the /triage UI.
+        const [yardMatch, horseMatch] = await Promise.all([
+          yardMatcherService.matchYard(customer.id, messageText, prisma),
+          horseMatcherService.matchHorses(customer.id, messageText, prisma),
+        ]);
+        if (yardMatch) {
+          logger.info('WhatsApp intake matched yard', {
+            service: 'whatsapp-webhook',
+            operation: 'match-yard',
+            enquiryId: enquiry.id,
+            customerId: customer.id,
+            yardId: yardMatch.yardId,
+            confidence: yardMatch.confidence,
+            matchedOn: yardMatch.matchedOn,
+          });
+        }
+        if (horseMatch.horseNames.length > 0) {
+          logger.info('WhatsApp intake matched horses', {
+            service: 'whatsapp-webhook',
+            operation: 'match-horses',
+            enquiryId: enquiry.id,
+            customerId: customer.id,
+            horses: horseMatch.horseNames,
+            confidence: horseMatch.confidence,
+          });
+        }
+
         // Create visit request
         const visitRequest = await prisma.visitRequest.create({
           data: {
             enquiryId: enquiry.id,
             customerId: customer.id,
+            // Auto-assign yard only on a high-confidence match; medium
+            // matches just log the suggestion. Operator can still set
+            // `yardId` from the triage UI.
+            yardId: yardMatch && yardMatch.confidence === 'high' ? yardMatch.yardId : null,
             requestType: parsed.isUrgent ? 'URGENT_ISSUE' : 'ROUTINE_DENTAL',
             urgencyLevel: parsed.isUrgent ? 'URGENT' : 'ROUTINE',
             horseCount: parsed.horseCount,
+            specificHorses: horseMatch.horseNames,
             needsMoreInfo: true,
             planningStatus: 'UNTRIAGED',
             preferredDays: [],
