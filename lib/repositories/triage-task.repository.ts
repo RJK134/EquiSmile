@@ -21,7 +21,9 @@ export const triageTaskRepository = {
         include: {
           visitRequest: {
             include: {
-              customer: { select: { id: true, fullName: true } },
+              // preferredLanguage powers the bilingual stock-reply preview
+              // (G-2b) on the triage page modal.
+              customer: { select: { id: true, fullName: true, preferredLanguage: true } },
               yard: { select: { id: true, yardName: true, postcode: true } },
               enquiry: { select: { id: true, channel: true, rawText: true, receivedAt: true } },
             },

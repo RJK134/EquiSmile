@@ -82,7 +82,56 @@ export const DEMO_TEMPLATES: Record<string, TemplateDefinition> = {
     approved: true,
     category: 'UTILITY',
   },
+  // Phase A (G-2b) — operator-picked stock replies for the triage queue.
+  // The vet picks one, previews the body, confirms and sends. Hard rule
+  // from the client's user story: "Automated responses must remain
+  // editable and reviewable" — no silent auto-send.
+  faq_acknowledge_v1: {
+    name: 'faq_acknowledge_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  faq_request_info_v1: {
+    name: 'faq_request_info_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  faq_routine_booking_v1: {
+    name: 'faq_routine_booking_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  faq_emergency_redirect_v1: {
+    name: 'faq_emergency_redirect_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
 };
+
+/**
+ * Stock-reply identifiers a vet can pick from the triage queue (G-2b).
+ * Each maps to a Meta-approved template name above and a bilingual body
+ * string defined in `lib/services/stock-reply.service.ts`. Keeping the
+ * list small (4 patterns) bounds the operator decision space — when the
+ * client's FAQ corpus arrives in Phase C, additional entries register
+ * here.
+ */
+export const STOCK_REPLY_TEMPLATES = [
+  'faq_acknowledge_v1',
+  'faq_request_info_v1',
+  'faq_routine_booking_v1',
+  'faq_emergency_redirect_v1',
+] as const;
+
+export type StockReplyTemplateName = (typeof STOCK_REPLY_TEMPLATES)[number];
 
 /**
  * Convenience accessor. Throws if the env-configured template name

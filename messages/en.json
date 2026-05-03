@@ -268,6 +268,27 @@
     "requestInfo": "Request Info",
     "escalate": "Escalate",
     "classify": "Classify",
+    "replyWithTemplate": "Reply with template",
+    "stockReply": {
+      "title": "Reply with a stock template",
+      "subtitle": "Pick a template, preview the message, and confirm to send. The customer's preferred channel (WhatsApp / email) is used automatically.",
+      "preview": "Preview",
+      "send": "Send reply",
+      "sending": "Sending…",
+      "sendError": "Could not send reply. Please try again or use the manual reply path.",
+      "templates": {
+        "faq_acknowledge_v1": "Acknowledge — we'll respond within 24h",
+        "faq_request_info_v1": "Request more info (postcode, horse count, concerns)",
+        "faq_routine_booking_v1": "Routine booking — propose a slot in our local route runs",
+        "faq_emergency_redirect_v1": "Emergency redirect — ask the customer to call directly"
+      },
+      "toastSent": {
+        "faq_acknowledge_v1": "Acknowledgement sent.",
+        "faq_request_info_v1": "Information request sent.",
+        "faq_routine_booking_v1": "Routine booking suggestion sent.",
+        "faq_emergency_redirect_v1": "Emergency redirect sent."
+      }
+    },
     "bulkActions": "Bulk Actions",
     "batchAssign": "Batch Assign",
     "batchClassify": "Batch Classify",

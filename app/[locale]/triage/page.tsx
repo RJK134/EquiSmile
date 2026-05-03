@@ -14,6 +14,8 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Link } from '@/i18n/navigation';
 import { taskTypeLabel } from '@/lib/utils/triage-task-type';
+import { StockReplyModal } from '@/components/triage/StockReplyModal';
+import type { StockReplyTemplateName } from '@/lib/demo/template-registry';
 
 interface TriageTask {
   id: string;
@@ -32,7 +34,7 @@ interface TriageTask {
     estimatedDurationMinutes: number | null;
     autoTriageConfidence: number | null;
     clinicalFlags: string[];
-    customer: { id: string; fullName: string } | null;
+    customer: { id: string; fullName: string; preferredLanguage?: string } | null;
     yard: { id: string; yardName: string; postcode?: string } | null;
     enquiry: { id: string; channel: string; rawText: string; receivedAt?: string } | null;
   };
@@ -80,6 +82,11 @@ function TriagePageContent() {
   const [overrideModal, setOverrideModal] = useState<{ taskId: string; vrId: string } | null>(null);
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideError, setOverrideError] = useState<string | null>(null);
+  const [stockReplyModal, setStockReplyModal] = useState<
+    | { taskId: string; vrId: string; customerName: string; customerLanguage: string }
+    | null
+  >(null);
+  const [stockReplyToast, setStockReplyToast] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -401,6 +408,23 @@ function TriagePageContent() {
                         <Button size="sm" variant="secondary" onClick={() => setOverrideModal({ taskId: task.id, vrId: task.visitRequest.id })} disabled={actionLoading}>
                           {t('override')}
                         </Button>
+                        {task.visitRequest.customer && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() =>
+                              setStockReplyModal({
+                                taskId: task.id,
+                                vrId: task.visitRequest.id,
+                                customerName: task.visitRequest.customer!.fullName,
+                                customerLanguage: task.visitRequest.customer!.preferredLanguage || 'en',
+                              })
+                            }
+                            disabled={actionLoading}
+                          >
+                            {t('replyWithTemplate')}
+                          </Button>
+                        )}
                         <Button size="sm" onClick={() => handleAction(task.id, task.visitRequest.id, 'done')} disabled={actionLoading}>
                           {t('markDone')}
                         </Button>
@@ -438,6 +462,31 @@ function TriagePageContent() {
                   </Button>
                 </div>
               </Card>
+            </div>
+          )}
+
+          {/* Stock-reply modal (G-2b) */}
+          {stockReplyModal && (
+            <StockReplyModal
+              visitRequestId={stockReplyModal.vrId}
+              customerName={stockReplyModal.customerName}
+              customerLanguage={stockReplyModal.customerLanguage}
+              onClose={() => setStockReplyModal(null)}
+              onSent={(template: StockReplyTemplateName) => {
+                setStockReplyModal(null);
+                setStockReplyToast(t(`stockReply.toastSent.${template}`));
+                setTimeout(() => setStockReplyToast(null), 4000);
+              }}
+            />
+          )}
+
+          {/* Stock-reply success toast */}
+          {stockReplyToast && (
+            <div
+              role="status"
+              className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-md bg-primary px-4 py-2 text-sm text-white shadow-lg"
+            >
+              {stockReplyToast}
             </div>
           )}
         </main>
