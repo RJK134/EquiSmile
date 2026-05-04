@@ -1319,7 +1319,7 @@ async function main() {
 
   const invoiceSeeds: InvoiceSeed[] = [
     // PAID — 8 fully paid invoices
-    { id: 'demo-inv-001', invoiceNumber: 'INV-2026-0001', customerId: 'demo-cust-jeanluc', visitOutcomeId: 'demo-outcome-completed', issuedDaysAgo: 25, dueOffset: 30, total: 285.50, status: 'PAID', payments: [{ amount: 285.50, daysAgo: 10 }] },
+    { id: 'demo-inv-001', invoiceNumber: 'INV-2026-0001', customerId: 'demo-cust-jeanluc', visitOutcomeId: 'demo-outcome-001', issuedDaysAgo: 25, dueOffset: 30, total: 285.50, status: 'PAID', payments: [{ amount: 285.50, daysAgo: 10 }] },
     { id: 'demo-inv-002', invoiceNumber: 'INV-2026-0002', customerId: 'demo-cust-marie',   issuedDaysAgo: 60, dueOffset: 30, total: 420.00, status: 'PAID', payments: [{ amount: 420.00, daysAgo: 35 }] },
     { id: 'demo-inv-003', invoiceNumber: 'INV-2026-0003', customerId: 'demo-cust-pierre',  issuedDaysAgo: 90, dueOffset: 30, total: 1180.00, status: 'PAID', payments: [{ amount: 1180.00, daysAgo: 70 }] },
     { id: 'demo-inv-004', invoiceNumber: 'INV-2026-0004', customerId: 'demo-cust-sarah',   issuedDaysAgo: 45, dueOffset: 30, total: 360.00, status: 'PAID', payments: [{ amount: 360.00, daysAgo: 25 }] },
