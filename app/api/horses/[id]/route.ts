@@ -12,7 +12,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     await requireRole(ROLES.READONLY);
     const { id } = await context.params;
-    const horse = await horseRepository.findById(id);
+    // Detail page renders the Clinical History card (dental charts,
+    // findings, prescriptions, attachments) so we fetch the relations
+    // here. Bounded to newest 5 of each per the repo helper.
+    const horse = await horseRepository.findByIdWithClinicalHistory(id);
     if (!horse) return errorResponse('Horse not found', 404);
     return successResponse(horse);
   } catch (error) {

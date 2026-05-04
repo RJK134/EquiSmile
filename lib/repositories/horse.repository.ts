@@ -59,6 +59,72 @@ export const horseRepository = {
     });
   },
 
+  /**
+   * Returns the horse plus the newest 5 of each clinical relation
+   * (dental charts, findings, prescriptions, attachments). Powers the
+   * Clinical History card on the horse detail page (G-6a).
+   *
+   * Uses `select` on relations to keep the payload bounded — we don't
+   * want a 20-year history streamed to a mobile client. "See all" pages
+   * are deferred to a later phase.
+   */
+  async findByIdWithClinicalHistory(
+    id: string,
+    options: { includeDeleted?: boolean } = {},
+  ) {
+    return prisma.horse.findFirst({
+      where: { id, deletedAt: options.includeDeleted ? undefined : null },
+      include: {
+        customer: true,
+        primaryYard: true,
+        dentalCharts: {
+          orderBy: { recordedAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            recordedAt: true,
+            generalNotes: true,
+            appointmentId: true,
+          },
+        },
+        findings: {
+          orderBy: { findingDate: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            findingDate: true,
+            toothId: true,
+            category: true,
+            severity: true,
+            description: true,
+          },
+        },
+        prescriptions: {
+          orderBy: { prescribedAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            prescribedAt: true,
+            medicineName: true,
+            dosage: true,
+            durationDays: true,
+            status: true,
+          },
+        },
+        attachments: {
+          orderBy: { uploadedAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            uploadedAt: true,
+            kind: true,
+            description: true,
+          },
+        },
+      },
+    });
+  },
+
   async create(data: CreateHorseInput) {
     return prisma.horse.create({ data });
   },

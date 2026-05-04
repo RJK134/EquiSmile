@@ -11,7 +11,40 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { DeleteEntityButton } from '@/components/ui/DeleteEntityButton';
+import { HorseClinicalHistory } from '@/components/horses/HorseClinicalHistory';
 import { Link } from '@/i18n/navigation';
+
+interface DentalChartSummary {
+  id: string;
+  recordedAt: string;
+  generalNotes: string | null;
+  appointmentId: string | null;
+}
+
+interface ClinicalFindingSummary {
+  id: string;
+  findingDate: string;
+  toothId: string | null;
+  category: string;
+  severity: string;
+  description: string;
+}
+
+interface PrescriptionSummary {
+  id: string;
+  prescribedAt: string;
+  medicineName: string;
+  dosage: string;
+  durationDays: number | null;
+  status: string;
+}
+
+interface AttachmentSummary {
+  id: string;
+  uploadedAt: string;
+  kind: string;
+  description: string | null;
+}
 
 interface HorseDetail {
   id: string;
@@ -19,9 +52,14 @@ interface HorseDetail {
   age: number | null;
   notes: string | null;
   dentalDueDate: string | null;
+  vaccinationDueDate: string | null;
   active: boolean;
   customer: { id: string; fullName: string };
   primaryYard: { id: string; yardName: string; postcode: string } | null;
+  dentalCharts: DentalChartSummary[];
+  findings: ClinicalFindingSummary[];
+  prescriptions: PrescriptionSummary[];
+  attachments: AttachmentSummary[];
 }
 
 export default function HorseDetailPage() {
@@ -87,6 +125,7 @@ export default function HorseDetailPage() {
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between"><dt className="text-muted">{t('age')}</dt><dd>{horse.age ?? '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted">{t('dentalDue')}</dt><dd>{horse.dentalDueDate ? format.dateTime(new Date(horse.dentalDueDate), { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted">{t('vaccinationDue')}</dt><dd>{horse.vaccinationDueDate ? format.dateTime(new Date(horse.vaccinationDueDate), { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted">{t('active')}</dt><dd className={horse.active ? 'text-green-600' : 'text-muted'}>{horse.active ? t('active') : t('inactive')}</dd></div>
                 {horse.notes && <div><dt className="text-muted">{t('form.notes')}</dt><dd className="mt-1">{horse.notes}</dd></div>}
               </dl>
@@ -102,6 +141,13 @@ export default function HorseDetailPage() {
               <Link href={`/customers/${horse.customer.id}`} className="text-primary hover:underline">{horse.customer.fullName}</Link>
             </Card>
           </div>
+
+          <HorseClinicalHistory
+            dentalCharts={horse.dentalCharts}
+            findings={horse.findings}
+            prescriptions={horse.prescriptions}
+            attachments={horse.attachments}
+          />
         </main>
       </div>
       <MobileNav />

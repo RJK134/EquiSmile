@@ -226,10 +226,19 @@
     "horseName": "Nom",
     "age": "Âge",
     "dentalDue": "Soins dentaires prévus",
+    "vaccinationDue": "Vaccination prévue",
     "active": "Actif",
     "inactive": "Inactif",
     "customer": "Propriétaire",
     "yard": "Écurie",
+    "clinicalHistory": {
+      "title": "Historique clinique",
+      "empty": "Aucun dossier clinique pour le moment.",
+      "dentalCharts": "Schémas dentaires",
+      "findings": "Constatations",
+      "prescriptions": "Ordonnances",
+      "attachments": "Pièces jointes"
+    },
     "form": {
       "title": "Créer un cheval",
       "editTitle": "Modifier le cheval",
@@ -259,6 +268,27 @@
     "requestInfo": "Demander des infos",
     "escalate": "Escalader",
     "classify": "Classifier",
+    "replyWithTemplate": "Répondre avec un modèle",
+    "stockReply": {
+      "title": "Répondre avec un modèle prédéfini",
+      "subtitle": "Choisissez un modèle, prévisualisez le message et confirmez l'envoi. Le canal préféré du client (WhatsApp / e-mail) est utilisé automatiquement.",
+      "preview": "Aperçu",
+      "send": "Envoyer la réponse",
+      "sending": "Envoi…",
+      "sendError": "Impossible d'envoyer la réponse. Réessayez ou utilisez la réponse manuelle.",
+      "templates": {
+        "faq_acknowledge_v1": "Accuser réception — réponse sous 24 h",
+        "faq_request_info_v1": "Demander plus d'infos (code postal, nb de chevaux, préoccupations)",
+        "faq_routine_booking_v1": "Rendez-vous de routine — proposer un créneau de tournée locale",
+        "faq_emergency_redirect_v1": "Redirection urgence — demander d'appeler directement"
+      },
+      "toastSent": {
+        "faq_acknowledge_v1": "Accusé de réception envoyé.",
+        "faq_request_info_v1": "Demande d'informations envoyée.",
+        "faq_routine_booking_v1": "Proposition de RDV de routine envoyée.",
+        "faq_emergency_redirect_v1": "Redirection urgence envoyée."
+      }
+    },
     "bulkActions": "Actions groupées",
     "batchAssign": "Assigner en lot",
     "batchClassify": "Classifier en lot",

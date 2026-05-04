@@ -51,7 +51,87 @@ export const DEMO_TEMPLATES: Record<string, TemplateDefinition> = {
     approved: true,
     category: 'APPOINTMENT_UPDATE',
   },
+  // Phase A (May 2026 client user-story triage) — annual dental reminder.
+  // Sent ~30 days before Horse.dentalDueDate, debounced 14d via AuditLog.
+  // Reminder.service builds the body string today; this registry entry
+  // exists so the dispatch path can swap to a Meta-approved template
+  // when production WhatsApp Business templates are registered.
+  dental_due_reminder_v1: {
+    name: 'dental_due_reminder_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name', 'horse_name', 'due_date'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  // Phase A — annual vaccination reminder. Same dispatch shape as dental.
+  vaccination_due_reminder_v1: {
+    name: 'vaccination_due_reminder_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name', 'horse_name', 'due_date'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  // Phase A — overdue-invoice reminder. Sent ≥30 days past invoice due
+  // date, debounced 14d via Invoice.lastReminderSentAt. WhatsApp-first
+  // per the client acceptance criterion in
+  // docs/CLIENT_USER_STORY_TRIAGE.md §1.
+  invoice_overdue_reminder_v1: {
+    name: 'invoice_overdue_reminder_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name', 'invoice_number', 'amount', 'days_past_due'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  // Phase A (G-2b) — operator-picked stock replies for the triage queue.
+  // The vet picks one, previews the body, confirms and sends. Hard rule
+  // from the client's user story: "Automated responses must remain
+  // editable and reviewable" — no silent auto-send.
+  faq_acknowledge_v1: {
+    name: 'faq_acknowledge_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  faq_request_info_v1: {
+    name: 'faq_request_info_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  faq_routine_booking_v1: {
+    name: 'faq_routine_booking_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
+  faq_emergency_redirect_v1: {
+    name: 'faq_emergency_redirect_v1',
+    languages: ['en', 'fr'],
+    parameters: ['customer_name'],
+    approved: true,
+    category: 'UTILITY',
+  },
 };
+
+/**
+ * Stock-reply identifiers a vet can pick from the triage queue (G-2b).
+ * Each maps to a Meta-approved template name above and a bilingual body
+ * string defined in `lib/services/stock-reply.service.ts`. Keeping the
+ * list small (4 patterns) bounds the operator decision space — when the
+ * client's FAQ corpus arrives in Phase C, additional entries register
+ * here.
+ */
+export const STOCK_REPLY_TEMPLATES = [
+  'faq_acknowledge_v1',
+  'faq_request_info_v1',
+  'faq_routine_booking_v1',
+  'faq_emergency_redirect_v1',
+] as const;
+
+export type StockReplyTemplateName = (typeof STOCK_REPLY_TEMPLATES)[number];
 
 /**
  * Convenience accessor. Throws if the env-configured template name

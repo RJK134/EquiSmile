@@ -1,0 +1,45 @@
+# EquiSmile CODEOWNERS
+#
+# Per CLAUDE.md, final merge always belongs to a human (Richard or Freddie).
+# These rules auto-request reviews on path-touch so the right human sees the
+# change before merge.
+#
+# Format reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# NOTE: @freddie's GitHub handle to be added when known. For now @RJK134 is
+# the universal owner; update this file in the same PR that adds Freddie's
+# handle so the ownership graph is correct from the first day.
+
+# Default owner for everything not matched below.
+*                                @RJK134
+
+# Schema and migrations — high-blast-radius. Always review carefully.
+/prisma/                         @RJK134
+/prisma/migrations/              @RJK134
+
+# Server-side service code — invariants live here.
+/lib/services/                   @RJK134
+/lib/integrations/               @RJK134
+/lib/repositories/               @RJK134
+/lib/security/                   @RJK134
+/lib/env.ts                      @RJK134
+
+# API surface — auth, validation, public contracts.
+/app/api/                        @RJK134
+
+# Auth / session code.
+/app/api/auth/                   @RJK134
+/lib/auth/                       @RJK134
+
+# Operational config — Vercel, Docker, CI workflows.
+/vercel.json                     @RJK134
+/docker-compose.yml              @RJK134
+/Dockerfile                      @RJK134
+/scripts/                        @RJK134
+/.github/workflows/              @RJK134
+
+# Documentation — lower friction, but PRs that only touch docs still ping.
+/docs/                           @RJK134
+/CLAUDE.md                       @RJK134
+/AGENTS.md                       @RJK134
+/README.md                       @RJK134
