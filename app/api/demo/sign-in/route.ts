@@ -102,6 +102,11 @@ export async function POST(request: NextRequest) {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
+    // Mark Secure on Vercel (always HTTPS) but keep working over plain
+    // HTTP on `localhost` in dev. Defence-in-depth: the route is already
+    // hard-blocked outside DEMO_MODE, but a Secure cookie cannot be
+    // exfiltrated over an accidentally-served HTTP response.
+    secure: process.env.NODE_ENV === 'production',
   });
   return response;
 }

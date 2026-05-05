@@ -189,7 +189,7 @@ DATABASE_URL=postgresql://test:test@localhost:5432/test \
 
 Manual:
 - `/en/horses/<id>` (Bella) shows clinical-history section with seeded data.
-- Run `POST /api/reminders/check` with a seed where one invoice is 35d overdue and one horse is dental-due in 14d → verify two WhatsApp dispatches in the demo log.
+- Run `GET /api/reminders/check` (with `Authorization: Bearer $N8N_API_KEY`) against a seed where one invoice is 35d overdue and one horse is dental-due in 14d → verify two WhatsApp dispatches in the demo log. The route only exports a `GET` handler — calling it with `POST` returns `405 Method Not Allowed`.
 - Field `vaccinationDueDate` visible on horse detail; persists through edit/refresh.
 - Mobile layout intact at 390px on the horse detail page.
 
