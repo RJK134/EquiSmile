@@ -113,6 +113,41 @@ describe('POST /api/demo/sign-in', () => {
     expect(setCookie).toContain('Path=/');
   });
 
+  it('marks the session cookie Secure when NODE_ENV=production', async () => {
+    const env = process.env as Record<string, string | undefined>;
+    const originalNodeEnv = env.NODE_ENV;
+    env.DEMO_MODE = 'true';
+    env.NODE_ENV = 'production';
+    try {
+      vi.resetModules();
+      const { POST } = await import('@/app/api/demo/sign-in/route');
+      const res = await POST(buildRequest([['locale', 'en']]));
+      const setCookie = res.headers.get('set-cookie') ?? '';
+      expect(setCookie.toLowerCase()).toContain('secure');
+    } finally {
+      env.NODE_ENV = originalNodeEnv;
+      vi.resetModules();
+    }
+  });
+
+  it('does NOT mark the session cookie Secure when NODE_ENV=development', async () => {
+    const env = process.env as Record<string, string | undefined>;
+    const originalNodeEnv = env.NODE_ENV;
+    env.DEMO_MODE = 'true';
+    env.NODE_ENV = 'development';
+    try {
+      vi.resetModules();
+      const { POST } = await import('@/app/api/demo/sign-in/route');
+      const res = await POST(buildRequest([['locale', 'en']]));
+      const setCookie = res.headers.get('set-cookie') ?? '';
+      expect(setCookie).toContain('authjs.session-token=');
+      expect(setCookie.toLowerCase()).not.toContain('secure');
+    } finally {
+      env.NODE_ENV = originalNodeEnv;
+      vi.resetModules();
+    }
+  });
+
   it('upserts the default admin persona when no persona field is submitted', async () => {
     process.env.DEMO_MODE = 'true';
     const { POST } = await import('@/app/api/demo/sign-in/route');

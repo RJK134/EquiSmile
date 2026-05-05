@@ -11,10 +11,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { bankImportService } from '@/lib/services/bank-import.service';
 
+// Vercel serverless functions cap inbound JSON bodies at 4.5 MB
+// (https://vercel.com/docs/functions/runtimes#request-body-size). A
+// payload larger than that is rejected by Vercel before this handler
+// runs, surfacing a confusing "request body too large" error to the
+// operator. Cap the content string at 4.4 MB so the surrounding JSON
+// envelope (filename, format, importedById) fits inside the platform
+// limit and Zod returns a clean validation error first.
+const MAX_CONTENT_BYTES = 4_400_000;
+
 const ImportSchema = z.object({
   filename: z.string().min(1).max(255),
   format: z.enum(['CSV', 'CAMT_054']),
-  content: z.string().min(1).max(5_000_000),
+  content: z.string().min(1).max(MAX_CONTENT_BYTES),
   importedById: z.string().nullable().optional(),
 });
 
